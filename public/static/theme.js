@@ -3,7 +3,7 @@
 // prefers-color-scheme. Classic script on purpose (must run before first paint).
 (function () {
   try {
-    var theme = localStorage.getItem('theme');
+    const theme = localStorage.getItem('theme');
     if (theme === 'light' || theme === 'dark') document.documentElement.dataset.theme = theme;
   } catch (e) {
     /* Private mode: fall back to prefers-color-scheme. */

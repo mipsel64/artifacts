@@ -99,8 +99,13 @@ try {
     onCaughtError: report,
     onRecoverableError: report,
   }).render(imports[1].createElement(Component));
+  // React paints asynchronously; the flag after the first frame means the root is on screen.
+  requestAnimationFrame(function () {
+    window.__artifactReady = true;
+  });
 } catch (err) {
   showError(err);
+  window.__artifactReady = true;
 }
 `;
 
@@ -109,8 +114,10 @@ try {
   var source = ${READ_SOURCE};
   var marked = await import('${MARKED_URL}');
   document.getElementById('out').innerHTML = marked.parse(source);
+  window.__artifactReady = true;
 } catch (err) {
   showError(err);
+  window.__artifactReady = true;
 }
 `;
 
@@ -122,9 +129,11 @@ try {
   mermaid.initialize({ startOnLoad: false, theme: dark ? 'dark' : 'default', suppressErrorRendering: true });
   var result = await mermaid.render('artifact-diagram', source);
   document.getElementById('out').innerHTML = result.svg;
+  window.__artifactReady = true;
 } catch (err) {
   document.querySelectorAll('#dartifact-diagram').forEach(function (el) { el.remove(); });
   showError(err);
+  window.__artifactReady = true;
 }
 `;
 
@@ -137,8 +146,10 @@ try {
   var result = language && hljs.getLanguage(language) ? hljs.highlight(source, { language: language }) : hljs.highlightAuto(source);
   el.innerHTML = result.value;
   el.className = 'hljs language-' + (result.language || 'plaintext');
+  window.__artifactReady = true;
 } catch (err) {
   showError(err);
+  window.__artifactReady = true;
 }
 `;
 
@@ -156,16 +167,21 @@ function page(title: string, head: string, body: string, source: string): string
 
 const moduleScript = (code: string) => `<script type="module">${code}</script>`;
 
-// Classic script for the print mode of the render routes: opens the print dialog on
-// the artifact document itself shortly after load. Only served when the render URL
-// has ?print=1 — the viewer's iframe src never includes it.
+// Classic scripts for the print mode of the render routes. Renderers set
+// window.__artifactReady when their output is on screen; PRINT_SCRIPT (only served
+// when the render URL has ?print=1 — the viewer's iframe src never includes it)
+// waits for that flag with a 10 s fallback, then opens the print dialog on the
+// artifact document itself.
+const PRINT_READY_FLAG = '<script>window.__artifactReady = true</script>';
 const PRINT_SCRIPT =
-  '<script>window.addEventListener("load",function(){setTimeout(function(){window.print()},400)})</script>';
+  '<script>window.addEventListener("load",function(){var start=Date.now();(function wait(){' +
+  'if(window.__artifactReady||Date.now()-start>10000)setTimeout(function(){window.print()},400);' +
+  'else setTimeout(wait,50)})()})</script>';
 
-function withPrintScript(document_: string, print: boolean): string {
+// Appending after </html> is safe: browsers still execute trailing scripts.
+function withPrintScript(document_: string, print: boolean, ready = false): string {
   if (!print) return document_;
-  const close = document_.toLowerCase().lastIndexOf('</body>');
-  return close === -1 ? document_ + PRINT_SCRIPT : document_.slice(0, close) + PRINT_SCRIPT + document_.slice(close);
+  return document_ + (ready ? PRINT_READY_FLAG : '') + PRINT_SCRIPT;
 }
 
 export function renderDocument(
@@ -175,7 +191,7 @@ export function renderDocument(
 ): string {
   switch (meta.type) {
     case 'html':
-      return withPrintScript(content, print);
+      return withPrintScript(content, print, true);
     case 'svg':
       return withPrintScript(
         '<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n' +
@@ -185,6 +201,7 @@ export function renderDocument(
           'body>svg{max-width:100vw;max-height:100vh;width:auto;height:auto}</style>\n</head>\n' +
           `<body>\n${content}\n</body>\n</html>\n`,
         print,
+        true,
       );
     case 'markdown':
       return withPrintScript(

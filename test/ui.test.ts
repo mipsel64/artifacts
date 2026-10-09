@@ -309,6 +309,8 @@ describe('viewer', () => {
     const meta = await createArtifact(env, user.id, { title: 'Doc', type: 'html', content: 'x' });
     const body = await (await request(`/a/${meta.id}`, init)).text();
     expect(body).toContain('<dialog id="rename-dialog" class="dialog" aria-labelledby="rename-heading">');
+    expect(body).toContain('<div id="rename-error" class="callout callout-danger" role="alert" aria-live="assertive" hidden="">');
+    expect(body).toContain('<div class="callout-body" id="rename-error-message"></div>');
     expect(body).toContain('<label for="rename-title">Title</label>');
     expect(body).toContain('<input id="rename-title" name="title" required="" maxlength="200" autocomplete="off" value="Doc"/>');
     expect(body).toContain('data-form="rename"');

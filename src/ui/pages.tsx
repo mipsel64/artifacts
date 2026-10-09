@@ -558,6 +558,10 @@ export function Viewer({ meta, version, content, now }: { meta: ArtifactView; ve
         </aside>
       </div>
       <dialog id="rename-dialog" class="dialog" aria-labelledby="rename-heading">
+        <div id="rename-error" class="callout callout-danger" role="alert" aria-live="assertive" hidden>
+          <Icon name="circle-alert" size={20} />
+          <div class="callout-body" id="rename-error-message"></div>
+        </div>
         <form class="form" data-form="rename" data-id={meta.id}>
           <h2 id="rename-heading">Rename artifact</h2>
           <div class="field">

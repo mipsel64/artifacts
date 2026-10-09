@@ -118,25 +118,34 @@ describe('renderDocument', () => {
   });
 
   describe('print mode', () => {
-    const PRINT = 'window.addEventListener("load"';
+    const FLAG = '<script>window.__artifactReady = true</script>';
 
-    it.each(ARTIFACT_TYPES.filter((t) => t !== 'html'))('appends the print script to %s only with print', (type) => {
-      expect(renderDocument(meta(type), 'x')).not.toContain(PRINT);
-      expect(renderDocument(meta(type), 'x', true)).toContain(PRINT);
-      expect(renderDocument(meta(type), 'x', true)).toContain('window.print()');
-    });
+    it.each(ARTIFACT_TYPES.filter((t) => t !== 'html' && t !== 'svg'))(
+      'appends the waiter to %s and lets its renderer signal readiness',
+      (type) => {
+        const doc = renderDocument(meta(type), 'x');
+        expect(doc).not.toContain('window.print()');
+        expect(doc).toContain('window.__artifactReady = true');
+        const printed = renderDocument(meta(type), 'x', true);
+        expect(printed).toContain('window.print()');
+        expect(printed).toContain('__artifactReady||Date.now()-start>10000');
+        expect(printed).not.toContain(FLAG);
+      },
+    );
 
-    it('injects the print script into html content before </body>', () => {
-      const content = '<!doctype html><html><body><h1>hi</h1></body></html>';
+    it('appends the ready flag and waiter after html documents, even past misleading </body> text', () => {
+      const content = '<!doctype html><html><body><h1>hi</h1><!-- </body> --></body></html>';
       expect(renderDocument(meta('html'), content)).toBe(content);
       const printed = renderDocument(meta('html'), content, true);
-      expect(printed).toContain('window.print()');
-      expect(printed.indexOf('window.print()')).toBeLessThan(printed.toLowerCase().lastIndexOf('</body>'));
+      expect(printed.startsWith(content)).toBe(true);
+      expect(printed).toContain(FLAG);
+      expect(printed.indexOf('window.print()')).toBeGreaterThan(printed.toLowerCase().lastIndexOf('</body>'));
     });
 
-    it('appends the print script to html without a body tag', () => {
+    it('appends the scripts to html without a body tag too', () => {
       const printed = renderDocument(meta('html'), '<p>no body</p>', true);
       expect(printed.startsWith('<p>no body</p>')).toBe(true);
+      expect(printed).toContain(FLAG);
       expect(printed).toContain('window.print()');
     });
   });

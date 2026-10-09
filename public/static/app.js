@@ -137,11 +137,17 @@ const forms = {
     form.reset();
   },
   async rename(form) {
-    const title = form.elements.title.value;
-    await api('PATCH', `/api/artifacts/${form.dataset.id}`, { title });
-    const text = document.querySelector('.title-text');
-    if (text) text.textContent = title;
-    document.getElementById('rename-dialog').close();
+    // The global #error box is inert under showModal(), so failures surface inside the dialog.
+    try {
+      const view = await api('PATCH', `/api/artifacts/${form.dataset.id}`, { title: form.elements.title.value });
+      const text = document.querySelector('.title-text');
+      if (text) text.textContent = view.title;
+      document.title = `${view.title} · Artifacts`;
+      document.getElementById('rename-dialog').close();
+    } catch (err) {
+      $('#rename-error-message').textContent = err.message;
+      $('#rename-error').hidden = false;
+    }
   },
 };
 
@@ -251,16 +257,28 @@ function toggleMenu(button) {
   closeMenu(false);
   panel.hidden = false;
   button.setAttribute('aria-expanded', 'true');
+  placeMenuBelowHeader(panel);
   openMenu = { button, panel };
   const first = panel.querySelector('[role=menuitem]') || panel.querySelector('[role=tab]');
   if (first) first.focus();
 }
 
+function placeMenuBelowHeader(panel) {
+  // The signed-in header wraps over several rows on small screens; fixed menus must clear all of them.
+  if (!window.matchMedia('(max-width: 720px)').matches) return;
+  const header = document.querySelector('.site-header');
+  if (header) panel.style.top = `${Math.ceil(header.getBoundingClientRect().bottom) + 8}px`;
+}
+
+window.addEventListener('resize', () => {
+  if (openMenu) placeMenuBelowHeader(openMenu.panel);
+});
+
 document.addEventListener('click', (event) => {
   const opener = event.target.closest('[data-menu-button]');
   if (opener) return toggleMenu(opener);
   if (openMenu && !event.target.closest('.menu-panel')) closeMenu(false);
-  if (openMenu && event.target.closest('[role=menuitem]')) closeMenu(false);
+  if (openMenu && event.target.closest('[role=menuitem]')) closeMenu(true);
   const item = event.target.closest('[data-action]');
   if (item && item.dataset.action === 'rename') return openRenameDialog();
   if (item && (item.dataset.action === 'share' || item.dataset.action === 'unshare')) {
@@ -275,6 +293,9 @@ document.addEventListener('click', (event) => {
 
 document.addEventListener('keydown', (event) => {
   if (!openMenu) return;
+  // Only the open menu and its trigger own the arrow keys; other widgets keep native behaviour.
+  const owns = openMenu.panel.contains(event.target) || openMenu.button.contains(event.target) || event.target === openMenu.button;
+  if (!owns) return;
   if (event.key === 'Escape') {
     event.preventDefault();
     closeMenu(true);
@@ -287,6 +308,16 @@ document.addEventListener('keydown', (event) => {
   const next = event.key === 'ArrowDown' ? items[(current + 1) % items.length] : items[(current - 1 + items.length) % items.length];
   event.preventDefault();
   next.focus();
+});
+
+document.addEventListener('focusout', (event) => {
+  if (!openMenu) return;
+  const fromMenu = openMenu.panel.contains(event.target) || event.target === openMenu.button;
+  if (!fromMenu) return;
+  // Close only when focus moved somewhere specific outside; relatedTarget is null when the
+  // focused element itself was hidden or removed (e.g. the share state swap), which keeps the menu open.
+  const to = event.relatedTarget;
+  if (to && !openMenu.panel.contains(to) && to !== openMenu.button) closeMenu(false);
 });
 
 /* Sharing without a reload: swap the Link tab in place. --------------------- */
@@ -315,6 +346,7 @@ function openRenameDialog() {
   const input = dialog.querySelector('input[name=title]');
   const title = document.querySelector('.title-text');
   if (input && title) input.value = title.textContent;
+  $('#rename-error').hidden = true;
   dialog.showModal();
   if (input) {
     input.focus();

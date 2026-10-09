@@ -193,6 +193,24 @@ describe('export', () => {
     expect(await res.text()).toBe('# My Script\n\n\u0060\u0060\u0060python\nprint(1)\n\u0060\u0060\u0060\n');
   });
 
+  it('grows the fence past backtick runs in the content', async () => {
+    const { alice } = await setup();
+    const f = (n: number) => '`'.repeat(n);
+    const content = 'a\n```\nb\n````\nc';
+    const a = await create(alice.token, { title: 'Fenced', type: 'html', content });
+    const res = await send(alice.token, 'GET', `/api/artifacts/${a.id}/export?format=md`);
+    expect(await res.text()).toBe(`# Fenced\n\n${f(5)}html\n${content}\n${f(5)}\n`);
+  });
+
+  it('outfences the longest backtick run by one', async () => {
+    const { alice } = await setup();
+    const f = (n: number) => '`'.repeat(n);
+    const content = `x\n${f(5)}\ny`;
+    const a = await create(alice.token, { title: 'Deep', type: 'code', content, language: 'markdown' });
+    const res = await send(alice.token, 'GET', `/api/artifacts/${a.id}/export?format=md`);
+    expect(await res.text()).toBe(`# Deep\n\n${f(6)}markdown\n${content}\n${f(6)}\n`);
+  });
+
   it('exports the standalone render document as html with download headers', async () => {
     const { alice } = await setup();
     const a = await create(alice.token);

@@ -78,7 +78,10 @@ function asMarkdown(meta: { title: string; type: ArtifactType; language: string 
   const heading = `# ${meta.title}\n\n`;
   if (meta.type === 'markdown') return heading + content;
   const tag = meta.type === 'code' ? (meta.language ?? '') : MD_FENCES[meta.type];
-  return heading + '```' + tag + '\n' + content + '\n```\n';
+  // The fence must outlast every backtick run in the content or the block breaks open.
+  const longest = (content.match(/`+/g) ?? []).reduce((max, run) => Math.max(max, run.length), 0);
+  const fence = '`'.repeat(Math.max(3, longest + 1));
+  return heading + fence + tag + '\n' + content + '\n' + fence + '\n';
 }
 
 routes.get('/api/artifacts/:id/export', async (c) => {
