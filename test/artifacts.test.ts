@@ -231,8 +231,13 @@ describe('listArtifacts', () => {
 
   it('cuts long titles in the index only', async () => {
     const meta = await createArtifact(env, 'u1', { ...input, title: 'x'.repeat(200) }, T0);
-    expect((await listArtifacts(env, 'u1', T0))[0].title).toHaveLength(100);
+    expect((await listArtifacts(env, 'u1', T0))[0].title).toBe(`${'x'.repeat(99)}…`);
     expect((await getArtifact(env, 'u1', meta.id, T0)).title).toHaveLength(200);
+  });
+
+  it('keeps a title of exactly 100 characters whole in the index', async () => {
+    await createArtifact(env, 'u1', { ...input, title: 'y'.repeat(100) }, T0);
+    expect((await listArtifacts(env, 'u1', T0))[0].title).toBe('y'.repeat(100));
   });
 
   it('shows the shared flag and follows KV list cursors', async () => {

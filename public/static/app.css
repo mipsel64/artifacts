@@ -298,24 +298,20 @@ pre,
   top: 0;
   z-index: 20;
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  gap: 0 var(--s5);
-  min-height: var(--header-h);
-  padding: 0 max(var(--s4), calc((100% - 1120px) / 2 + var(--s4)));
+  justify-content: space-between;
+  gap: var(--s3);
+  height: var(--header-h);
+  padding: 0 var(--s4);
   border-bottom: 1px solid var(--border);
   background: var(--bg);
-}
-
-.is-fill .site-header {
-  padding-inline: var(--s5);
 }
 
 .brand {
   display: inline-flex;
   align-items: center;
   gap: var(--s2);
-  min-height: var(--control);
+  min-height: 44px;
   color: var(--text);
   font-weight: 600;
   font-size: var(--fs-base);
@@ -330,76 +326,70 @@ pre,
   stroke: var(--on-accent);
 }
 
-.site-nav {
-  display: flex;
-  align-items: stretch;
-  align-self: stretch;
-  gap: var(--s1);
-}
-
-.site-nav a {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  padding: 0 var(--s3);
-  color: var(--text-muted);
-  font-size: var(--fs-sm);
-  font-weight: 500;
-  text-decoration: none;
-  transition: color var(--ease);
-}
-
-.site-nav a:hover {
-  color: var(--text);
-}
-
-.site-nav a[aria-current='page'] {
-  color: var(--text);
-}
-
-.site-nav a[aria-current='page']::after {
-  content: '';
-  position: absolute;
-  left: var(--s3);
-  right: var(--s3);
-  bottom: -1px;
-  height: 2px;
-  background: var(--accent);
-}
-
-.account {
+.header-end {
   display: flex;
   align-items: center;
   gap: var(--s2);
-  margin-left: auto;
   min-width: 0;
 }
 
-.theme-switch {
-  order: 0;
-  margin-left: auto;
+/* The header's New link is quiet: the accent fill is reserved for primary actions inside pages. */
+.header-new {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 var(--s3);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font: 500 var(--fs-sm) / 1 var(--font);
+  text-decoration: none;
+  touch-action: manipulation;
+  transition: background-color var(--ease);
 }
 
-.account {
-  margin-left: var(--s3);
+.header-new:hover {
+  background: var(--surface-2);
 }
 
-.account form {
-  margin: 0;
-}
-
-.account-email {
+/* The account button: avatar, display name and chevron; it opens the account menu. */
+.account-button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
   min-width: 0;
+  height: 36px;
+  padding: 0 var(--s2) 0 var(--s1);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  font: 500 var(--fs-sm) / 1 var(--font);
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: background-color var(--ease);
+}
+
+.account-button:hover,
+.account-button[aria-expanded='true'] {
+  background: var(--surface-2);
+}
+
+.account-name {
+  min-width: 0;
+  max-width: 160px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--text-muted);
-  font-size: var(--fs-sm);
 }
 
 .avatar {
   flex: none;
   border-radius: 50%;
+  object-fit: cover;
+  background: var(--surface-2);
 }
 
 .initial {
@@ -417,83 +407,177 @@ pre,
   line-height: 1;
 }
 
-/* System / Light / Dark switcher. aria-pressed marks the active option. */
-.theme-switch {
-  order: 4;
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  padding: 2px;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-sm);
+.account-button .initial {
+  width: 28px;
+  height: 28px;
 }
 
-.theme-switch button {
+.menu-head .initial {
+  width: 36px;
+  height: 36px;
+  font-size: var(--fs-base);
+}
+
+.menu-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding: var(--s2) var(--s3);
+}
+
+.menu-head-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.menu-head-name,
+.menu-head-email {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.menu-head-name {
+  color: var(--text);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+}
+
+.menu-head-email {
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+}
+
+/* Appearance row: a label and the System / Light / Dark radios (menuitemradio). */
+.menu-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+  min-height: var(--control);
+  padding: 0 var(--s3);
+}
+
+.menu-row-label {
+  color: var(--text);
+  font-size: var(--fs-sm);
+  font-weight: 500;
+}
+
+/* Segmented pill shared by the Preview/Code toggle and the theme radios. */
+.segmented,
+.view-toggle {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+
+.segmented button,
+.view-tab {
+  position: relative;
   display: inline-grid;
   place-items: center;
-  width: 44px;
-  height: 44px;
+  width: 32px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  touch-action: manipulation;
+  transition:
+    color var(--ease),
+    background-color var(--ease);
+}
+
+.segmented button:hover,
+.view-tab:hover {
+  color: var(--text);
+}
+
+.segmented button:focus-visible,
+.view-tab:focus-visible {
+  outline-offset: 0;
+}
+
+.segmented button[aria-checked='true'],
+.view-tab[aria-selected='true'] {
+  border-color: var(--border-strong);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.14);
+}
+
+/* Signed out: one icon button cycles System, Light, Dark. The icon follows <html data-theme>. */
+.icon-button {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
   border: 0;
   border-radius: var(--radius-sm);
   background: transparent;
   color: var(--text-muted);
   cursor: pointer;
   touch-action: manipulation;
-  transition: color var(--ease), background-color var(--ease);
+  transition:
+    color var(--ease),
+    background-color var(--ease);
 }
 
-.theme-switch button:hover {
-  color: var(--text);
-  background-image: linear-gradient(var(--hover), var(--hover));
-}
-
-.theme-switch button[aria-pressed='true'] {
+.icon-button:hover {
   background: var(--surface-2);
   color: var(--text);
 }
 
+.theme-icon-light,
+.theme-icon-dark,
+[data-theme='light'] .theme-icon-system,
+[data-theme='dark'] .theme-icon-system {
+  display: none;
+}
+
+[data-theme='light'] .theme-icon-light,
+[data-theme='dark'] .theme-icon-dark {
+  display: inline-block;
+}
+
 @media (max-width: 720px) {
   .site-header {
-    row-gap: 0;
+    padding-inline: var(--s2);
   }
 
-  .account {
-    order: 2;
+  .account-name {
+    max-width: 112px;
+  }
+}
+
+@media (max-width: 480px) {
+  .account-name {
+    max-width: 88px;
   }
 
-  .site-nav {
-    order: 3;
-    width: 100%;
-    min-height: var(--control);
-    margin: 0 calc(var(--s3) * -1);
-  }
-
-  .site-nav a {
-    flex: 1;
+  .header-new {
+    width: 40px;
+    padding: 0;
     justify-content: center;
   }
 
-  .site-nav a[aria-current='page']::after {
-    bottom: 0;
-  }
-
-  .brand {
-    margin-right: auto;
-  }
-
-  .account {
-    margin-left: 0;
-    max-width: 60%;
-  }
-
-  .account .btn-label {
+  .header-new .btn-label {
     display: none;
   }
 
-  .theme-switch {
-    order: 4;
-    margin-top: var(--s1);
-    margin-bottom: var(--s1);
+  .header-new::after {
+    inset: -4px;
   }
 }
 
@@ -520,7 +604,7 @@ pre,
   flex-direction: column;
   min-height: 0;
   max-width: none;
-  padding: var(--s5);
+  padding: var(--s4);
 }
 
 .page-head {
@@ -589,14 +673,6 @@ pre,
   background-image: none;
 }
 
-summary.button {
-  list-style: none;
-}
-
-summary.button::-webkit-details-marker {
-  display: none;
-}
-
 .button-primary {
   border-color: var(--accent);
   background-color: var(--accent);
@@ -625,14 +701,26 @@ summary.button::-webkit-details-marker {
   color: var(--text);
 }
 
-.button-icon {
-  width: var(--control);
-  padding: 0;
-}
-
 .button-sm {
   min-height: 32px;
   padding: 0 var(--s3);
+}
+
+.button-compact {
+  position: relative;
+  min-height: 30px;
+  padding: 0 10px;
+  gap: 6px;
+  font-size: var(--fs-xs);
+}
+
+.button-compact.icon-button-compact {
+  width: 30px;
+  padding: 0;
+}
+
+.icon-button-compact .btn-label {
+  display: none;
 }
 
 .button-lg {
@@ -675,13 +763,6 @@ summary.button::-webkit-details-marker {
 
 /* Chips, callouts --------------------------------------------------------- */
 
-.chips {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--s2);
-}
-
 .chip {
   display: inline-flex;
   align-items: center;
@@ -707,19 +788,6 @@ summary.button::-webkit-details-marker {
 
 .chip-accent .icon {
   color: var(--accent);
-}
-
-.chip-detail {
-  padding-left: 6px;
-  border-left: 1px solid var(--border-strong);
-  color: var(--text-muted);
-  font-family: var(--mono);
-}
-
-/* The type chip carries a colored icon, so it sits on --bg like the tiles. */
-.chip-type {
-  border: 1px solid var(--border);
-  background: var(--bg);
 }
 
 .callout {
@@ -784,7 +852,7 @@ summary.button::-webkit-details-marker {
 }
 
 .is-fill .callout-global {
-  width: calc(100% - 2 * var(--s5));
+  width: calc(100% - 2 * var(--s4));
   max-width: none;
 }
 
@@ -1150,66 +1218,168 @@ textarea:focus-visible {
 
 /* Viewer ------------------------------------------------------------------ */
 
-.viewer-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--s3) var(--s5);
-  margin-bottom: var(--s4);
-}
-
-.viewer-title {
+/* One bordered block: the slim header row on top, the preview or code filling the rest. */
+.viewer {
+  flex: 1;
   display: flex;
   flex-direction: column;
-  gap: var(--s2);
   min-width: 0;
-  flex: 1 1 320px;
+  min-height: 360px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
 }
 
-.viewer-actions {
+.viewer-bar {
   display: flex;
   align-items: center;
   gap: var(--s2);
+  min-height: 48px;
+  padding: 0 var(--s2);
+  border-bottom: 1px solid var(--border);
+  border-radius: 7px 7px 0 0;
+  background: var(--surface);
 }
 
-/* The title itself opens the artifact menu (Claude-style actions under the title). */
+.view-toggle {
+  margin-right: var(--s1);
+}
+
+.viewer-bar > .menu-anchor {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.viewer-bar-end {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--s1);
+  margin-left: auto;
+}
+
+/* The title is the page's h1 but styled as a row label; it opens the artifact menu. */
+.viewer-title {
+  display: flex;
+  min-width: 0;
+  font-size: 15px;
+  line-height: 1.2;
+}
+
+.viewer-title-plain {
+  flex: 0 1 auto;
+  align-items: center;
+  gap: var(--s2);
+  padding: 0 var(--s2);
+  font-weight: 600;
+}
+
 .title-button {
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: var(--s2);
+  min-width: 0;
   max-width: 100%;
-  min-height: var(--control);
+  height: 32px;
   padding: 0 var(--s2);
-  margin-left: calc(var(--s2) * -1);
   border: 0;
   border-radius: var(--radius-sm);
   background: transparent;
   color: var(--text);
-  font: 600 var(--fs-xl) / 1.25 var(--font);
+  font: 600 15px / 1.2 var(--font);
   text-align: left;
   cursor: pointer;
   touch-action: manipulation;
+  transition: background-color var(--ease);
 }
 
-.title-button:hover {
-  background: var(--surface);
+.title-button:hover,
+.title-button[aria-expanded='true'] {
+  background: var(--surface-2);
 }
 
-.title-button .title-text {
+.title-text {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.title-button .icon {
+/* Static type label inline after the title: not a button. */
+.type-tag {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 1px 6px;
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  color: var(--text-muted);
+  font: 400 11px / 1.4 var(--mono);
+}
+
+.type-tag-detail {
+  padding-left: 6px;
+  border-left: 1px solid var(--border-strong);
+}
+
+.title-button .icon,
+.quiet-button .icon {
   flex: none;
   color: var(--text-muted);
   transition: transform var(--ease);
 }
 
-.title-button[aria-expanded='true'] .icon {
+.title-button[aria-expanded='true'] .icon:last-child,
+.quiet-button[aria-expanded='true'] .icon:last-child,
+.account-button[aria-expanded='true'] .icon:last-child {
   transform: rotate(180deg);
+}
+
+.account-button .icon {
+  flex: none;
+  color: var(--text-muted);
+  transition: transform var(--ease);
+}
+
+/* The quiet version control: text with a chevron, no border. */
+.quiet-button,
+.version-static {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s1);
+  height: 30px;
+  padding: 0 var(--s2);
+  color: var(--text-muted);
+  font: 500 var(--fs-xs) / 1 var(--mono);
+}
+
+.quiet-button {
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition:
+    color var(--ease),
+    background-color var(--ease);
+}
+
+.quiet-button:hover,
+.quiet-button[aria-expanded='true'] {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.bar-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 var(--s2);
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
 }
 
 .button-shared {
@@ -1217,7 +1387,25 @@ textarea:focus-visible {
   color: var(--accent);
 }
 
-/* Shared positioning for the title menu and the share popover. */
+/* Shared state is the accent color and a dot, and "Shared" is in the accessible name. */
+.share-dot {
+  display: none;
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  width: 8px;
+  height: 8px;
+  border: 2px solid var(--surface);
+  border-radius: 50%;
+  background: var(--accent);
+  box-sizing: content-box;
+}
+
+[data-shared] .share-dot {
+  display: block;
+}
+
+/* Shared positioning for the account, artifact and version menus and the share popover. */
 .menu-anchor {
   position: relative;
 }
@@ -1243,6 +1431,12 @@ textarea:focus-visible {
   right: 0;
 }
 
+/* The anchors are shorter than their row, so drop the panel just below the row's bottom border. */
+.viewer-bar .menu-panel,
+.header-end .menu-panel {
+  top: calc(100% + 12px);
+}
+
 .menu-item {
   display: flex;
   align-items: center;
@@ -1262,17 +1456,30 @@ textarea:focus-visible {
   touch-action: manipulation;
 }
 
-.menu-item:hover {
+.menu-item:hover,
+.menu-item:focus-visible {
   background: var(--surface-2);
+}
+
+.menu-item:focus-visible {
+  outline-offset: -2px;
 }
 
 .menu-item .icon {
   color: var(--text-muted);
 }
 
+.menu-item[aria-current='page'] .icon {
+  color: var(--accent);
+}
+
 .menu-item-danger,
 .menu-item-danger .icon {
   color: var(--danger-text);
+}
+
+.menu-panel form {
+  margin: 0;
 }
 
 .menu-sep {
@@ -1282,10 +1489,61 @@ textarea:focus-visible {
   background: var(--border);
 }
 
+/* A non-interactive line at the top of a menu (the artifact's retention status). */
+.menu-note {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  padding: var(--s2) var(--s3) var(--s1);
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+}
+
+/* The type tag hides in a narrow row; the menu note repeats it there. */
+.menu-note-type {
+  display: none;
+  margin-left: auto;
+  font-family: var(--mono);
+}
+
+/* Version menu: number, date, a muted "Latest" and a check on the version being viewed. */
+.version-item {
+  display: grid;
+  grid-template-columns: auto auto 1fr 16px;
+  gap: var(--s3);
+}
+
+.version-number {
+  min-width: 2.5ch;
+  font-family: var(--mono);
+  font-weight: 600;
+}
+
+.version-date {
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+.version-latest {
+  grid-column: 3;
+  justify-self: end;
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+  font-weight: 400;
+}
+
+.version-check {
+  grid-column: 4;
+  visibility: hidden;
+}
+
+.version-item[aria-current='page'] .version-check {
+  visibility: visible;
+}
+
 /* Share popover ------------------------------------------------------------ */
 
 .popover {
-  width: 360px;
   padding-bottom: var(--s2);
 }
 
@@ -1414,98 +1672,7 @@ textarea:focus-visible {
   margin-bottom: var(--s4);
 }
 
-.versions {
-  display: flex;
-  align-items: center;
-  gap: var(--s2);
-}
-
-.version-menu {
-  position: relative;
-}
-
-.version-menu[open] > summary {
-  background-color: var(--surface-2);
-}
-
-.menu {
-  position: absolute;
-  right: 0;
-  top: calc(100% + var(--s1));
-  z-index: 30;
-  min-width: 220px;
-  max-height: 60vh;
-  margin: 0;
-  padding: var(--s1);
-  overflow: auto;
-  list-style: none;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius);
-  background: var(--surface);
-  box-shadow: var(--shadow);
-}
-
-.menu a {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--s3);
-  min-height: var(--control);
-  padding: 0 var(--s3);
-  border-radius: var(--radius-sm);
-  color: var(--text);
-  font-family: var(--mono);
-  font-size: var(--fs-sm);
-  text-decoration: none;
-}
-
-.menu a:hover {
-  background: var(--surface-2);
-}
-
-.menu .icon {
-  visibility: hidden;
-  color: var(--accent);
-}
-
-.menu a[aria-current='page'] .icon {
-  visibility: visible;
-}
-
-.viewer-body {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 320px;
-  gap: var(--s5);
-  flex: 1;
-  min-height: 0;
-}
-
-.viewer-body-single {
-  grid-template-columns: minmax(0, 1fr);
-}
-
-.panel {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  min-height: 0;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--surface);
-  overflow: hidden;
-}
-
-.panel-bar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--s2) var(--s3);
-  padding: 0 var(--s3);
-  border-bottom: 1px solid var(--border);
-  background: var(--surface);
-}
-
+/* Tabs (Settings snippets and the share popover). The viewer toggle is .view-toggle. */
 .tabs {
   display: flex;
   gap: var(--s1);
@@ -1547,23 +1714,14 @@ textarea:focus-visible {
   outline-offset: -2px;
 }
 
-.tools {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--s2);
-  padding: var(--s2) 0;
-}
-
-.tools .button {
-  min-height: var(--control);
-}
-
-.panel-body {
+.viewer-pane {
   flex: 1;
   min-height: 0;
+  overflow: hidden;
+  border-radius: 0 0 7px 7px;
 }
 
-.panel-preview {
+.viewer-preview {
   display: flex;
 }
 
@@ -1592,174 +1750,109 @@ textarea:focus-visible {
   font: inherit;
 }
 
-.panel-code {
+.viewer-code {
   display: flex;
   flex-direction: column;
 }
 
-.panel-code .code {
+.viewer-code .code {
   flex: 1;
 }
 
-.side {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  overflow: auto;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--surface);
-  align-self: start;
-  max-height: 100%;
+/* The viewer fills the viewport; its preview takes whatever the header row leaves. */
+.is-fill {
+  height: 100vh;
+  height: 100dvh;
 }
 
-.side-section {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--s3);
-  padding: var(--s4);
-}
-
-.side-section + .side-section {
-  border-top: 1px solid var(--border);
-}
-
-.side-section h2 {
-  color: var(--text-muted);
-  font-size: var(--fs-xs);
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
-.side-text {
-  display: flex;
-  gap: var(--s2);
-  align-items: flex-start;
-  color: var(--text);
-  font-size: var(--fs-sm);
-}
-
-.side-text .icon {
-  margin-top: 2px;
-  color: var(--text-muted);
-}
-
-.side .mono-input {
-  font-size: var(--fs-xs);
-  text-overflow: ellipsis;
-}
-
-.version-history {
-  width: 100%;
-  margin: calc(var(--s1) * -1) calc(var(--s2) * -1) 0;
-  padding: 0;
-  list-style: none;
-}
-
-.version-history a {
-  display: flex;
-  align-items: center;
-  gap: var(--s3);
-  min-height: var(--control);
-  padding: 0 var(--s2);
-  border-radius: var(--radius-sm);
-  color: var(--text);
-  font-size: var(--fs-sm);
-  text-decoration: none;
-}
-
-.version-history a:hover {
-  background: var(--surface-2);
-}
-
-.version-history a[aria-current='page'] {
-  background: var(--surface-2);
-}
-
-.version-history .chip {
-  margin-left: auto;
-}
-
-.version-history .chip-accent {
-  background: color-mix(in srgb, var(--accent) 16%, var(--surface-2));
-}
-
-@media (min-width: 1024px) {
-  .is-fill {
-    height: 100vh;
-    height: 100dvh;
+@media (min-width: 721px) {
+  .menu-panel-account {
+    width: 260px;
   }
 
-  .is-fill .main-fill {
-    overflow: hidden;
-  }
-}
-
-@media (max-width: 1023px) {
-  .viewer-body {
-    grid-template-columns: minmax(0, 1fr);
-    flex: none;
-  }
-
-  .stage {
-    height: 78vh;
-    height: 78dvh;
-    min-height: 420px;
-  }
-
-  .main-fill {
-    padding: var(--s4);
-  }
-
-  .side {
-    align-self: stretch;
+  .popover {
+    width: 360px;
   }
 }
 
 @media (max-width: 720px) {
-  .title-button {
-    font-size: var(--fs-lg);
+  .main-fill {
+    padding: var(--s2);
   }
 
-  /* Menus and the share popover drop below the header and span the viewport. */
+  /* Menus and the share popover span the viewport; app.js sets `top` just under the trigger. */
   .menu-panel,
   .menu-anchor-end .menu-panel {
     position: fixed;
     top: calc(var(--header-h) + var(--s2));
-    right: var(--s3);
-    left: var(--s3);
+    right: var(--s2);
+    left: var(--s2);
     width: auto;
     max-width: none;
   }
 
-  .tab .icon {
+  /* Compact visuals keep a 44px touch area through an invisible ::after. */
+  .button-compact::after,
+  .header-new::after,
+  .title-button::after,
+  .account-button::after,
+  .quiet-button::after,
+  .icon-button::after,
+  .view-tab::after,
+  .segmented button::after {
+    content: '';
+    position: absolute;
+    inset: -8px -2px;
+  }
+
+  .view-tab,
+  .segmented button {
+    width: 44px;
+  }
+
+  .view-tab::after,
+  .segmented button::after {
+    inset: -11px 0;
+  }
+
+  .quiet-button,
+  .icon-button {
+    min-width: 44px;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 480px) {
+  .button-compact:has(> .btn-label) {
+    width: 30px;
+    padding: 0;
+  }
+
+  .button-compact:has(> .btn-label)::after {
+    inset: -8px -8px;
+  }
+
+  .button-compact .btn-label,
+  .viewer-bar .type-tag {
     display: none;
   }
 
-  .tools .btn-label {
-    display: none;
-  }
-
-  .tools .button-primary .btn-label {
+  .menu-note-type {
     display: inline;
   }
 
-  .tools .button-primary .icon {
-    display: none;
+  /* "Read-only" shrinks to its lock icon but stays in the accessibility tree. */
+  .bar-note span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
   }
 
-  .tools {
-    flex: 1 0 100%;
-    flex-wrap: nowrap;
-    padding-top: 0;
-  }
-
-  .tools .button,
-  .tools .button-primary {
-    flex: 1;
-    width: auto;
+  .viewer-bar {
+    gap: var(--s1);
   }
 }
 

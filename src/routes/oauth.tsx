@@ -34,7 +34,7 @@ function redirectSource(redirectUri: string): string {
 
 function ErrorPage({ message }: { message: string }) {
   return (
-    <Layout title="Authorization error" me={null} width="narrow">
+    <Layout title="Authorization error" me={null} signIn={false} width="narrow">
       <div class="card auth-card">
         <span class="auth-icon auth-icon-danger">
           <Icon name="circle-alert" size={24} />
@@ -49,7 +49,7 @@ function ErrorPage({ message }: { message: string }) {
 
 function ConsentPage({ details, email, handle }: { details: ConsentDescription; email: string; handle: string }) {
   return (
-    <Layout title="Authorize" me={null} width="narrow">
+    <Layout title="Authorize" me={null} signIn={false} width="narrow">
       <form class="card auth-card" method="post" action="/authorize">
         <Initial name={details.clientName} />
         <h1>{details.clientName} wants to access your Artifacts</h1>

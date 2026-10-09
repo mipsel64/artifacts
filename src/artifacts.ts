@@ -115,7 +115,7 @@ async function bestEffort(operation: () => Promise<unknown>, retry: () => Promis
 
 function writeIndex(env: Env, meta: ArtifactMeta) {
   const metadata: IndexMetadata = {
-    title: meta.title.slice(0, INDEX_TITLE_LENGTH),
+    title: meta.title.length > INDEX_TITLE_LENGTH ? `${meta.title.slice(0, INDEX_TITLE_LENGTH - 1)}…` : meta.title,
     type: meta.type,
     version: meta.version,
     updatedAt: meta.updatedAt,

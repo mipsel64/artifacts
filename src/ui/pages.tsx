@@ -1,7 +1,7 @@
 import type { Child } from 'hono/jsx';
 import { ARTIFACT_TYPES, type ArtifactSummary, type ArtifactType, type ArtifactView } from '../types';
 import { Initial } from './components';
-import { formatDate, retentionLabel } from './format';
+import { formatDate, formatDateTime, retentionLabel } from './format';
 import { GoogleMark, Icon, Logo, TypeIcon, type IconName } from './icons';
 
 const SANDBOX = 'allow-scripts allow-forms allow-modals allow-popups allow-downloads';
@@ -46,12 +46,11 @@ function TypeTile({ type }: { type: ArtifactType }) {
   );
 }
 
-function TypeChip({ type, language }: { type: ArtifactType; language?: string | null }) {
+function TypeTag({ type, language }: { type: ArtifactType; language?: string | null }) {
   return (
-    <span class="chip chip-type">
-      <TypeIcon type={type} size={14} />
+    <span class="type-tag">
       <span>{type}</span>
-      {language && <span class="chip-detail">{language}</span>}
+      {language && <span class="type-tag-detail">{language}</span>}
     </span>
   );
 }
@@ -63,10 +62,6 @@ export function ArtifactList({ items, now }: { items: ArtifactSummary[]; now: Da
         <h1>
           Artifacts <span class="count">{items.length}</span>
         </h1>
-        <a class="button button-primary" href="/new">
-          <Icon name="plus" />
-          <span>New artifact</span>
-        </a>
       </div>
       {items.length === 0 ? (
         <div class="empty card">
@@ -93,7 +88,7 @@ export function ArtifactList({ items, now }: { items: ArtifactSummary[]; now: Da
               <a class="row" href={`/a/${item.id}`}>
                 <TypeTile type={item.type} />
                 <span class="row-main">
-                  <span class="row-title">{item.title}</span>
+                  <span class="row-title" title={item.title}>{item.title}</span>
                   <span class="meta">
                     <span>v{item.version}</span>
                     <span>
@@ -203,7 +198,13 @@ export function EditArtifact({ meta, content }: { meta: ArtifactView; content: s
   );
 }
 
-function Tabs({ tabs, label }: { tabs: { id: string; label: string; icon?: IconName }[]; label: string }) {
+interface TabSpec {
+  id: string;
+  label: string;
+  icon?: IconName;
+}
+
+function Tabs({ tabs, label }: { tabs: TabSpec[]; label: string }) {
   return (
     <div role="tablist" aria-label={label} class="tabs">
       {tabs.map((tab, index) => (
@@ -216,8 +217,34 @@ function Tabs({ tabs, label }: { tabs: { id: string; label: string; icon?: IconN
           tabindex={index === 0 ? 0 : -1}
           class="tab"
         >
-          {tab.icon && <Icon name={tab.icon} />}
           <span>{tab.label}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// The Preview/Code switch is icon-only: each tab keeps its name in aria-label and title.
+function ViewToggle() {
+  const tabs: Required<TabSpec>[] = [
+    { id: 'preview', label: 'Preview', icon: 'eye' },
+    { id: 'code', label: 'Code', icon: 'code-xml' },
+  ];
+  return (
+    <div role="tablist" aria-label="Artifact view" class="view-toggle">
+      {tabs.map((tab, index) => (
+        <button
+          type="button"
+          role="tab"
+          id={`tab-${tab.id}`}
+          aria-controls={`panel-${tab.id}`}
+          aria-selected={index === 0 ? 'true' : 'false'}
+          tabindex={index === 0 ? 0 : -1}
+          class="view-tab"
+          aria-label={tab.label}
+          title={tab.label}
+        >
+          <Icon name={tab.icon} />
         </button>
       ))}
     </div>
@@ -227,53 +254,30 @@ function Tabs({ tabs, label }: { tabs: { id: string; label: string; icon?: IconN
 interface CopyButtonProps {
   target: string;
   label?: string;
-  compact?: boolean;
   class?: string;
+  iconOnly?: boolean;
 }
 
-// With `compact` the label is hidden on narrow screens, so the button carries an aria-label and a title.
-function CopyButton({ target, label = 'Copy', compact, class: className = 'button' }: CopyButtonProps) {
+// An icon-only button hides its label visually but keeps it as aria-label and title.
+function CopyButton({ target, label = 'Copy', class: className = 'button', iconOnly }: CopyButtonProps) {
   return (
-    <button
-      type="button"
-      class={className}
-      data-copy={target}
-      aria-label={compact ? label : undefined}
-      title={compact ? label : undefined}
-    >
+    <button type="button" class={className} data-copy={target} aria-label={iconOnly ? label : undefined} title={iconOnly ? label : undefined}>
       <Icon name="copy" class="icon-copy" />
       <Icon name="check" class="icon-check" />
-      <span class={compact ? 'btn-label' : undefined}>{label}</span>
+      <span class={iconOnly ? 'btn-label' : undefined}>{label}</span>
     </button>
   );
 }
 
-function ToolLink({ href, label, icon, external }: { href: string; label: string; icon: IconName; external?: boolean }) {
+// The viewer is one bordered block: a slim header row (`bar`) on top of the preview/code area.
+function ViewerFrame({ bar, previewSrc, content }: { bar: Child; previewSrc: string; content: string }) {
   return (
-    <a class="button" href={href} target={external ? '_blank' : undefined} rel={external ? 'noopener noreferrer' : undefined} aria-label={label} title={label}>
-      <Icon name={icon} />
-      <span class="btn-label">{label}</span>
-    </a>
-  );
-}
-
-function ViewerPanel({ previewSrc, content, tools }: { previewSrc: string; content: string; tools?: Child }) {
-  return (
-    <section class="panel stage" aria-label="Artifact">
-      <div class="panel-bar">
-        <Tabs
-          label="Artifact view"
-          tabs={[
-            { id: 'preview', label: 'Preview', icon: 'eye' },
-            { id: 'code', label: 'Code', icon: 'code-xml' },
-          ]}
-        />
-        {tools && <div class="tools">{tools}</div>}
-      </div>
-      <div role="tabpanel" id="panel-preview" aria-labelledby="tab-preview" class="panel-body panel-preview">
+    <section class="viewer" aria-label="Artifact">
+      <div class="viewer-bar">{bar}</div>
+      <div role="tabpanel" id="panel-preview" aria-labelledby="tab-preview" class="viewer-pane viewer-preview">
         <iframe src={previewSrc} sandbox={SANDBOX} title="Artifact preview" class="preview"></iframe>
       </div>
-      <div role="tabpanel" id="panel-code" aria-labelledby="tab-code" class="panel-body panel-code" hidden>
+      <div role="tabpanel" id="panel-code" aria-labelledby="tab-code" class="viewer-pane viewer-code" hidden>
         <pre class="code" tabindex={0}>
           <code id="code">{content}</code>
         </pre>
@@ -282,61 +286,41 @@ function ViewerPanel({ previewSrc, content, tools }: { previewSrc: string; conte
   );
 }
 
-function ViewerTitle({ meta, children }: { meta: ArtifactView; children?: Child }) {
+function VersionMenu({ meta, version }: { meta: ArtifactView; version: number }) {
+  if (meta.version === 1) return <span class="version-static">v1</span>;
   return (
-    <div class="viewer-title">
-      <h1>{meta.title}</h1>
-      <div class="chips">
-        <TypeChip type={meta.type} language={meta.language} />
-        {children}
+    <div class="menu-anchor menu-anchor-end">
+      <button
+        type="button"
+        class="quiet-button"
+        data-menu-button
+        aria-haspopup="menu"
+        aria-expanded="false"
+        aria-controls="version-menu"
+        aria-label={`v${version} of ${meta.version}, switch version`}
+        title="Versions"
+      >
+        <span>v{version}</span>
+        <Icon name="chevron-down" />
+      </button>
+      <div class="menu-panel" id="version-menu" role="menu" aria-label="Versions" hidden>
+        {[...meta.versions].reverse().map((info) => (
+          <a
+            role="menuitem"
+            class="menu-item version-item"
+            href={`/a/${meta.id}?v=${info.version}`}
+            aria-current={info.version === version ? 'page' : undefined}
+          >
+            <span class="version-number">v{info.version}</span>
+            <time class="version-date" datetime={info.createdAt}>
+              {formatDateTime(info.createdAt)}
+            </time>
+            {info.version === meta.version && <span class="version-latest">Latest</span>}
+            <Icon name="check" class="version-check" />
+          </a>
+        ))}
       </div>
     </div>
-  );
-}
-
-function Versions({ meta, version }: { meta: ArtifactView; version: number }) {
-  const href = (n: number) => `/a/${meta.id}?v=${n}`;
-  return (
-    <nav class="versions" aria-label="Versions">
-      {version > 1 ? (
-        <a class="button button-icon" href={href(version - 1)} rel="prev" aria-label="Previous version" title="Previous version">
-          <Icon name="chevron-left" />
-        </a>
-      ) : (
-        <button type="button" class="button button-icon" disabled aria-label="Previous version" title="Previous version">
-          <Icon name="chevron-left" />
-        </button>
-      )}
-      <details class="version-menu">
-        <summary class="button">
-          <span>
-            v{version} of {meta.version}
-          </span>
-          <Icon name="chevron-down" />
-        </summary>
-        <ul class="menu">
-          {[...meta.versions].reverse().map((info) => (
-            <li>
-              <a href={href(info.version)} aria-current={info.version === version ? 'page' : undefined}>
-                <span>
-                  v{info.version} · {formatDate(info.createdAt)}
-                </span>
-                <Icon name="check" />
-              </a>
-            </li>
-          ))}
-        </ul>
-      </details>
-      {version < meta.version ? (
-        <a class="button button-icon" href={href(version + 1)} rel="next" aria-label="Next version" title="Next version">
-          <Icon name="chevron-right" />
-        </a>
-      ) : (
-        <button type="button" class="button button-icon" disabled aria-label="Next version" title="Next version">
-          <Icon name="chevron-right" />
-        </button>
-      )}
-    </nav>
   );
 }
 
@@ -366,29 +350,35 @@ function ApiButton(props: {
   );
 }
 
-function SideSection({ id, title, children }: { id: string; title: string; children?: Child }) {
-  return (
-    <section class="side-section" aria-labelledby={id}>
-      <h2 id={id}>{title}</h2>
-      {children}
-    </section>
-  );
-}
-
-function TitleMenu({ meta, version }: { meta: ArtifactView; version: number }) {
+function TitleMenu({ meta, version, now }: { meta: ArtifactView; version: number; now: Date }) {
   const render = `/render/${meta.id}?v=${version}`;
   const api = `/api/artifacts/${meta.id}`;
   const permanent = meta.expiresAt === null;
   const item = 'menu-item';
   return (
     <div class="menu-anchor">
-      <h1>
-        <button type="button" class="title-button" data-menu-button aria-haspopup="menu" aria-expanded="false" aria-controls="artifact-menu">
+      <h1 class="viewer-title">
+        <button
+          type="button"
+          class="title-button"
+          data-menu-button
+          aria-haspopup="menu"
+          aria-expanded="false"
+          aria-controls="artifact-menu"
+          title={meta.title}
+        >
           <span class="title-text">{meta.title}</span>
+          <TypeTag type={meta.type} language={meta.language} />
           <Icon name="chevron-down" />
         </button>
       </h1>
       <div class="menu-panel" id="artifact-menu" role="menu" aria-label="Artifact actions" hidden>
+        <div class="menu-note" role="presentation">
+          <Icon name={permanent ? 'infinity' : 'clock'} />
+          <span>{retentionLabel(meta.expiresAt, now)}</span>
+          <span class="menu-note-type">{meta.language ? `${meta.type} · ${meta.language}` : meta.type}</span>
+        </div>
+        <hr class="menu-sep" role="separator" />
         <button type="button" role="menuitem" class={item} data-copy="#code">
           <Icon name="copy" class="icon-copy" />
           <Icon name="check" class="icon-check" />
@@ -461,15 +451,18 @@ function SharePopover({ meta, version }: { meta: ArtifactView; version: number }
     <div class="menu-anchor menu-anchor-end">
       <button
         type="button"
-        class={shared ? 'button button-shared' : 'button'}
+        class={shared ? 'button button-compact button-shared' : 'button button-compact'}
         data-menu-button
         aria-haspopup="dialog"
         aria-expanded="false"
         aria-controls="share-popover"
         data-shared={shared ? 'true' : undefined}
+        aria-label={shared ? 'Share, shared' : 'Share'}
+        title={shared ? 'Shared' : 'Share'}
       >
         <Icon name="share-2" />
         <span class="btn-label">Share</span>
+        <span class="share-dot" aria-hidden="true"></span>
       </button>
       <div class="menu-panel popover" id="share-popover" hidden>
         <Tabs label="Share" tabs={[{ id: 'share-link', label: 'Link' }, { id: 'share-export', label: 'Export' }]} />
@@ -486,7 +479,7 @@ function SharePopover({ meta, version }: { meta: ArtifactView; version: number }
             </label>
             <div class="share-link-box">
               <input id="share-url" readonly value={meta.shareUrl ?? ''} />
-              <CopyButton target="#share-url" class="button button-sm" compact />
+              <CopyButton target="#share-url" class="button button-sm" iconOnly />
             </div>
             <button type="button" class="button button-danger button-quiet" data-action="unshare" data-url={`${api}/share`}>
               Stop sharing
@@ -519,44 +512,22 @@ function SharePopover({ meta, version }: { meta: ArtifactView; version: number }
 }
 
 export function Viewer({ meta, version, content, now }: { meta: ArtifactView; version: number; content: string; now: Date }) {
-  const render = `/render/${meta.id}?v=${version}`;
   return (
     <>
-      <div class="viewer-head">
-        <div class="viewer-title">
-          <TitleMenu meta={meta} version={version} />
-          <div class="chips">
-            <TypeChip type={meta.type} language={meta.language} />
-            <Versions meta={meta} version={version} />
-          </div>
-        </div>
-        <div class="viewer-actions">
-          <SharePopover meta={meta} version={version} />
-        </div>
-      </div>
-      <div class="viewer-body">
-        <ViewerPanel previewSrc={render} content={content} />
-        <aside class="side" aria-label="Artifact details">
-          <SideSection id="versions-heading" title="Versions">
-            <ol class="version-history">
-              {[...meta.versions].reverse().map((info) => (
-                <li>
-                  <a href={`/a/${meta.id}?v=${info.version}`} aria-current={info.version === version ? 'page' : undefined}>
-                    <span class="mono">v{info.version}</span>
-                    <span class="muted">{formatDate(info.createdAt)}</span>
-                    {info.version === version && <span class="chip chip-accent">Viewing</span>}
-                  </a>
-                </li>
-              ))}
-            </ol>
-          </SideSection>
-          <SideSection id="retention-heading" title="Retention">
-            <p class="side-text">
-              <Icon name={meta.expiresAt === null ? 'infinity' : 'clock'} /> {retentionLabel(meta.expiresAt, now)}
-            </p>
-          </SideSection>
-        </aside>
-      </div>
+      <ViewerFrame
+        previewSrc={`/render/${meta.id}?v=${version}`}
+        content={content}
+        bar={
+          <>
+            <ViewToggle />
+            <TitleMenu meta={meta} version={version} now={now} />
+            <div class="viewer-bar-end">
+              <VersionMenu meta={meta} version={version} />
+              <SharePopover meta={meta} version={version} />
+            </div>
+          </>
+        }
+      />
       <dialog id="rename-dialog" class="dialog" aria-labelledby="rename-heading">
         <div id="rename-error" class="callout callout-danger" role="alert" aria-live="assertive" hidden>
           <Icon name="circle-alert" size={20} />
@@ -591,43 +562,45 @@ interface SharedProps {
 
 export function SharedViewer({ shareId, meta, content, signedIn }: SharedProps) {
   return (
-    <>
-      <div class="viewer-head">
-        <ViewerTitle meta={meta}>
-          <span class="chip">
-            <Icon name="eye" size={14} />
-            <span>Shared artifact · read-only</span>
-          </span>
-        </ViewerTitle>
-      </div>
-      <div class="viewer-body viewer-body-single">
-        <ViewerPanel
-          previewSrc={`/s/${shareId}/render`}
-          content={content}
-          tools={
-            <>
-              <CopyButton target="#code" compact />
-              <ToolLink href={`/s/${shareId}/raw?download=1`} label="Download" icon="download" />
-              {signedIn && (
-                <button
-                  type="button"
-                  class="button button-primary"
-                  data-remix={shareId}
-                  data-title={meta.title}
-                  data-type={meta.type}
-                  data-language={meta.language ?? undefined}
-                  aria-label="Remix"
-                  title="Remix"
-                >
-                  <Icon name="git-fork" />
-                  <span class="btn-label">Remix</span>
-                </button>
-              )}
-            </>
-          }
-        />
-      </div>
-    </>
+    <ViewerFrame
+      previewSrc={`/s/${shareId}/render`}
+      content={content}
+      bar={
+        <>
+          <ViewToggle />
+          <h1 class="viewer-title viewer-title-plain" title={meta.title}>
+            <span class="title-text">{meta.title}</span>
+            <TypeTag type={meta.type} language={meta.language} />
+          </h1>
+          <div class="viewer-bar-end">
+            <span class="bar-note" title="Read-only">
+              <Icon name="lock" />
+              <span>Read-only</span>
+            </span>
+            <CopyButton target="#code" class="button button-compact button-quiet icon-button-compact" iconOnly />
+            <a class="button button-compact button-quiet icon-button-compact" href={`/s/${shareId}/raw?download=1`} aria-label="Download" title="Download">
+              <Icon name="download" />
+              <span class="btn-label">Download</span>
+            </a>
+            {signedIn && (
+              <button
+                type="button"
+                class="button button-compact button-primary"
+                data-remix={shareId}
+                data-title={meta.title}
+                data-type={meta.type}
+                data-language={meta.language ?? undefined}
+                aria-label="Remix"
+                title="Remix"
+              >
+                <Icon name="git-fork" />
+                <span class="btn-label">Remix</span>
+              </button>
+            )}
+          </div>
+        </>
+      }
+    />
   );
 }
 

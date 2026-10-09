@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { createArtifact, setRetention, shareArtifact, unshareArtifact, updateArtifact } from '../src/artifacts';
 import { upsertUser } from '../src/auth';
 import { ARTIFACT_TYPES } from '../src/types';
-import { retentionLabel } from '../src/ui/format';
+import { formatDateTime, retentionLabel } from '../src/ui/format';
 import { createTestUser, request } from './helpers';
 
 afterEach(() => reset());
@@ -39,21 +39,57 @@ describe('landing', () => {
     expect(body).toContain('href="/auth/login"');
     expect(body).toContain('Sign in with Google');
     expect(body).not.toContain('Sign out');
+    expect(body).not.toContain('id="account-menu"');
+    expect(body).toContain('<a class="button button-compact" href="/auth/login">Sign in</a>');
     expect(body).toContain('href="/static/app.css"');
     expect(body).toContain('<script type="module" src="/static/app.js">');
   });
 
-  it('shows header links, avatar and sign out when signed in', async () => {
+  it('shows New and one account button with avatar and display name when signed in', async () => {
     const { user, init } = await signedInAlice();
-    await upsertUser(env, { sub: '1', email: 'alice@example.com', name: 'Alice', avatarUrl: 'https://lh3.googleusercontent.com/a/1' });
+    await upsertUser(env, { sub: '1', email: 'alice@example.com', name: 'Alice Liddell', avatarUrl: 'https://lh3.googleusercontent.com/a/1' });
     const body = await (await request('/', init)).text();
     expect(user.id).toBe('google_1');
-    expect(body).toContain('alice@example.com');
-    expect(body).toContain('href="/new"');
-    expect(body).toContain('href="/settings"');
+    expect(body).toContain('<a class="header-new" href="/new" aria-label="New artifact" title="New artifact">');
+    expect(body).toContain(
+      '<button type="button" class="account-button" data-menu-button="true" aria-haspopup="menu" aria-expanded="false" aria-controls="account-menu" title="Alice Liddell">',
+    );
+    expect(body).toContain('<span class="account-name">Alice Liddell</span>');
     expect(body).toContain('src="https://lh3.googleusercontent.com/a/1"');
-    expect(body).toContain('action="/auth/logout"');
-    expect(body).toContain('method="post"');
+    expect(body).not.toContain('class="site-nav"');
+    expect(body).not.toContain('class="theme-switch"');
+    expect(body).not.toContain('class="account"');
+    expect(body).not.toContain('Sign in</a>');
+  });
+
+  it('falls back to the email local part and an initial when there is no profile name or picture', async () => {
+    const { init } = await signedInAlice();
+    await upsertUser(env, { sub: '1', email: 'alice@example.com', name: null, avatarUrl: null });
+    const body = await (await request('/', init)).text();
+    expect(body).toContain('<span class="account-name">alice</span>');
+    expect(body).toContain('title="alice"');
+    expect(body).toContain('<span class="initial" aria-hidden="true">A</span>');
+    expect(body).not.toContain('class="avatar"');
+  });
+
+  it('puts Settings, Appearance and Sign out in the account menu', async () => {
+    const { init } = await signedInAlice();
+    await upsertUser(env, { sub: '1', email: 'alice@example.com', name: 'Alice', avatarUrl: null });
+    const body = await (await request('/', init)).text();
+    const menu = body.slice(body.indexOf('id="account-menu"'), body.indexOf('</header>'));
+    expect(menu).toContain('role="menu" aria-label="Account" hidden=""');
+    expect(menu).toContain('<span class="menu-head-name">Alice</span><span class="menu-head-email">alice@example.com</span>');
+    expect(menu).toContain('<a role="menuitem" class="menu-item" href="/settings">');
+    expect(menu).toContain('<div class="menu-row" role="group" aria-labelledby="appearance-label">');
+    expect(menu).toContain('id="appearance-label">Appearance</span>');
+    expect(menu).toContain('role="menuitemradio" aria-checked="true" data-theme-choice="system" aria-label="System theme" title="System"');
+    expect(menu).toContain('role="menuitemradio" aria-checked="false" data-theme-choice="light" aria-label="Light theme" title="Light"');
+    expect(menu).toContain('role="menuitemradio" aria-checked="false" data-theme-choice="dark" aria-label="Dark theme" title="Dark"');
+    expect(menu).toContain('<form method="post" action="/auth/logout" role="none"><button type="submit" role="menuitem" class="menu-item">');
+    expect(menu).toContain('>Sign out</span>');
+    // The label row and the header block are not menu items.
+    expect(menu.match(/role="menuitem"/g)).toHaveLength(2);
+    expect(menu.match(/role="menuitemradio"/g)).toHaveLength(3);
   });
 });
 
@@ -81,6 +117,15 @@ describe('artifact list', () => {
     expect(body).toContain('>svg<');
   });
 
+  it('has no page-level New artifact button when artifacts exist, and truncates long titles in one line', async () => {
+    const { user, init } = await signedInAlice();
+    await createArtifact(env, user.id, { title: 'z'.repeat(150), type: 'html', content: 'a' });
+    const body = await (await request('/', init)).text();
+    expect(body).not.toContain('New artifact</span>');
+    expect(body).not.toContain('class="button button-primary" href="/new"');
+    expect(body).toContain(`<span class="row-title" title="${'z'.repeat(99)}…">${'z'.repeat(99)}…</span>`);
+  });
+
   it('labels an artifact with under a day left as expiring within a day', async () => {
     const { user, init } = await signedInAlice();
     await createArtifact(env, user.id, { title: 'Soon', type: 'html', content: 'a' }, new Date(Date.now() - 29.5 * 24 * 3600 * 1000));
@@ -100,16 +145,16 @@ describe('artifact list', () => {
 });
 
 describe('app shell', () => {
-  it('marks the current nav item and hides decorative icons', async () => {
+  it('marks Settings as current only on /settings and hides decorative icons', async () => {
     const { init } = await signedInAlice();
-    for (const [path, current] of [
-      ['/', '<a href="/" aria-current="page">Artifacts</a>'],
-      ['/new', '<a href="/new" aria-current="page">New</a>'],
-      ['/settings', '<a href="/settings" aria-current="page">Settings</a>'],
-    ] as const) {
+    for (const path of ['/', '/new', '/settings']) {
       const body = await (await request(path, init)).text();
-      expect(body, path).toContain(current);
-      expect(body.match(/aria-current="page"/g), path).toHaveLength(1);
+      if (path === '/settings') {
+        expect(body, path).toContain('<a role="menuitem" class="menu-item" href="/settings" aria-current="page">');
+        expect(body.match(/aria-current="page"/g), path).toHaveLength(1);
+      } else {
+        expect(body, path).not.toContain('aria-current="page"');
+      }
       expect(body, path).toContain('class="skip-link" href="#main"');
       for (const svg of body.match(/<svg [^>]*>/g) ?? []) expect(svg, path).toContain('aria-hidden="true"');
     }
@@ -121,19 +166,23 @@ describe('app shell', () => {
     expect(body).not.toMatch(/(?:href|src)="https?:\/\/(?!lh3\.googleusercontent\.com)/);
   });
 
-  it('shows the System/Light/Dark switcher and loads theme.js before the stylesheet', async () => {
-    const { init } = await signedInAlice();
-    const body = await (await request('/', init)).text();
-    expect(body).toContain('<div class="theme-switch" role="group" aria-label="Theme">');
-    expect(body).toContain('data-theme-choice="system" aria-pressed="true" aria-label="System theme"');
-    expect(body).toContain('data-theme-choice="light" aria-pressed="false" aria-label="Light theme"');
-    expect(body).toContain('data-theme-choice="dark" aria-pressed="false" aria-label="Dark theme"');
-    const themeScript = body.indexOf('<script src="/static/theme.js"></script>');
-    const stylesheet = body.indexOf('<link rel="stylesheet" href="/static/app.css"/>');
+  it('loads theme.js before the stylesheet and keeps the theme reachable signed out', async () => {
+    const landing = await (await request('/')).text();
+    const themeScript = landing.indexOf('<script src="/static/theme.js"></script>');
+    const stylesheet = landing.indexOf('<link rel="stylesheet" href="/static/app.css"/>');
     expect(themeScript).toBeGreaterThanOrEqual(0);
     expect(stylesheet).toBeGreaterThan(themeScript);
-    const landing = await (await request('/')).text();
-    expect(landing).toContain('data-theme-choice="dark"');
+    expect(landing).toContain('<button type="button" class="icon-button" data-theme-cycle="true" aria-label="Theme: System" title="Theme: System">');
+    for (const mode of ['system', 'light', 'dark']) expect(landing).toContain(`theme-icon theme-icon-${mode}`);
+    expect(landing.indexOf('data-theme-cycle')).toBeLessThan(landing.indexOf('href="/auth/login"'));
+    expect(landing).not.toContain('data-theme-choice');
+  });
+
+  it('shows no Sign in button on the consent page header', async () => {
+    const body = await (await request('/authorize?response_type=code&client_id=x&redirect_uri=https%3A%2F%2Fx.test%2Fcb')).text();
+    expect(body).toContain('Authorization failed');
+    expect(body).not.toContain('href="/auth/login"');
+    expect(body).toContain('data-theme-cycle');
   });
 
   it('shows the landing hero with the Google mark and three feature points', async () => {
@@ -171,6 +220,13 @@ describe('artifact list rows', () => {
     await createArtifact(env, user.id, { title: 'One', type: 'html', content: 'a' });
     await createArtifact(env, user.id, { title: 'Two', type: 'html', content: 'a' });
     expect(await (await request('/', init)).text()).toContain('<span class="count">2</span>');
+  });
+});
+
+describe('formatDateTime', () => {
+  it('formats an ISO timestamp as a short UTC date and time', () => {
+    expect(formatDateTime('2026-10-09T14:02:11.000Z')).toBe('Oct 9, 14:02');
+    expect(formatDateTime('2026-01-31T00:05:00.000Z')).toBe('Jan 31, 00:05');
   });
 });
 
@@ -255,42 +311,86 @@ describe('viewer', () => {
     expect(body).not.toContain('&lt;p&gt;one&lt;/p&gt;');
     expect(body).toContain(`href="/a/${meta.id}?v=1"`);
     expect(body).toContain(`href="/a/${meta.id}?v=3"`);
-    expect(body).toContain('v2 of 3');
     expect(body).toContain(`href="/api/artifacts/${meta.id}/content?version=2&amp;download=1"`);
     expect(body).toContain(`href="/render/${meta.id}?v=2" target="_blank" rel="noopener noreferrer"`);
     expect(body).toContain(`href="/a/${meta.id}/edit"`);
     expect(body).toContain('Make permanent');
     expect(body).toContain('Expires in 30 days');
     expect(body).toContain(`data-url="/api/artifacts/${meta.id}/share"`);
-    expect(body).toContain('>Share<');
+    expect(body).toContain('aria-label="Share" title="Share"><svg');
+    expect(body).toContain('<span class="btn-label">Share</span>');
     expect(body).toContain('data-confirm=');
     expect(body).toContain('data-done="/"');
     expectSecurityHeaders(res);
   });
 
-  it('gives the version switcher names and keeps Versions and Retention in the side panel', async () => {
+  it('has one slim header row: icon-only Preview/Code tabs, a small h1 with the inline type tag, no side panel', async () => {
     const { user, init } = await signedInAlice();
-    const meta = await createArtifact(env, user.id, { title: 'Doc', type: 'html', content: 'x' });
+    const meta = await createArtifact(env, user.id, { title: 'Doc <b>', type: 'html', content: 'x' });
     const body = await (await request(`/a/${meta.id}`, init)).text();
-    for (const label of ['Previous version', 'Next version']) {
-      expect(body).toContain(`aria-label="${label}" title="${label}"`);
-    }
-    for (const heading of ['Versions', 'Retention']) expect(body).toMatch(new RegExp(`<h2 id="[a-z]+-heading">${heading}</h2>`));
-    expect(body).not.toContain('>Sharing</h2>');
-    expect(body).not.toContain('Danger zone');
-    expect(body).toContain('aria-current="page"><span class="mono">v1</span>');
+    const bar = body.slice(body.indexOf('<div class="viewer-bar">'), body.indexOf('<div role="tabpanel" id="panel-preview"'));
+    expect(bar).toContain('<div role="tablist" aria-label="Artifact view" class="view-toggle">');
+    expect(bar).toContain('id="tab-preview" aria-controls="panel-preview" aria-selected="true" tabindex="0" class="view-tab" aria-label="Preview" title="Preview"');
+    expect(bar).toContain('id="tab-code" aria-controls="panel-code" aria-selected="false" tabindex="-1" class="view-tab" aria-label="Code" title="Code"');
+    expect(bar.match(/role="tab"/g)).toHaveLength(2 + 2); // Preview, Code and the share popover's Link, Export
+    expect(bar).not.toContain('>Preview<');
+    expect(bar).not.toContain('>Code<');
+    expect(bar).toContain('<h1 class="viewer-title"><button type="button" class="title-button"');
+    expect(bar).toContain('title="Doc &lt;b&gt;"');
+    expect(bar).toContain('<span class="title-text">Doc &lt;b&gt;</span><span class="type-tag"><span>html</span></span>');
+    expect(body.match(/<h1/g)).toHaveLength(1);
+    expect(body).not.toContain('class="side"');
+    expect(body).not.toContain('Artifact details');
+    expect(body).not.toContain('version-history');
+    expect(body).not.toContain('class="chips"');
+    expect(body).not.toContain('Previous version');
+    expect(body).not.toContain('Next version');
     expect(body).toContain('role="tabpanel" id="panel-preview"');
     expect(body).toContain('role="tabpanel" id="panel-code"');
-    expect(body).toContain('tabindex="-1" class="tab"');
+  });
+
+  it('shows the language beside the type tag for code artifacts', async () => {
+    const { user, init } = await signedInAlice();
+    const meta = await createArtifact(env, user.id, { title: 'Doc', type: 'code', content: 'x', language: 'python' });
+    const body = await (await request(`/a/${meta.id}`, init)).text();
+    expect(body).toContain('<span class="type-tag"><span>code</span><span class="type-tag-detail">python</span></span>');
+  });
+
+  it('shows a plain v1 when there is one version and a newest-first version menu otherwise', async () => {
+    const { user, init } = await signedInAlice();
+    const meta = await createArtifact(env, user.id, { title: 'Doc', type: 'html', content: 'one' });
+    const single = await (await request(`/a/${meta.id}`, init)).text();
+    expect(single).toContain('<span class="version-static">v1</span>');
+    expect(single).not.toContain('id="version-menu"');
+
+    await updateArtifact(env, user.id, meta.id, { content: 'two' });
+    await updateArtifact(env, user.id, meta.id, { content: 'three' });
+    const body = await (await request(`/a/${meta.id}?v=2`, init)).text();
+    expect(body).not.toContain('version-static');
+    expect(body).toContain(
+      'class="quiet-button" data-menu-button="true" aria-haspopup="menu" aria-expanded="false" aria-controls="version-menu" aria-label="v2 of 3, switch version" title="Versions"><span>v2</span>',
+    );
+    const menu = body.slice(body.indexOf('id="version-menu"'), body.indexOf('id="share-popover"'));
+    expect(menu).toContain('role="menu" aria-label="Versions" hidden=""');
+    expect(menu.match(/role="menuitem"/g)).toHaveLength(3);
+    const order = [3, 2, 1].map((n) => menu.indexOf(`href="/a/${meta.id}?v=${n}"`));
+    expect(order.every((index) => index >= 0)).toBe(true);
+    expect(order).toEqual([...order].sort((x, y) => x - y));
+    expect(menu).toMatch(/href="\/a\/[^"]+\?v=2" aria-current="page"/);
+    expect(menu.match(/aria-current="page"/g)).toHaveLength(1);
+    expect(menu.match(/>Latest</g)).toHaveLength(1);
+    expect(menu.indexOf('>Latest<')).toBeLessThan(menu.indexOf(`?v=2"`));
+    expect(menu).toMatch(/<time class="version-date" datetime="\d{4}-\d\d-\d\dT[^"]+">[A-Z][a-z]{2} \d{1,2}, \d\d:\d\d<\/time>/);
   });
 
   it('opens every artifact action from the title menu', async () => {
     const { user, init } = await signedInAlice();
     const meta = await createArtifact(env, user.id, { title: 'Doc', type: 'code', content: 'x', language: 'python' });
     const body = await (await request(`/a/${meta.id}`, init)).text();
-    expect(body).toContain('class="title-button" data-menu-button="true" aria-haspopup="menu" aria-expanded="false" aria-controls="artifact-menu"');
+    expect(body).toContain('class="title-button" data-menu-button="true" aria-haspopup="menu" aria-expanded="false" aria-controls="artifact-menu" title="Doc"');
     expect(body).toContain('<div class="menu-panel" id="artifact-menu" role="menu" aria-label="Artifact actions" hidden="">');
-    expect(body.match(/role="menuitem"/g)).toHaveLength(10);
+    const menu = body.slice(body.indexOf('id="artifact-menu"'), body.indexOf('id="share-popover"'));
+    expect(menu.match(/role="menuitem"/g)).toHaveLength(10);
     for (const label of ['Copy', 'Download', 'Open in new tab', 'Rename…', 'Edit', 'Export as Markdown…', 'Export as HTML…', 'Export as PDF…', 'Make permanent', 'Delete']) {
       expect(body, label).toContain(`>${label}</span>`);
     }
@@ -302,6 +402,21 @@ describe('viewer', () => {
     expect(body).toContain(`data-print="/render/${meta.id}?v=1&amp;print=1"`);
     expect(body).toContain(`data-method="PUT" data-url="/api/artifacts/${meta.id}/retention"`);
     expect(body).toMatch(/menu-item-danger[^>]*data-method="DELETE"[^>]*data-done="\/"/);
+  });
+
+  it('puts the retention status as a muted, non-interactive line at the top of the title menu', async () => {
+    const { user, init } = await signedInAlice();
+    const meta = await createArtifact(env, user.id, { title: 'Doc', type: 'html', content: 'x' });
+    const body = await (await request(`/a/${meta.id}`, init)).text();
+    const menu = body.slice(body.indexOf('id="artifact-menu"'));
+    expect(menu).toMatch(/hidden=""><div class="menu-note" role="presentation"><svg[^>]*><[^]*?<\/svg><span>Expires in 30 days<\/span><span class="menu-note-type">html<\/span><\/div><hr/);
+    expect(menu.indexOf('Expires in 30 days')).toBeLessThan(menu.indexOf('>Copy</span>'));
+    expect(body).not.toContain('Retention</h2>');
+
+    await setRetention(env, user.id, meta.id, true);
+    const permanent = await (await request(`/a/${meta.id}`, init)).text();
+    expect(permanent).toContain('<span>Permanent</span><span class="menu-note-type">html</span></div>');
+    expect(permanent).toContain('>Set to expire</span>');
   });
 
   it('renders the hidden rename dialog with a labelled input', async () => {
@@ -370,11 +485,12 @@ describe('viewer', () => {
     expect(body).toContain('readonly');
     expect(body).toContain('Stop sharing');
     expect(body).toContain('Anyone with the link can view the latest version.');
-    expect(body).toContain('class="button button-shared"');
-    expect(body).toContain('data-shared="true"');
+    expect(body).toContain('class="button button-compact button-shared"');
+    expect(body).toContain('data-shared="true" aria-label="Share, shared" title="Shared"');
+    expect(body).toContain('<span class="share-dot" aria-hidden="true"></span>');
     expect(body).toContain('data-share-new="true" hidden=""');
     expect(body).toContain('>Set to expire</span>');
-    expect(body).toContain('Permanent</p>');
+    expect(body).toContain('<span>Permanent</span>');
   });
 
   it('404s for another user artifact and 400s for a bad v', async () => {
@@ -437,8 +553,9 @@ describe('public share page', () => {
     expect(body).toContain(`<iframe src="/s/${shareId}/render" sandbox="allow-scripts allow-forms allow-modals allow-popups allow-downloads" title="Artifact preview"`);
     expect(body).toContain('Shared &lt;b&gt;');
     expect(body).toContain('&lt;h1&gt;hi&lt;/h1&gt;');
-    expect(body).toContain(`href="/s/${shareId}/raw?download=1"`);
-    expect(body).toContain('data-copy="#code"');
+    expect(body).toContain(`href="/s/${shareId}/raw?download=1" aria-label="Download" title="Download"`);
+    expect(body).toContain('data-copy="#code" aria-label="Copy" title="Copy"');
+    expect(body).toContain('<a class="button button-compact" href="/auth/login">Sign in</a>');
     expect(body).not.toContain('Remix');
     expect(body).not.toContain('/edit');
     expect(body).not.toContain('data-method');
@@ -458,13 +575,20 @@ describe('public share page', () => {
     expect(body).toContain('data-language="python"');
   });
 
-  it('shows the read-only notice and no owner panel', async () => {
+  it('shows the same slim row with a plain title, inline type tag and a Read-only label', async () => {
     const { user } = await signedInAlice();
     const meta = await createArtifact(env, user.id, { title: 'Doc', type: 'html', content: 'x' });
     const { shareId } = await shareArtifact(env, user.id, meta.id);
     const body = await (await request(`/s/${shareId}`)).text();
-    expect(body).toContain('Shared artifact · read-only');
+    const bar = body.slice(body.indexOf('<div class="viewer-bar">'), body.indexOf('<div role="tabpanel" id="panel-preview"'));
+    expect(bar).toContain('aria-label="Preview" title="Preview"');
+    expect(bar).toContain('aria-label="Code" title="Code"');
+    expect(bar).toContain('<h1 class="viewer-title viewer-title-plain" title="Doc"><span class="title-text">Doc</span><span class="type-tag"><span>html</span></span></h1>');
+    expect(bar).not.toContain('title-button');
+    expect(bar).toContain('<span>Read-only</span>');
+    expect(body).not.toContain('Shared artifact · read-only');
     expect(body).not.toContain('class="side"');
+    expect(body).not.toContain('class="menu-panel');
     expect(body).not.toContain('Danger zone');
   });
 

@@ -141,7 +141,10 @@ const forms = {
     try {
       const view = await api('PATCH', `/api/artifacts/${form.dataset.id}`, { title: form.elements.title.value });
       const text = document.querySelector('.title-text');
-      if (text) text.textContent = view.title;
+      if (text) {
+        text.textContent = view.title;
+        text.closest('.title-button')?.setAttribute('title', view.title);
+      }
       document.title = `${view.title} · Artifacts`;
       document.getElementById('rename-dialog').close();
     } catch (err) {
@@ -199,46 +202,45 @@ if (typeSelect) {
   toggle();
 }
 
-function closeVersionMenus(except) {
-  for (const menu of document.querySelectorAll('details.version-menu[open]')) {
-    if (menu !== except) menu.open = false;
-  }
-}
-
-document.addEventListener('click', (event) => closeVersionMenus(event.target.closest('details.version-menu')));
-
-document.addEventListener('keydown', (event) => {
-  if (event.key !== 'Escape') return;
-  const menu = document.querySelector('details.version-menu[open]');
-  if (!menu) return;
-  menu.open = false;
-  menu.querySelector('summary').focus();
-});
-
 /* Theme switcher ---------------------------------------------------------- */
 
+const THEME_ORDER = ['system', 'light', 'dark'];
+const THEME_NAMES = { system: 'System', light: 'Light', dark: 'Dark' };
+
+function currentTheme() {
+  return document.documentElement.dataset.theme || 'system';
+}
+
 function syncThemeButtons() {
-  const current = document.documentElement.dataset.theme || 'system';
+  const current = currentTheme();
   for (const button of document.querySelectorAll('[data-theme-choice]')) {
-    button.setAttribute('aria-pressed', String(button.dataset.themeChoice === current));
+    button.setAttribute('aria-checked', String(button.dataset.themeChoice === current));
+  }
+  for (const button of document.querySelectorAll('[data-theme-cycle]')) {
+    const label = `Theme: ${THEME_NAMES[current]}`;
+    button.setAttribute('aria-label', label);
+    button.setAttribute('title', label);
   }
 }
 
-document.addEventListener('click', (event) => {
-  const button = event.target.closest('[data-theme-choice]');
-  if (!button) return;
-  const choice = button.dataset.themeChoice;
+function setTheme(choice) {
   if (choice === 'system') delete document.documentElement.dataset.theme;
   else document.documentElement.dataset.theme = choice;
   try {
     localStorage.setItem('theme', choice);
   } catch {}
   syncThemeButtons();
+}
+
+document.addEventListener('click', (event) => {
+  const choice = event.target.closest('[data-theme-choice]');
+  if (choice) return setTheme(choice.dataset.themeChoice);
+  if (event.target.closest('[data-theme-cycle]')) setTheme(THEME_ORDER[(THEME_ORDER.indexOf(currentTheme()) + 1) % THEME_ORDER.length]);
 });
 
 syncThemeButtons();
 
-/* Title menu and share popover -------------------------------------------- */
+/* Account, artifact and version menus, and the share popover ---------------- */
 
 let openMenu = null;
 
@@ -257,32 +259,32 @@ function toggleMenu(button, edge = 'first') {
   closeMenu(false);
   panel.hidden = false;
   button.setAttribute('aria-expanded', 'true');
-  placeMenuBelowHeader(panel);
+  placeMenuBelowTrigger(panel, button);
   openMenu = { button, panel };
-  const items = panel.querySelectorAll('[role=menuitem]');
+  const items = panel.querySelectorAll('[role^=menuitem]');
   const target = (edge === 'last' ? items[items.length - 1] : items[0]) || panel.querySelector('[role=tab]');
   if (target) target.focus();
 }
 
-function placeMenuBelowHeader(panel) {
-  // The signed-in header wraps over several rows on small screens; fixed menus must clear all of them.
+function placeMenuBelowTrigger(panel, button) {
+  // On small screens menus are fixed and span the viewport, so they sit just under their row.
   if (!window.matchMedia('(max-width: 720px)').matches) {
     panel.style.removeProperty('top');
     return;
   }
-  const header = document.querySelector('.site-header');
-  if (header) panel.style.top = `${Math.ceil(header.getBoundingClientRect().bottom) + 8}px`;
+  const row = button.closest('.viewer-bar, .site-header') || button;
+  panel.style.top = `${Math.ceil(row.getBoundingClientRect().bottom) + 4}px`;
 }
 
 window.addEventListener('resize', () => {
-  if (openMenu) placeMenuBelowHeader(openMenu.panel);
+  if (openMenu) placeMenuBelowTrigger(openMenu.panel, openMenu.button);
 });
 
 document.addEventListener('click', (event) => {
   const opener = event.target.closest('[data-menu-button]');
   if (opener) return toggleMenu(opener);
   if (openMenu && !event.target.closest('.menu-panel')) closeMenu(false);
-  if (openMenu && event.target.closest('[role=menuitem]')) closeMenu(true);
+  if (openMenu && event.target.closest('[role=menuitem]')) closeMenu(true); // radios keep the menu open
   const item = event.target.closest('[data-action]');
   if (item && item.dataset.action === 'rename') return openRenameDialog();
   if (item && (item.dataset.action === 'share' || item.dataset.action === 'unshare')) {
@@ -305,11 +307,15 @@ document.addEventListener('keydown', (event) => {
     closeMenu(true);
     return;
   }
-  if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
-  const items = [...openMenu.panel.querySelectorAll('[role=menuitem]')];
+  const radio = event.target.closest('[role=menuitemradio]');
+  const sideways = radio && (event.key === 'ArrowRight' || event.key === 'ArrowLeft');
+  if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp' && !sideways) return;
+  // Left/Right move within the radio group; Up/Down walk every item of the menu.
+  const items = [...(sideways ? radio.parentElement : openMenu.panel).querySelectorAll('[role^=menuitem]')];
   if (!items.length) return;
   const current = items.indexOf(document.activeElement);
-  const next = event.key === 'ArrowDown' ? items[(current + 1) % items.length] : items[(current - 1 + items.length) % items.length];
+  const forward = event.key === 'ArrowDown' || event.key === 'ArrowRight';
+  const next = forward ? items[(current + 1) % items.length] : items[(current - 1 + items.length) % items.length];
   event.preventDefault();
   next.focus();
 });
@@ -336,6 +342,11 @@ document.addEventListener('focusout', (event) => {
   if (to && !openMenu.panel.contains(to) && to !== openMenu.button) closeMenu(false);
 });
 
+// A click inside the sandboxed preview never reaches this document, but it moves focus into the iframe.
+window.addEventListener('blur', () => {
+  if (openMenu && document.activeElement instanceof HTMLIFrameElement) closeMenu(false);
+});
+
 /* Sharing without a reload: swap the Link tab in place. --------------------- */
 
 function applyShareState(view) {
@@ -351,6 +362,8 @@ function applyShareState(view) {
     opener.classList.toggle('button-shared', shared);
     if (shared) opener.setAttribute('data-shared', 'true');
     else opener.removeAttribute('data-shared');
+    opener.setAttribute('aria-label', shared ? 'Share, shared' : 'Share');
+    opener.setAttribute('title', shared ? 'Shared' : 'Share');
   }
 }
 
