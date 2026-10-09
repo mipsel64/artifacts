@@ -1,18 +1,12 @@
-import { Hono, type Context } from 'hono';
+import { Hono } from 'hono';
 import { ArtifactError, getArtifact, getContent, getSharedArtifact, listArtifacts, toView } from '../artifacts';
-import { authenticate, getUser, listApiTokens } from '../auth';
+import { listApiTokens } from '../auth';
 import { listGrants, oauthHelpers } from './oauth';
 import type { AppEnv } from '../types';
 import { pageHeaders } from '../ui/headers';
-import { Layout, type Identity } from '../ui/layout';
+import { identify } from '../ui/identify';
+import { Layout } from '../ui/layout';
 import { ArtifactList, EditArtifact, Landing, NewArtifact, Settings, SharedViewer, Viewer } from '../ui/pages';
-
-async function identify(c: Context<AppEnv>): Promise<(Identity & { id: string }) | null> {
-  const auth = await authenticate(c);
-  if (!auth) return null;
-  const profile = await getUser(c.env, auth.user.id);
-  return { id: auth.user.id, email: auth.user.email, name: profile?.name ?? null, avatarUrl: profile?.avatarUrl ?? null };
-}
 
 function parseVersion(raw: string | undefined): number | undefined {
   if (raw === undefined) return undefined;

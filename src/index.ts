@@ -1,10 +1,11 @@
 import { OAuthProvider } from '@cloudflare/workers-oauth-provider';
 import { Hono } from 'hono';
-import { ArtifactError, sweepExpired } from './artifacts';
+import { sweepExpired } from './artifacts';
 import { isAllowed, verifyApiToken } from './auth';
 import auth from './routes/auth';
 import api from './routes/api';
 import { handleMcp, type McpProps } from './routes/mcp';
+import { handleError, handleNotFound } from './routes/errors';
 import oauth from './routes/oauth';
 import render from './routes/render';
 import ui from './routes/ui';
@@ -18,14 +19,8 @@ app.route('/', oauth);
 app.route('/', render);
 app.route('/', ui);
 
-app.onError((err, c) => {
-  const isJson = c.req.path.startsWith('/api');
-  if (err instanceof ArtifactError) {
-    return isJson ? c.json({ error: err.message }, err.status) : c.text(err.message, err.status);
-  }
-  console.error(err);
-  return isJson ? c.json({ error: 'Internal Server Error' }, 500) : c.text('Internal Server Error', 500);
-});
+app.onError(handleError);
+app.notFound(handleNotFound);
 
 // `artifacts` is the only scope and gates nothing; `offline_access` is only accepted from clients that ask for it.
 const SCOPES = ['artifacts', 'offline_access'];
