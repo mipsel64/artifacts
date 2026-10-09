@@ -250,7 +250,7 @@ function closeMenu(returnFocus) {
   openMenu = null;
 }
 
-function toggleMenu(button) {
+function toggleMenu(button, edge = 'first') {
   if (openMenu && openMenu.button === button) return closeMenu(true);
   const panel = document.getElementById(button.getAttribute('aria-controls'));
   if (!panel) return;
@@ -259,8 +259,9 @@ function toggleMenu(button) {
   button.setAttribute('aria-expanded', 'true');
   placeMenuBelowHeader(panel);
   openMenu = { button, panel };
-  const first = panel.querySelector('[role=menuitem]') || panel.querySelector('[role=tab]');
-  if (first) first.focus();
+  const items = panel.querySelectorAll('[role=menuitem]');
+  const target = (edge === 'last' ? items[items.length - 1] : items[0]) || panel.querySelector('[role=tab]');
+  if (target) target.focus();
 }
 
 function placeMenuBelowHeader(panel) {
@@ -292,7 +293,7 @@ document.addEventListener('click', (event) => {
 });
 
 document.addEventListener('keydown', (event) => {
-  if (!openMenu) return;
+  if (!openMenu) return openClosedMenuButton(event);
   // Only the open menu and its trigger own the arrow keys; other widgets keep native behaviour.
   const owns = openMenu.panel.contains(event.target) || openMenu.button.contains(event.target) || event.target === openMenu.button;
   if (!owns) return;
@@ -309,6 +310,18 @@ document.addEventListener('keydown', (event) => {
   event.preventDefault();
   next.focus();
 });
+
+// WAI-ARIA menu button: ArrowDown/ArrowUp on a closed trigger opens its menu on the first/last item.
+// The share trigger is a dialog popover, so only ArrowDown opens it (with its usual initial focus).
+function openClosedMenuButton(event) {
+  if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+  const button = event.target.closest('[data-menu-button]');
+  if (!button || event.target !== button) return;
+  const isMenu = button.getAttribute('aria-haspopup') === 'menu';
+  if (event.key === 'ArrowUp' && !isMenu) return;
+  event.preventDefault();
+  toggleMenu(button, event.key === 'ArrowUp' ? 'last' : 'first');
+}
 
 document.addEventListener('focusout', (event) => {
   if (!openMenu) return;
