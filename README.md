@@ -11,6 +11,57 @@ A self-hosted take on Claude Artifacts for Cloudflare Workers. Agents create and
 
 Storage: R2 holds artifact metadata and every version; KV holds the per-user index, share links, users and API tokens; a second KV namespace (`OAUTH_KV`) holds OAuth clients, grants and tokens. See [docs/design.md](docs/design.md) for the full contract.
 
+## Cost
+
+**$5 per month covers personal and small-team use.** That is the minimum charge of the [Workers Paid plan](https://developers.cloudflare.com/workers/platform/pricing/), and every usage counter of a typical deployment stays inside what the plan includes. Usage charges start only at millions of requests per month.
+
+### Measured on artifacts.m64.sh
+
+CPU time per request over 24 hours (2026-10-09, 945 Worker invocations, 0 errors), from Workers Observability:
+
+| Route | Requests | Mean CPU | p90 CPU |
+| --- | ---: | ---: | ---: |
+| MCP `/mcp` | 439 | 8.9 ms | 18 ms |
+| Artifact list `/` | 69 | 16.8 ms | 36 ms |
+| Viewer `/a/:id` | 20 | 13.1 ms | 27 ms |
+| Public share page `/s/:id` | 10 | 19.6 ms | 41 ms |
+| Render iframe and REST API | 51 | ~3 ms | ~6 ms |
+
+Static files (`/static/*`) are served as [Workers static assets](https://developers.cloudflare.com/workers/static-assets/billing-and-limitations/): free and not counted as requests. About 300 of the 945 invocations were bots probing paths such as `/.env`; they used 0–1 ms each.
+
+**Use Workers Paid, not Workers Free.** The Free plan stops each request at 10 ms of CPU time, and the server-rendered pages above use 13–20 ms on average. Paid allows 30 s per request by default (up to 5 min) and includes 10 million requests and 30 million CPU milliseconds per month. The $5 is per Cloudflare account and also covers your other Workers.
+
+### What one action uses
+
+| Action | Worker requests | CPU | KV | R2 |
+| --- | ---: | ---: | --- | --- |
+| Create or update an artifact (MCP) | ~1.5 | ~9 ms | 1 write, 1 read | 2 Class A, 0–2 Class B |
+| Open an artifact in the viewer | 2 | ~16 ms | 1 read | 4 Class B |
+| Open a public share link | 2 | ~23 ms | 2 reads | 4 Class B |
+| Open the artifact list | 1 | ~17 ms | 1 list, 1 read | — |
+
+MCP clients also send `initialize` and `tools/list`, hence ~1.5 requests per tool call. These ratios are consistent with the R2 and KV counters of the same 24 hours.
+
+### Monthly estimates
+
+| Scenario | Assumptions | Monthly cost |
+| --- | --- | ---: |
+| Personal | 60 artifact writes, 100 views, 50 public share views per day; 20 KB per version | **$5.00** |
+| Small team | ~20 people + agents: 2,000 writes, 5,000 views, 5,000 share views per day; 30 KB per version (~1.8 GB stored) | **$5.00** |
+| Viral share link | Personal use + 1 million public share views per month | **$5.00** |
+| Very heavy | 1 million writes, 10 million share views, 300,000 views per month; 35 GB stored | **~$35** |
+
+The "very heavy" total is $5 + $3.64 requests + $4.29 CPU + $5.67 KV + $16.48 R2. Beyond the included amounts, each additional million costs about:
+
+- artifact writes: **$15.50** (R2 Class A writes and KV writes dominate)
+- viewer opens: **$2.90**
+- public share views: **$3.50**
+- stored data above 10 GB: **$0.015 per GB-month**; R2 egress is free
+
+Retention keeps storage small: stored data is roughly *writes per day × version size × 30 days*, plus the artifacts you made permanent.
+
+Not included: domain registration (optional; the free `workers.dev` subdomain works, and a custom domain on a Cloudflare zone costs nothing extra) and taxes. Prices are from Cloudflare's [Workers](https://developers.cloudflare.com/workers/platform/pricing/), [KV](https://developers.cloudflare.com/kv/platform/pricing/) and [R2](https://developers.cloudflare.com/r2/pricing/) pricing pages as of 2026-10-09; the CPU sample is small and mostly MCP uploads, so treat the per-action numbers as estimates.
+
 ## Deploy
 
 Requirements: [bun](https://bun.sh) and a Cloudflare account.

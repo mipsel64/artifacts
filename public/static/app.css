@@ -2039,6 +2039,26 @@ textarea:focus-visible {
   width: 100%;
 }
 
+.error-card {
+  align-items: center;
+  text-align: center;
+}
+
+.error-card > * {
+  margin: 0;
+}
+
+.error-status {
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.08em;
+}
+
+.error-card .muted {
+  overflow-wrap: anywhere;
+}
+
 .facts {
   width: 100%;
   margin: 0;
