@@ -26,7 +26,8 @@ const NAV: { id: NavItem; href: string; label: string }[] = [
 ];
 
 export function Layout({ title, me, active, fill, width, children }: LayoutProps) {
-  const mainClass = fill ? 'main main-fill' : width ? `main main-${width}` : 'main';
+  let mainClass = width ? `main main-${width}` : 'main';
+  if (fill) mainClass = 'main main-fill';
   return (
     <>
       {html`<!doctype html>`}

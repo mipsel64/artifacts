@@ -447,7 +447,7 @@ pre,
   gap: var(--s2);
   min-height: var(--control);
   padding: 0 var(--s4);
-  border: 1px solid var(--border-strong);
+  border: 1px solid var(--border-input);
   border-radius: var(--radius-sm);
   background: var(--surface);
   color: var(--text);
