@@ -67,7 +67,7 @@ describe('renderDocument', () => {
     expect(importMap['react-dom/']).toBe(`${importMap['react-dom']}/`);
     expect(doc).toContain("runtime: 'automatic'");
     expect(doc).toContain("'typescript'");
-    expect(doc).toContain('?external=react,react-dom');
+    expect(doc).toContain("(s.indexOf('?') === -1 ? '?' : '&') + 'external=react,react-dom'");
     expect(doc).toContain('ImportExpression: rewriteStatic');
     expect(doc).toContain("callee.type === 'Import'");
     expect(doc).toContain('createRoot(');
@@ -262,7 +262,6 @@ describe('shared artifact routes', () => {
     for (const path of [`/s/${shareId}`, '/s/x', '/s/x/other', '/render', '/']) {
       const res = await request(path);
       expect(res.headers.get('Content-Security-Policy') ?? '').not.toContain('sandbox');
-      expect(res.headers.get('Cache-Control')).not.toBe('private, no-store');
     }
   });
 });

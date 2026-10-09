@@ -61,7 +61,7 @@ try {
     if (!literal || literal.type !== 'StringLiteral') return;
     var s = literal.value;
     if (/^(\\.{0,2}\\/|[a-z][a-z0-9+.-]*:)/i.test(s) || /^react(-dom)?(\\/|$)/.test(s)) return;
-    literal.value = 'https://esm.sh/' + s + '?external=react,react-dom';
+    literal.value = 'https://esm.sh/' + s + (s.indexOf('?') === -1 ? '?' : '&') + 'external=react,react-dom';
   };
   var rewriteStatic = function (path) { rewrite(path.node.source); };
   var externalImports = function () {

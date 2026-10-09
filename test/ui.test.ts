@@ -22,6 +22,7 @@ const HEADERS: Record<string, string> = {
   'x-frame-options': 'DENY',
   'referrer-policy': 'same-origin',
   'x-content-type-options': 'nosniff',
+  'cache-control': 'private, no-store',
 };
 
 function expectSecurityHeaders(res: Response) {

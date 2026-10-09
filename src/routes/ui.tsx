@@ -13,6 +13,7 @@ const pageHeaders: MiddlewareHandler<AppEnv> = async (c, next) => {
   c.header('X-Frame-Options', 'DENY');
   c.header('Referrer-Policy', 'same-origin');
   c.header('X-Content-Type-Options', 'nosniff');
+  c.header('Cache-Control', 'private, no-store');
   await next();
 };
 
