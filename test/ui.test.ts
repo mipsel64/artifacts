@@ -121,6 +121,21 @@ describe('app shell', () => {
     expect(body).not.toMatch(/(?:href|src)="https?:\/\/(?!lh3\.googleusercontent\.com)/);
   });
 
+  it('shows the System/Light/Dark switcher and loads theme.js before the stylesheet', async () => {
+    const { init } = await signedInAlice();
+    const body = await (await request('/', init)).text();
+    expect(body).toContain('<div class="theme-switch" role="group" aria-label="Theme">');
+    expect(body).toContain('data-theme-choice="system" aria-pressed="true" aria-label="System theme"');
+    expect(body).toContain('data-theme-choice="light" aria-pressed="false" aria-label="Light theme"');
+    expect(body).toContain('data-theme-choice="dark" aria-pressed="false" aria-label="Dark theme"');
+    const themeScript = body.indexOf('<script src="/static/theme.js"></script>');
+    const stylesheet = body.indexOf('<link rel="stylesheet" href="/static/app.css"/>');
+    expect(themeScript).toBeGreaterThanOrEqual(0);
+    expect(stylesheet).toBeGreaterThan(themeScript);
+    const landing = await (await request('/')).text();
+    expect(landing).toContain('data-theme-choice="dark"');
+  });
+
   it('shows the landing hero with the Google mark and three feature points', async () => {
     const body = await (await request('/')).text();
     expect(body).toContain('class="button button-primary button-lg" href="/auth/login"');
@@ -253,18 +268,68 @@ describe('viewer', () => {
     expectSecurityHeaders(res);
   });
 
-  it('gives every icon-only tool a name and groups the side panel sections', async () => {
+  it('gives the version switcher names and keeps Versions and Retention in the side panel', async () => {
     const { user, init } = await signedInAlice();
     const meta = await createArtifact(env, user.id, { title: 'Doc', type: 'html', content: 'x' });
     const body = await (await request(`/a/${meta.id}`, init)).text();
-    for (const label of ['Copy', 'Download', 'Open in new tab', 'Edit', 'Previous version', 'Next version']) {
+    for (const label of ['Previous version', 'Next version']) {
       expect(body).toContain(`aria-label="${label}" title="${label}"`);
     }
-    for (const heading of ['Sharing', 'Retention', 'Versions', 'Danger zone']) expect(body).toMatch(new RegExp(`<h2 id="[a-z]+-heading">${heading}</h2>`));
+    for (const heading of ['Versions', 'Retention']) expect(body).toMatch(new RegExp(`<h2 id="[a-z]+-heading">${heading}</h2>`));
+    expect(body).not.toContain('>Sharing</h2>');
+    expect(body).not.toContain('Danger zone');
     expect(body).toContain('aria-current="page"><span class="mono">v1</span>');
     expect(body).toContain('role="tabpanel" id="panel-preview"');
     expect(body).toContain('role="tabpanel" id="panel-code"');
     expect(body).toContain('tabindex="-1" class="tab"');
+  });
+
+  it('opens every artifact action from the title menu', async () => {
+    const { user, init } = await signedInAlice();
+    const meta = await createArtifact(env, user.id, { title: 'Doc', type: 'code', content: 'x', language: 'python' });
+    const body = await (await request(`/a/${meta.id}`, init)).text();
+    expect(body).toContain('class="title-button" data-menu-button="true" aria-haspopup="menu" aria-expanded="false" aria-controls="artifact-menu"');
+    expect(body).toContain('<div class="menu-panel" id="artifact-menu" role="menu" aria-label="Artifact actions" hidden="">');
+    expect(body.match(/role="menuitem"/g)).toHaveLength(10);
+    for (const label of ['Copy', 'Download', 'Open in new tab', 'Rename…', 'Edit', 'Export as Markdown…', 'Export as HTML…', 'Export as PDF…', 'Make permanent', 'Delete']) {
+      expect(body, label).toContain(`>${label}</span>`);
+    }
+    expect(body).toContain(`href="/api/artifacts/${meta.id}/content?version=1&amp;download=1"`);
+    expect(body).toContain(`href="/render/${meta.id}?v=1" target="_blank" rel="noopener noreferrer"`);
+    expect(body).toContain(`href="/a/${meta.id}/edit"`);
+    expect(body).toContain(`href="/api/artifacts/${meta.id}/export?format=md&amp;version=1"`);
+    expect(body).toContain(`href="/api/artifacts/${meta.id}/export?format=html&amp;version=1"`);
+    expect(body).toContain(`data-print="/render/${meta.id}?v=1&amp;print=1"`);
+    expect(body).toContain(`data-method="PUT" data-url="/api/artifacts/${meta.id}/retention"`);
+    expect(body).toMatch(/menu-item-danger[^>]*data-method="DELETE"[^>]*data-done="\/"/);
+  });
+
+  it('renders the hidden rename dialog with a labelled input', async () => {
+    const { user, init } = await signedInAlice();
+    const meta = await createArtifact(env, user.id, { title: 'Doc', type: 'html', content: 'x' });
+    const body = await (await request(`/a/${meta.id}`, init)).text();
+    expect(body).toContain('<dialog id="rename-dialog" class="dialog" aria-labelledby="rename-heading">');
+    expect(body).toContain('<label for="rename-title">Title</label>');
+    expect(body).toContain('<input id="rename-title" name="title" required="" maxlength="200" autocomplete="off" value="Doc"/>');
+    expect(body).toContain('data-form="rename"');
+    expect(body).toContain('>Save</button>');
+    expect(body).toContain('data-close-dialog');
+  });
+
+  it('shows the share popover with Link and Export tabs and export rows', async () => {
+    const { user, init } = await signedInAlice();
+    const meta = await createArtifact(env, user.id, { title: 'Doc', type: 'html', content: 'x' });
+    const body = await (await request(`/a/${meta.id}`, init)).text();
+    expect(body).toContain('aria-haspopup="dialog" aria-expanded="false" aria-controls="share-popover"');
+    expect(body).toContain('<div role="tablist" aria-label="Share" class="tabs">');
+    expect(body).toContain('>Link</span>');
+    expect(body).toContain('>Export</span>');
+    expect(body).toContain('data-share-new="true"><p class="popover-text">Share a read-only public link.</p>');
+    expect(body).toContain('>Create link</button>');
+    expect(body).toContain('data-share-active="true" hidden=""');
+    expect(body).toContain('>Markdown</span><span class="export-ext">.md</span>');
+    expect(body).toContain('>HTML</span><span class="export-ext">.html</span>');
+    expect(body).toContain('>PDF</span><span class="export-ext">opens the print dialog</span>');
   });
 
   it('defaults to the latest version', async () => {
@@ -301,10 +366,13 @@ describe('viewer', () => {
     const body = await (await request(`/a/${meta.id}`, init)).text();
     expect(body).toContain(`value="https://artifacts.test/s/${shared.shareId}"`);
     expect(body).toContain('readonly');
-    expect(body).toContain('Copy link');
     expect(body).toContain('Stop sharing');
-    expect(body).toContain('Set to expire');
-    expect(body).toContain('Permanent');
+    expect(body).toContain('Anyone with the link can view the latest version.');
+    expect(body).toContain('class="button button-shared"');
+    expect(body).toContain('data-shared="true"');
+    expect(body).toContain('data-share-new="true" hidden=""');
+    expect(body).toContain('>Set to expire</span>');
+    expect(body).toContain('Permanent</p>');
   });
 
   it('404s for another user artifact and 400s for a bad v', async () => {

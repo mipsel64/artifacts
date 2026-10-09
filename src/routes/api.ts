@@ -5,6 +5,7 @@ import {
   createArtifact,
   deleteArtifact,
   fileName,
+  fileSlug,
   getArtifact,
   getContent,
   listArtifacts,
@@ -15,6 +16,7 @@ import {
   updateArtifact,
 } from '../artifacts';
 import { requireUser } from '../auth';
+import { renderDocument } from '../render';
 import type { AppEnv, ArtifactType } from '../types';
 
 const routes = new Hono<AppEnv>();
@@ -62,6 +64,39 @@ routes.get('/api/artifacts/:id/content', async (c) => {
   };
   if (c.req.query('download') === '1') headers['Content-Disposition'] = `attachment; filename="${fileName(meta)}"`;
   return c.body(content, 200, headers);
+});
+
+// Fenced-block tag for the Markdown export; `markdown` exports as-is, `code` uses its language.
+const MD_FENCES: Record<Exclude<ArtifactType, 'markdown' | 'code'>, string> = {
+  html: 'html',
+  react: 'jsx',
+  svg: 'svg',
+  mermaid: 'mermaid',
+};
+
+function asMarkdown(meta: { title: string; type: ArtifactType; language: string | null }, content: string): string {
+  const heading = `# ${meta.title}\n\n`;
+  if (meta.type === 'markdown') return heading + content;
+  const tag = meta.type === 'code' ? (meta.language ?? '') : MD_FENCES[meta.type];
+  return heading + '```' + tag + '\n' + content + '\n```\n';
+}
+
+routes.get('/api/artifacts/:id/export', async (c) => {
+  const format = c.req.query('format');
+  if (format !== 'md' && format !== 'html') throw new ArtifactError(400, 'format must be md or html');
+  const versionParam = c.req.query('version');
+  if (versionParam !== undefined && !/^[1-9]\d*$/.test(versionParam)) {
+    throw new ArtifactError(400, 'version must be a positive integer');
+  }
+  const meta = await getArtifact(c.env, c.var.user.id, c.req.param('id'));
+  const content = await getContent(c.env, meta, versionParam === undefined ? undefined : Number(versionParam));
+  const body = format === 'md' ? asMarkdown(meta, content) : renderDocument(meta, content);
+  return c.body(body, 200, {
+    'Content-Type': format === 'md' ? 'text/markdown; charset=utf-8' : 'text/html; charset=utf-8',
+    'X-Content-Type-Options': 'nosniff',
+    'Cache-Control': 'private, no-store',
+    'Content-Disposition': `attachment; filename="${fileSlug(meta)}.${format}"`,
+  });
 });
 
 routes.patch('/api/artifacts/:id', async (c) => {

@@ -156,52 +156,81 @@ function page(title: string, head: string, body: string, source: string): string
 
 const moduleScript = (code: string) => `<script type="module">${code}</script>`;
 
-export function renderDocument(meta: Pick<ArtifactMeta, 'type' | 'language' | 'title'>, content: string): string {
+// Classic script for the print mode of the render routes: opens the print dialog on
+// the artifact document itself shortly after load. Only served when the render URL
+// has ?print=1 — the viewer's iframe src never includes it.
+const PRINT_SCRIPT =
+  '<script>window.addEventListener("load",function(){setTimeout(function(){window.print()},400)})</script>';
+
+function withPrintScript(document_: string, print: boolean): string {
+  if (!print) return document_;
+  const close = document_.toLowerCase().lastIndexOf('</body>');
+  return close === -1 ? document_ + PRINT_SCRIPT : document_.slice(0, close) + PRINT_SCRIPT + document_.slice(close);
+}
+
+export function renderDocument(
+  meta: Pick<ArtifactMeta, 'type' | 'language' | 'title'>,
+  content: string,
+  print = false,
+): string {
   switch (meta.type) {
     case 'html':
-      return content;
+      return withPrintScript(content, print);
     case 'svg':
-      return (
+      return withPrintScript(
         '<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n' +
-        '<meta name="viewport" content="width=device-width, initial-scale=1">\n' +
-        `<title>${escapeHtml(meta.title)}</title>\n` +
-        '<style>html,body{margin:0;height:100%}body{display:grid;place-items:center;overflow:auto}' +
-        'body>svg{max-width:100vw;max-height:100vh;width:auto;height:auto}</style>\n</head>\n' +
-        `<body>\n${content}\n</body>\n</html>\n`
+          '<meta name="viewport" content="width=device-width, initial-scale=1">\n' +
+          `<title>${escapeHtml(meta.title)}</title>\n` +
+          '<style>html,body{margin:0;height:100%}body{display:grid;place-items:center;overflow:auto}' +
+          'body>svg{max-width:100vw;max-height:100vh;width:auto;height:auto}</style>\n</head>\n' +
+          `<body>\n${content}\n</body>\n</html>\n`,
+        print,
       );
     case 'markdown':
-      return page(
-        meta.title,
-        `<link rel="stylesheet" href="${MARKDOWN_CSS_URL}">\n` +
-          '<style>body{margin:0}.markdown-body{box-sizing:border-box;min-height:100vh;max-width:980px;margin:0 auto;padding:32px}' +
-          '@media(max-width:767px){.markdown-body{padding:16px}}</style>',
-        '<article class="markdown-body" id="out"></article>\n' + moduleScript(MARKDOWN_SCRIPT),
-        content,
+      return withPrintScript(
+        page(
+          meta.title,
+          `<link rel="stylesheet" href="${MARKDOWN_CSS_URL}">\n` +
+            '<style>body{margin:0}.markdown-body{box-sizing:border-box;min-height:100vh;max-width:980px;margin:0 auto;padding:32px}' +
+            '@media(max-width:767px){.markdown-body{padding:16px}}</style>',
+          '<article class="markdown-body" id="out"></article>\n' + moduleScript(MARKDOWN_SCRIPT),
+          content,
+        ),
+        print,
       );
     case 'mermaid':
-      return page(
-        meta.title,
-        '<style>body{margin:0;display:grid;place-items:center;min-height:100vh;font-family:system-ui,sans-serif}' +
-          '@media(prefers-color-scheme:dark){body{background:#0d1117}}#out{padding:16px;max-width:100%;overflow:auto}</style>',
-        '<div id="out"></div>\n' + moduleScript(MERMAID_SCRIPT),
-        content,
+      return withPrintScript(
+        page(
+          meta.title,
+          '<style>body{margin:0;display:grid;place-items:center;min-height:100vh;font-family:system-ui,sans-serif}' +
+            '@media(prefers-color-scheme:dark){body{background:#0d1117}}#out{padding:16px;max-width:100%;overflow:auto}</style>',
+          '<div id="out"></div>\n' + moduleScript(MERMAID_SCRIPT),
+          content,
+        ),
+        print,
       );
     case 'code':
-      return page(
-        meta.title,
-        `<link rel="stylesheet" href="${HLJS_LIGHT_CSS_URL}" media="(prefers-color-scheme: light)">\n` +
-          `<link rel="stylesheet" href="${HLJS_DARK_CSS_URL}" media="(prefers-color-scheme: dark)">\n` +
-          '<style>body{margin:0}pre{margin:0}pre code.hljs{min-height:100vh;box-sizing:border-box;padding:16px;font:13px/1.5 ui-monospace,monospace}</style>',
-        `<pre><code id="out" data-language="${escapeHtml(meta.language ?? '')}"></code></pre>\n` + moduleScript(CODE_SCRIPT),
-        content,
+      return withPrintScript(
+        page(
+          meta.title,
+          `<link rel="stylesheet" href="${HLJS_LIGHT_CSS_URL}" media="(prefers-color-scheme: light)">\n` +
+            `<link rel="stylesheet" href="${HLJS_DARK_CSS_URL}" media="(prefers-color-scheme: dark)">\n` +
+            '<style>body{margin:0}pre{margin:0}pre code.hljs{min-height:100vh;box-sizing:border-box;padding:16px;font:13px/1.5 ui-monospace,monospace}</style>',
+          `<pre><code id="out" data-language="${escapeHtml(meta.language ?? '')}"></code></pre>\n` + moduleScript(CODE_SCRIPT),
+          content,
+        ),
+        print,
       );
     case 'react':
-      return page(
-        meta.title,
-        `<script type="importmap">${IMPORT_MAP}</script>\n` +
-          `<script src="${BABEL_URL}"></script>\n<script src="${TAILWIND_URL}"></script>`,
-        '<div id="root"></div>\n' + moduleScript(REACT_SCRIPT),
-        content,
+      return withPrintScript(
+        page(
+          meta.title,
+          `<script type="importmap">${IMPORT_MAP}</script>\n` +
+            `<script src="${BABEL_URL}"></script>\n<script src="${TAILWIND_URL}"></script>`,
+          '<div id="root"></div>\n' + moduleScript(REACT_SCRIPT),
+          content,
+        ),
+        print,
       );
   }
 }

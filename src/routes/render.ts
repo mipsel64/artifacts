@@ -31,12 +31,14 @@ routes.use('/s/:shareId/raw', sandboxHeaders);
 routes.get('/render/:id', requireUser, async (c) => {
   const version = parseVersion(c.req.query('v'));
   const meta = await getArtifact(c.env, c.var.user.id, c.req.param('id'));
-  return c.body(renderDocument(meta, await getContent(c.env, meta, version)), 200, { 'Content-Type': HTML });
+  const print = c.req.query('print') === '1';
+  return c.body(renderDocument(meta, await getContent(c.env, meta, version), print), 200, { 'Content-Type': HTML });
 });
 
 routes.get('/s/:shareId/render', async (c) => {
   const meta = await getSharedArtifact(c.env, c.req.param('shareId'));
-  return c.body(renderDocument(meta, await getContent(c.env, meta)), 200, { 'Content-Type': HTML });
+  const print = c.req.query('print') === '1';
+  return c.body(renderDocument(meta, await getContent(c.env, meta), print), 200, { 'Content-Type': HTML });
 });
 
 routes.get('/s/:shareId/raw', async (c) => {

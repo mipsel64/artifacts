@@ -38,6 +38,7 @@ export function Layout({ title, me, active, fill, width, children }: LayoutProps
           <meta name="color-scheme" content="dark light" />
           <title>{title} · Artifacts</title>
           <link rel="preload" href="/static/fonts/ibm-plex-sans-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin="anonymous" />
+          <script src="/static/theme.js"></script>
           <link rel="stylesheet" href="/static/app.css" />
           <script type="module" src="/static/app.js"></script>
         </head>
@@ -71,6 +72,17 @@ export function Layout({ title, me, active, fill, width, children }: LayoutProps
                 </div>
               </>
             )}
+            <div class="theme-switch" role="group" aria-label="Theme">
+              <button type="button" data-theme-choice="system" aria-pressed="true" aria-label="System theme" title="System">
+                <Icon name="monitor" />
+              </button>
+              <button type="button" data-theme-choice="light" aria-pressed="false" aria-label="Light theme" title="Light">
+                <Icon name="sun" />
+              </button>
+              <button type="button" data-theme-choice="dark" aria-pressed="false" aria-label="Dark theme" title="Dark">
+                <Icon name="moon" />
+              </button>
+            </div>
           </header>
           <div id="error" class="callout callout-danger callout-global" role="alert" hidden>
             <Icon name="circle-alert" size={20} />

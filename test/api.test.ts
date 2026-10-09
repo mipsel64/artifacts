@@ -163,6 +163,84 @@ describe('content', () => {
   });
 });
 
+describe('export', () => {
+  it('exports markdown as-is under a title heading', async () => {
+    const { alice } = await setup();
+    const a = await create(alice.token, { title: 'Notes', type: 'markdown', content: '# hi' });
+    const res = await send(alice.token, 'GET', `/api/artifacts/${a.id}/export?format=md`);
+    expect(res.status).toBe(200);
+    expect(await res.text()).toBe('# Notes\n\n# hi');
+  });
+
+  it.each([
+    ['html', '<p>hi</p>', 'html'],
+    ['react', 'export default () => <p/>', 'jsx'],
+    ['svg', '<svg viewBox="0 0 1 1"/>', 'svg'],
+    ['mermaid', 'graph TD; A-->B', 'mermaid'],
+  ])('wraps %s exports in a fence tagged with the type', async (type, content, tag) => {
+    const { alice } = await setup();
+    const a = await create(alice.token, { title: 'Hello World', type, content });
+    const res = await send(alice.token, 'GET', `/api/artifacts/${a.id}/export?format=md`);
+    expect(await res.text()).toBe(`# Hello World\n\n\u0060\u0060\u0060${tag}\n${content}\n\u0060\u0060\u0060\n`);
+  });
+
+  it('fences code exports with the language and names the file slug.md', async () => {
+    const { alice } = await setup();
+    const a = await create(alice.token, { title: 'My Script', type: 'code', content: 'print(1)', language: 'python' });
+    const res = await send(alice.token, 'GET', `/api/artifacts/${a.id}/export?format=md`);
+    expect(res.headers.get('Content-Type')).toBe('text/markdown; charset=utf-8');
+    expect(res.headers.get('Content-Disposition')).toBe('attachment; filename="my-script.md"');
+    expect(await res.text()).toBe('# My Script\n\n\u0060\u0060\u0060python\nprint(1)\n\u0060\u0060\u0060\n');
+  });
+
+  it('exports the standalone render document as html with download headers', async () => {
+    const { alice } = await setup();
+    const a = await create(alice.token);
+    const res = await send(alice.token, 'GET', `/api/artifacts/${a.id}/export?format=html`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get('Content-Type')).toBe('text/html; charset=utf-8');
+    expect(res.headers.get('Content-Disposition')).toBe('attachment; filename="hello-world.html"');
+    expect(res.headers.get('X-Content-Type-Options')).toBe('nosniff');
+    expect(res.headers.get('Cache-Control')).toBe('private, no-store');
+    expect(await res.text()).toBe('<p>hi</p>');
+  });
+
+  it('exports a specific version', async () => {
+    const { alice } = await setup();
+    const a = await create(alice.token, { title: 'Doc', type: 'markdown', content: 'one' });
+    await send(alice.token, 'PATCH', `/api/artifacts/${a.id}`, { content: 'two' });
+    const first = await send(alice.token, 'GET', `/api/artifacts/${a.id}/export?format=md&version=1`);
+    expect(await first.text()).toBe('# Doc\n\none');
+    const latest = await send(alice.token, 'GET', `/api/artifacts/${a.id}/export?format=md`);
+    expect(await latest.text()).toBe('# Doc\n\ntwo');
+  });
+
+  it('rejects a bad format and a bad version with 400', async () => {
+    const { alice } = await setup();
+    const a = await create(alice.token);
+    for (const path of [
+      `/api/artifacts/${a.id}/export`,
+      `/api/artifacts/${a.id}/export?format=pdf`,
+      `/api/artifacts/${a.id}/export?format=`,
+      `/api/artifacts/${a.id}/export?format=md&version=0`,
+      `/api/artifacts/${a.id}/export?format=md&version=abc`,
+    ]) {
+      const res = await send(alice.token, 'GET', path);
+      expect(res.status, path).toBe(400);
+      expect(await res.json()).toEqual({ error: expect.any(String) });
+    }
+  });
+
+  it('404s an unknown version and other-user artifacts', async () => {
+    const { alice, bob } = await setup();
+    const a = await create(alice.token);
+    expect((await send(alice.token, 'GET', `/api/artifacts/${a.id}/export?format=md&version=9`)).status).toBe(404);
+    for (const format of ['md', 'html']) {
+      expect((await send(bob.token, 'GET', `/api/artifacts/${a.id}/export?format=${format}`)).status).toBe(404);
+    }
+  });
+});
+
 describe('retention', () => {
   it('sets permanent and expiring', async () => {
     const { alice } = await setup();
@@ -225,6 +303,7 @@ describe('auth and ownership', () => {
       ['POST', '/api/artifacts'],
       ['GET', '/api/artifacts/x'],
       ['GET', '/api/artifacts/x/content'],
+      ['GET', '/api/artifacts/x/export'],
       ['PATCH', '/api/artifacts/x'],
       ['DELETE', '/api/artifacts/x'],
       ['PUT', '/api/artifacts/x/retention'],
@@ -267,6 +346,7 @@ describe('auth and ownership', () => {
     for (const [method, path, body] of [
       ['GET', `/api/artifacts/${a.id}`, undefined],
       ['GET', `/api/artifacts/${a.id}/content`, undefined],
+      ['GET', `/api/artifacts/${a.id}/export?format=md`, undefined],
       ['PATCH', `/api/artifacts/${a.id}`, { title: 'x' }],
       ['DELETE', `/api/artifacts/${a.id}`, undefined],
       ['PUT', `/api/artifacts/${a.id}/retention`, { permanent: true }],

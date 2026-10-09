@@ -116,6 +116,30 @@ describe('renderDocument', () => {
       }
     }
   });
+
+  describe('print mode', () => {
+    const PRINT = 'window.addEventListener("load"';
+
+    it.each(ARTIFACT_TYPES.filter((t) => t !== 'html'))('appends the print script to %s only with print', (type) => {
+      expect(renderDocument(meta(type), 'x')).not.toContain(PRINT);
+      expect(renderDocument(meta(type), 'x', true)).toContain(PRINT);
+      expect(renderDocument(meta(type), 'x', true)).toContain('window.print()');
+    });
+
+    it('injects the print script into html content before </body>', () => {
+      const content = '<!doctype html><html><body><h1>hi</h1></body></html>';
+      expect(renderDocument(meta('html'), content)).toBe(content);
+      const printed = renderDocument(meta('html'), content, true);
+      expect(printed).toContain('window.print()');
+      expect(printed.indexOf('window.print()')).toBeLessThan(printed.toLowerCase().lastIndexOf('</body>'));
+    });
+
+    it('appends the print script to html without a body tag', () => {
+      const printed = renderDocument(meta('html'), '<p>no body</p>', true);
+      expect(printed.startsWith('<p>no body</p>')).toBe(true);
+      expect(printed).toContain('window.print()');
+    });
+  });
 });
 
 const SANDBOX = 'sandbox allow-scripts allow-forms allow-modals allow-popups allow-downloads';
@@ -140,6 +164,15 @@ describe('GET /render/:id', () => {
     expect(res.status).toBe(200);
     expectSandboxResponse(res, 'text/html; charset=utf-8');
     expect(await res.text()).toBe('<h1>v1</h1>');
+  });
+
+  it('includes the print script only with ?print=1', async () => {
+    const { user, token } = await createTestUser('alice@example.com', '1');
+    const artifact = await createArtifact(env, user.id, { title: 'Notes', type: 'markdown', content: '# Hi' });
+    const plain = await request(`/render/${artifact.id}`, { headers: bearer(token) });
+    expect(await plain.text()).not.toContain('window.print()');
+    const printed = await request(`/render/${artifact.id}?print=1`, { headers: bearer(token) });
+    expect(await printed.text()).toContain('window.print()');
   });
 
   it('accepts the session cookie and renders non-html types as documents', async () => {
@@ -205,6 +238,14 @@ describe('shared artifact routes', () => {
     expect(res.status).toBe(200);
     expectSandboxResponse(res, 'text/html; charset=utf-8');
     expect(await res.text()).toBe('<h1>latest</h1>');
+  });
+
+  it('supports print=1 on the shared render route too', async () => {
+    const { shareId } = await shared();
+    const plain = await request(`/s/${shareId}/render`);
+    expect(await plain.text()).not.toContain('window.print()');
+    const printed = await request(`/s/${shareId}/render?print=1`);
+    expect(await printed.text()).toContain('window.print()');
   });
 
   it('serves raw text without auth', async () => {

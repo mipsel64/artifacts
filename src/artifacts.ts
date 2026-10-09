@@ -451,14 +451,19 @@ const TYPE_EXTENSIONS: Record<Exclude<ArtifactType, 'code'>, string> = {
   markdown: 'md',
 };
 
-export function fileName(meta: ArtifactMeta): string {
+// Title slugged for file names; shared by fileName and the export routes.
+export function fileSlug(meta: ArtifactMeta): string {
   const slug = meta.title
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+/, '')
     .slice(0, 60)
     .replace(/-+$/, '');
+  return slug || 'artifact';
+}
+
+export function fileName(meta: ArtifactMeta): string {
   const extension =
     meta.type === 'code' ? (meta.language && Object.hasOwn(LANGUAGE_EXTENSIONS, meta.language.toLowerCase()) && LANGUAGE_EXTENSIONS[meta.language.toLowerCase()]) || 'txt' : TYPE_EXTENSIONS[meta.type];
-  return `${slug || 'artifact'}.${extension}`;
+  return `${fileSlug(meta)}.${extension}`;
 }

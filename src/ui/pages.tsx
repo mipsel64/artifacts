@@ -48,7 +48,7 @@ function TypeTile({ type }: { type: ArtifactType }) {
 
 function TypeChip({ type, language }: { type: ArtifactType; language?: string | null }) {
   return (
-    <span class="chip">
+    <span class="chip chip-type">
       <TypeIcon type={type} size={14} />
       <span>{type}</span>
       {language && <span class="chip-detail">{language}</span>}
@@ -257,7 +257,7 @@ function ToolLink({ href, label, icon, external }: { href: string; label: string
   );
 }
 
-function ViewerPanel({ previewSrc, content, tools }: { previewSrc: string; content: string; tools: Child }) {
+function ViewerPanel({ previewSrc, content, tools }: { previewSrc: string; content: string; tools?: Child }) {
   return (
     <section class="panel stage" aria-label="Artifact">
       <div class="panel-bar">
@@ -268,7 +268,7 @@ function ViewerPanel({ previewSrc, content, tools }: { previewSrc: string; conte
             { id: 'code', label: 'Code', icon: 'code-xml' },
           ]}
         />
-        <div class="tools">{tools}</div>
+        {tools && <div class="tools">{tools}</div>}
       </div>
       <div role="tabpanel" id="panel-preview" aria-labelledby="tab-preview" class="panel-body panel-preview">
         <iframe src={previewSrc} sandbox={SANDBOX} title="Artifact preview" class="preview"></iframe>
@@ -282,7 +282,7 @@ function ViewerPanel({ previewSrc, content, tools }: { previewSrc: string; conte
   );
 }
 
-function Title({ meta, children }: { meta: ArtifactView; children?: Child }) {
+function ViewerTitle({ meta, children }: { meta: ArtifactView; children?: Child }) {
   return (
     <div class="viewer-title">
       <h1>{meta.title}</h1>
@@ -366,74 +366,177 @@ function ApiButton(props: {
   );
 }
 
-function SideSection({ id, title, danger, children }: { id: string; title: string; danger?: boolean; children?: Child }) {
+function SideSection({ id, title, children }: { id: string; title: string; children?: Child }) {
   return (
-    <section class={danger ? 'side-section side-danger' : 'side-section'} aria-labelledby={id}>
+    <section class="side-section" aria-labelledby={id}>
       <h2 id={id}>{title}</h2>
       {children}
     </section>
   );
 }
 
-export function Viewer({ meta, version, content, now }: { meta: ArtifactView; version: number; content: string; now: Date }) {
+function TitleMenu({ meta, version }: { meta: ArtifactView; version: number }) {
   const render = `/render/${meta.id}?v=${version}`;
   const api = `/api/artifacts/${meta.id}`;
   const permanent = meta.expiresAt === null;
+  const item = 'menu-item';
+  return (
+    <div class="menu-anchor">
+      <h1>
+        <button type="button" class="title-button" data-menu-button aria-haspopup="menu" aria-expanded="false" aria-controls="artifact-menu">
+          <span class="title-text">{meta.title}</span>
+          <Icon name="chevron-down" />
+        </button>
+      </h1>
+      <div class="menu-panel" id="artifact-menu" role="menu" aria-label="Artifact actions" hidden>
+        <button type="button" role="menuitem" class={item} data-copy="#code">
+          <Icon name="copy" class="icon-copy" />
+          <Icon name="check" class="icon-check" />
+          <span>Copy</span>
+        </button>
+        <a role="menuitem" class={item} href={`${api}/content?version=${version}&download=1`}>
+          <Icon name="download" />
+          <span>Download</span>
+        </a>
+        <a role="menuitem" class={item} href={render} target="_blank" rel="noopener noreferrer">
+          <Icon name="external-link" />
+          <span>Open in new tab</span>
+        </a>
+        <hr class="menu-sep" role="separator" />
+        <button type="button" role="menuitem" class={item} data-action="rename">
+          <Icon name="pencil" />
+          <span>Rename…</span>
+        </button>
+        <a role="menuitem" class={item} href={`/a/${meta.id}/edit`}>
+          <Icon name="square-pen" />
+          <span>Edit</span>
+        </a>
+        <hr class="menu-sep" role="separator" />
+        <a role="menuitem" class={item} href={`${api}/export?format=md&version=${version}`}>
+          <Icon name="file-text" />
+          <span>Export as Markdown…</span>
+        </a>
+        <a role="menuitem" class={item} href={`${api}/export?format=html&version=${version}`}>
+          <Icon name="code-xml" />
+          <span>Export as HTML…</span>
+        </a>
+        <button type="button" role="menuitem" class={item} data-print={`/render/${meta.id}?v=${version}&print=1`}>
+          <Icon name="printer" />
+          <span>Export as PDF…</span>
+        </button>
+        <hr class="menu-sep" role="separator" />
+        <button
+          type="button"
+          role="menuitem"
+          class={item}
+          data-method="PUT"
+          data-url={`${api}/retention`}
+          data-body={JSON.stringify({ permanent: !permanent })}
+        >
+          <Icon name={permanent ? 'clock' : 'infinity'} />
+          <span>{permanent ? 'Set to expire' : 'Make permanent'}</span>
+        </button>
+        <hr class="menu-sep" role="separator" />
+        <button
+          type="button"
+          role="menuitem"
+          class={`${item} menu-item-danger`}
+          data-method="DELETE"
+          data-url={api}
+          data-confirm="Delete this artifact and all its versions?"
+          data-done="/"
+        >
+          <Icon name="trash-2" />
+          <span>Delete</span>
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function SharePopover({ meta, version }: { meta: ArtifactView; version: number }) {
+  const api = `/api/artifacts/${meta.id}`;
+  const shared = meta.shareUrl !== null;
+  return (
+    <div class="menu-anchor menu-anchor-end">
+      <button
+        type="button"
+        class={shared ? 'button button-shared' : 'button'}
+        data-menu-button
+        aria-haspopup="dialog"
+        aria-expanded="false"
+        aria-controls="share-popover"
+        data-shared={shared ? 'true' : undefined}
+      >
+        <Icon name="share-2" />
+        <span class="btn-label">Share</span>
+      </button>
+      <div class="menu-panel popover" id="share-popover" hidden>
+        <Tabs label="Share" tabs={[{ id: 'share-link', label: 'Link' }, { id: 'share-export', label: 'Export' }]} />
+        <div role="tabpanel" id="panel-share-link" aria-labelledby="tab-share-link" class="popover-body">
+          <div class="actions actions-stack" data-share-new hidden={shared}>
+            <p class="popover-text">Share a read-only public link.</p>
+            <button type="button" class="button button-primary" data-action="share" data-url={`${api}/share`}>
+              Create link
+            </button>
+          </div>
+          <div class="actions actions-stack" data-share-active hidden={!shared}>
+            <label class="sr-only" for="share-url">
+              Share link
+            </label>
+            <div class="share-link-box">
+              <input id="share-url" readonly value={meta.shareUrl ?? ''} />
+              <CopyButton target="#share-url" class="button button-sm" compact />
+            </div>
+            <button type="button" class="button button-danger button-quiet" data-action="unshare" data-url={`${api}/share`}>
+              Stop sharing
+            </button>
+            <p class="popover-note">Anyone with the link can view the latest version.</p>
+          </div>
+        </div>
+        <div role="tabpanel" id="panel-share-export" aria-labelledby="tab-share-export" class="popover-body" hidden>
+          <div class="export-list">
+            <a class="export-row" href={`${api}/export?format=md&version=${version}`}>
+              <Icon name="file-text" />
+              <span>Markdown</span>
+              <span class="export-ext">.md</span>
+            </a>
+            <a class="export-row" href={`${api}/export?format=html&version=${version}`}>
+              <Icon name="code-xml" />
+              <span>HTML</span>
+              <span class="export-ext">.html</span>
+            </a>
+            <button type="button" class="export-row" data-print={`/render/${meta.id}?v=${version}&print=1`}>
+              <Icon name="printer" />
+              <span>PDF</span>
+              <span class="export-ext">opens the print dialog</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function Viewer({ meta, version, content, now }: { meta: ArtifactView; version: number; content: string; now: Date }) {
+  const render = `/render/${meta.id}?v=${version}`;
   return (
     <>
       <div class="viewer-head">
-        <Title meta={meta} />
-        <Versions meta={meta} version={version} />
+        <div class="viewer-title">
+          <TitleMenu meta={meta} version={version} />
+          <div class="chips">
+            <TypeChip type={meta.type} language={meta.language} />
+            <Versions meta={meta} version={version} />
+          </div>
+        </div>
+        <div class="viewer-actions">
+          <SharePopover meta={meta} version={version} />
+        </div>
       </div>
       <div class="viewer-body">
-        <ViewerPanel
-          previewSrc={render}
-          content={content}
-          tools={
-            <>
-              <CopyButton target="#code" compact />
-              <ToolLink href={`${api}/content?version=${version}&download=1`} label="Download" icon="download" />
-              <ToolLink href={render} label="Open in new tab" icon="external-link" external />
-              <ToolLink href={`/a/${meta.id}/edit`} label="Edit" icon="pencil" />
-            </>
-          }
-        />
+        <ViewerPanel previewSrc={render} content={content} />
         <aside class="side" aria-label="Artifact details">
-          <SideSection id="sharing-heading" title="Sharing">
-            {meta.shareUrl ? (
-              <>
-                <p class="side-text">
-                  <Icon name="link" /> Anyone with the link can view this artifact, read-only.
-                </p>
-                <label class="sr-only" for="share-url">
-                  Share link
-                </label>
-                <input id="share-url" class="mono-input" readonly value={meta.shareUrl} />
-                <div class="actions">
-                  <CopyButton target="#share-url" label="Copy link" />
-                  <ApiButton method="DELETE" url={`${api}/share`} label="Stop sharing" />
-                </div>
-              </>
-            ) : (
-              <>
-                <p class="side-text">
-                  <Icon name="lock" /> Only you can see this artifact.
-                </p>
-                <ApiButton method="POST" url={`${api}/share`} label="Share" icon="share-2" />
-              </>
-            )}
-          </SideSection>
-          <SideSection id="retention-heading" title="Retention">
-            <p class="side-text">
-              <Icon name={permanent ? 'infinity' : 'clock'} /> {retentionLabel(meta.expiresAt, now)}
-            </p>
-            <ApiButton
-              method="PUT"
-              url={`${api}/retention`}
-              body={JSON.stringify({ permanent: !permanent })}
-              label={permanent ? 'Set to expire' : 'Make permanent'}
-            />
-          </SideSection>
           <SideSection id="versions-heading" title="Versions">
             <ol class="version-history">
               {[...meta.versions].reverse().map((info) => (
@@ -447,20 +550,30 @@ export function Viewer({ meta, version, content, now }: { meta: ArtifactView; ve
               ))}
             </ol>
           </SideSection>
-          <SideSection id="danger-heading" title="Danger zone" danger>
-            <p class="side-text">Permanently deletes this artifact and all its versions.</p>
-            <ApiButton
-              method="DELETE"
-              url={api}
-              label="Delete"
-              icon="trash-2"
-              confirm="Delete this artifact and all its versions?"
-              done="/"
-              danger
-            />
+          <SideSection id="retention-heading" title="Retention">
+            <p class="side-text">
+              <Icon name={meta.expiresAt === null ? 'infinity' : 'clock'} /> {retentionLabel(meta.expiresAt, now)}
+            </p>
           </SideSection>
         </aside>
       </div>
+      <dialog id="rename-dialog" class="dialog" aria-labelledby="rename-heading">
+        <form class="form" data-form="rename" data-id={meta.id}>
+          <h2 id="rename-heading">Rename artifact</h2>
+          <div class="field">
+            <label for="rename-title">Title</label>
+            <input id="rename-title" name="title" required maxlength={200} autocomplete="off" value={meta.title} />
+          </div>
+          <div class="actions">
+            <button type="submit" class="button button-primary">
+              Save
+            </button>
+            <button type="button" class="button" data-close-dialog>
+              Cancel
+            </button>
+          </div>
+        </form>
+      </dialog>
     </>
   );
 }
@@ -476,12 +589,12 @@ export function SharedViewer({ shareId, meta, content, signedIn }: SharedProps) 
   return (
     <>
       <div class="viewer-head">
-        <Title meta={meta}>
+        <ViewerTitle meta={meta}>
           <span class="chip">
             <Icon name="eye" size={14} />
             <span>Shared artifact · read-only</span>
           </span>
-        </Title>
+        </ViewerTitle>
       </div>
       <div class="viewer-body viewer-body-single">
         <ViewerPanel
