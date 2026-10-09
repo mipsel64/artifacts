@@ -1,4 +1,4 @@
-# Design: Artifacts on Cloudflare Workers + R2
+# Design: Artifacts on Cloudflare Workers + R2 + KV
 
 A self-hosted clone of Claude Artifacts. Agents create and update artifacts over MCP; people view, share and manage them in the browser.
 
@@ -17,16 +17,17 @@ Out of scope: AI-powered artifacts (`window.claude`), artifact persistent storag
 
 ## Stack
 
-- TypeScript, Cloudflare Workers, Hono (routing + `hono/jsx` SSR), one R2 bucket binding `BUCKET`. No D1/KV.
+- TypeScript, Cloudflare Workers, Hono (routing + `hono/jsx` SSR). One R2 bucket `BUCKET` holds artifact metadata and content (strongly consistent, conditional writes). One KV namespace `KV` holds the owner index, share lookups, users and API tokens. No D1.
 - Static assets: Workers static assets from `public/` (`assets.directory`).
-- Tests: vitest 5 + `@cloudflare/vitest-plugin` (real R2 via Miniflare; `afterEach(reset)` from `cloudflare:test` isolates storage).
+- Tests: vitest 5 + `@cloudflare/vitest-plugin` (real R2 and KV via Miniflare; `afterEach(reset)` from `cloudflare:test` isolates storage).
 - Package manager: bun. Scripts: `bun run test`, `bun run typecheck`, `bun run build` (= `wrangler deploy --dry-run --outdir dist`).
 
 ## Environment
 
 | Name | Kind | Meaning |
 | --- | --- | --- |
-| `BUCKET` | R2 binding | All storage |
+| `BUCKET` | R2 binding | Artifact `meta.json` and version content |
+| `KV` | KV binding | Owner index, shares, users, API tokens |
 | `GITHUB_CLIENT_ID` | var | GitHub OAuth app client id |
 | `GITHUB_CLIENT_SECRET` | secret | GitHub OAuth app secret |
 | `SESSION_SECRET` | secret | HMAC key for session cookies (>= 32 random bytes) |
@@ -38,7 +39,7 @@ Out of scope: AI-powered artifacts (`window.claude`), artifact persistent storag
 | --- | --- | --- |
 | `src/index.ts` | foundation | App assembly, `onError`, `scheduled` |
 | `src/types.ts` | foundation | Shared types |
-| `src/artifacts.ts` | foundation | Domain + R2 storage |
+| `src/artifacts.ts` | foundation | Domain + R2/KV storage |
 | `src/auth.ts` | foundation | Sessions, API tokens, users, middleware |
 | `src/routes/auth.ts` | lane auth | GitHub OAuth routes, `/api/tokens` |
 | `src/routes/api.ts` | lane api | REST artifacts API |
@@ -77,17 +78,28 @@ export interface ArtifactView extends ArtifactMeta { url: string; shareUrl: stri
 export type AppEnv = { Bindings: Env; Variables: { user: SessionUser; authMethod: 'session' | 'token' } };
 ```
 
-## R2 key layout
+## Storage layout
+
+R2 (`BUCKET`):
 
 | Key | Body | Notes |
 | --- | --- | --- |
 | `artifacts/{id}/meta.json` | `ArtifactMeta` JSON | Source of truth |
 | `artifacts/{id}/v/{version}-{rand}` | content | Unique key per write; `VersionInfo.key` points to it |
-| `index/{ownerId}/{id}` | empty | `customMetadata`: `title`, `type`, `version`, `updatedAt`, `expiresAt` (`''` = permanent), `shared` (`'1'`/`'0'`) |
-| `shares/{shareId}` | `{ artifactId, ownerId }` JSON | |
-| `users/{userId}.json` | `User` JSON | |
-| `tokens/{sha256hex(token)}` | `{ id, userId, login, name, createdAt }` JSON | |
-| `user-tokens/{userId}/{tokenId}` | empty | `customMetadata`: `name`, `createdAt`, `hash` |
+
+KV (`KV`):
+
+| Key | Value | Notes |
+| --- | --- | --- |
+| `index:{ownerId}:{id}` | `''` | metadata: `{ title, type, version, updatedAt, expiresAt, shared }` (`title` cut to 100 chars to stay under the 1024-byte KV metadata limit; `expiresAt` null = permanent) |
+| `share:{shareId}` | `{ artifactId, ownerId }` JSON | |
+| `user:{userId}` | `User` JSON | |
+| `token:{sha256hex(token)}` | `{ id, userId, login, name, createdAt }` JSON | |
+| `user-token:{userId}:{tokenId}` | `''` | metadata: `{ name, createdAt, hash }` |
+
+No KV key uses a TTL: the sweep finds expired artifacts through the index.
+
+KV is eventually consistent (changes can take about 60 s to reach other locations). Accepted effects: the list can lag behind a create/update/delete; a revoked API token can keep working for up to about 60 s in other locations. Share revocation is immediate because `getSharedArtifact` also checks `meta.shareId` in R2.
 
 Ids, share ids and token ids: 16 random bytes, base64url (22 chars). API tokens: `art_` + 32 random bytes base64url. Only the SHA-256 hex of a token is stored.
 
@@ -99,17 +111,17 @@ export const MAX_CONTENT_BYTES = 1024 * 1024;  // UTF-8 bytes
 export const MAX_TITLE_LENGTH = 200;
 export class ArtifactError extends Error { status: 400 | 404 | 409 | 413 }
 
-createArtifact(bucket, ownerId, input: { title: string; type: ArtifactType; content: string; language?: string | null }, now?: Date): Promise<ArtifactMeta>
-getArtifact(bucket, ownerId, id, now?): Promise<ArtifactMeta>            // 404: missing, other owner, or expired
-getContent(bucket, meta, version?: number): Promise<string>                // default latest; 404 unknown version
-listArtifacts(bucket, ownerId, now?): Promise<ArtifactSummary[]>           // non-expired, updatedAt desc
-updateArtifact(bucket, ownerId, id, input: { title?: string; content?: string; oldStr?: string; newStr?: string }, now?): Promise<ArtifactMeta>
-setRetention(bucket, ownerId, id, permanent: boolean, now?): Promise<ArtifactMeta>
-deleteArtifact(bucket, ownerId, id): Promise<void>                          // 404 if not visible
-shareArtifact(bucket, ownerId, id, now?): Promise<ArtifactMeta>             // idempotent: keeps existing shareId
-unshareArtifact(bucket, ownerId, id, now?): Promise<ArtifactMeta>           // idempotent
-getSharedArtifact(bucket, shareId, now?): Promise<ArtifactMeta>             // 404: unknown, revoked, or expired
-sweepExpired(bucket, now?, limit = 100): Promise<number>                    // deletes up to `limit` expired artifacts
+createArtifact(env, ownerId, input: { title: string; type: ArtifactType; content: string; language?: string | null }, now?: Date): Promise<ArtifactMeta>
+getArtifact(env, ownerId, id, now?): Promise<ArtifactMeta>            // 404: missing, other owner, or expired
+getContent(env, meta, version?: number): Promise<string>                // default latest; 404 unknown version
+listArtifacts(env, ownerId, now?): Promise<ArtifactSummary[]>           // non-expired, updatedAt desc
+updateArtifact(env, ownerId, id, input: { title?: string; content?: string; oldStr?: string; newStr?: string }, now?): Promise<ArtifactMeta>
+setRetention(env, ownerId, id, permanent: boolean, now?): Promise<ArtifactMeta>
+deleteArtifact(env, ownerId, id): Promise<void>                          // 404 if not visible
+shareArtifact(env, ownerId, id, now?): Promise<ArtifactMeta>             // idempotent: keeps existing shareId
+unshareArtifact(env, ownerId, id, now?): Promise<ArtifactMeta>           // idempotent
+getSharedArtifact(env, shareId, now?): Promise<ArtifactMeta>             // 404: unknown, revoked, or expired
+sweepExpired(env, now?, limit = 100): Promise<number>                    // deletes up to `limit` expired artifacts
 toView(meta, origin): ArtifactView                                           // url = {origin}/a/{id}, shareUrl = {origin}/s/{shareId}
 fileName(meta): string                                                       // slug(title) + extension by type/language
 ```
@@ -118,10 +130,11 @@ Rules:
 
 - Validation (400): title trimmed, 1..200 chars; `type` in `ARTIFACT_TYPES`; content non-empty string; `language` optional, max 32 chars of `[A-Za-z0-9+#._-]`. Content over `MAX_CONTENT_BYTES` → 413.
 - Update: `content` and `oldStr`/`newStr` are mutually exclusive (400). `oldStr` must occur exactly once in the latest content (400 otherwise; message says 0 or N matches). Either form writes a new version. `title` alone renames without a new version. An update with nothing to change is 400.
+- All functions take `env: Env` (they use `env.BUCKET` and `env.KV`).
 - Retention: create sets `expiresAt = now + 30d`. A new version resets `expiresAt = now + 30d` unless permanent. `setRetention(true)` sets `null`; `setRetention(false)` sets `now + 30d`. An artifact is expired when `expiresAt !== null && expiresAt <= now`; expired artifacts are 404 everywhere before the sweep deletes them.
-- Concurrency: write the version object first (unique key), then put `meta.json` with `onlyIf: { etagMatches }` from the read. On precondition failure, retry the whole read-modify-write up to 3 times, then 409. Update the index entry after meta (index may briefly lag; meta wins).
-- Delete removes every key under `artifacts/{id}/`, the index entry and the share entry.
-- Sweep lists `index/` with custom metadata, re-reads `meta.json` for each candidate, and deletes it only when meta is missing or expired.
+- Concurrency: write the version object first (unique key), then put `meta.json` with `onlyIf: { etagMatches }` from the read. On precondition failure, retry the whole read-modify-write up to 3 times, then 409. Update the KV index entry after meta (the index may lag; meta wins).
+- Delete removes every R2 key under `artifacts/{id}/`, the KV index entry and the KV share entry.
+- Sweep lists KV `index:` (all owners) with metadata, re-reads `meta.json` for each candidate, and deletes it only when meta is missing or expired.
 
 ## Auth (`src/auth.ts`)
 
@@ -130,15 +143,15 @@ export const SESSION_COOKIE = 'session';
 export const SESSION_TTL_SECONDS = 7 * 24 * 3600;
 
 isAllowed(env, login): boolean
-upsertUser(bucket, user: { githubId: number; login: string; name: string | null; avatarUrl: string | null }, now?): Promise<User>
-getUser(bucket, userId): Promise<User | null>
+upsertUser(env, user: { githubId: number; login: string; name: string | null; avatarUrl: string | null }, now?): Promise<User>
+getUser(env, userId): Promise<User | null>
 createSessionCookie(env, user: SessionUser, now?): Promise<string>   // full Set-Cookie header value
 clearSessionCookie(): string                                           // Set-Cookie value that expires it
 readSession(env, cookieHeader: string | undefined, now?): Promise<SessionUser | null>
-createApiToken(bucket, user: SessionUser, name: string, now?): Promise<{ token: string; id: string; name: string; createdAt: string }>
-listApiTokens(bucket, userId): Promise<{ id: string; name: string; createdAt: string }[]>
-revokeApiToken(bucket, userId, tokenId): Promise<void>                 // 404 if not owned
-verifyApiToken(bucket, token): Promise<SessionUser | null>
+createApiToken(env, user: SessionUser, name: string, now?): Promise<{ token: string; id: string; name: string; createdAt: string }>
+listApiTokens(env, userId): Promise<{ id: string; name: string; createdAt: string }[]>
+revokeApiToken(env, userId, tokenId): Promise<void>                 // 404 if not owned
+verifyApiToken(env, token): Promise<SessionUser | null>
 authenticate(c): Promise<{ user: SessionUser; method: 'session' | 'token' } | null>
 requireUser: MiddlewareHandler<AppEnv>                                 // sets c.var.user / c.var.authMethod, else 401 JSON
 requireSession: MiddlewareHandler<AppEnv>                              // like requireUser but rejects Bearer tokens (403)
@@ -217,4 +230,4 @@ Domain errors become tool results with `isError: true` and the error message.
 
 ## Cron
 
-`triggers.crons = ["0 3 * * *"]`. `scheduled` runs `sweepExpired(env.BUCKET)` in `ctx.waitUntil`.
+`triggers.crons = ["0 3 * * *"]`. `scheduled` runs `sweepExpired(env)` in `ctx.waitUntil`.
