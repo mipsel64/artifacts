@@ -173,6 +173,14 @@ describe('GET /authorize sign-in redirect', () => {
     expect(location.searchParams.get('next')).toBe(path);
   });
 
+  it('shows an error instead of a sign-in that would drop an over-long authorize request', async () => {
+    const { challenge } = await pkce();
+    const path = authorizePath(await registerClient(), challenge, REDIRECT, 's'.repeat(2100));
+    const res = await request(path, { redirect: 'manual' });
+    expect(res.status).toBe(400);
+    expect(await res.text()).toContain('too long');
+  });
+
   it('ignores a Bearer token: only a browser session counts', async () => {
     const { token } = await createTestUser();
     const { challenge } = await pkce();

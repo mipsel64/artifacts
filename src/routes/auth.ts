@@ -18,7 +18,7 @@ import type { AppEnv } from '../types';
 const STATE_COOKIE = 'oauth_state';
 const STATE_COOKIE_PATH = '/auth';
 const SIGN_IN_FAILED = 'Google sign-in failed';
-const MAX_NEXT_LENGTH = 2000;
+export const MAX_NEXT_LENGTH = 2000;
 const GOOGLE_ISSUERS = ['https://accounts.google.com', 'accounts.google.com'];
 
 // Only /authorize?... on this origin: the sign-in redirect must never leave the app (no open redirect).

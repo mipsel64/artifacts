@@ -2,6 +2,7 @@ import { AuthorizationError, type ConsentDescription, type GrantSummary, type OA
 import { Hono, type Context } from 'hono';
 import { ArtifactError } from '../artifacts';
 import { isAllowed, readSession, requireSession } from '../auth';
+import { MAX_NEXT_LENGTH } from './auth';
 import type { AppEnv } from '../types';
 import { pageHeaders, setPageHeaders } from '../ui/headers';
 import { Layout } from '../ui/layout';
@@ -80,7 +81,12 @@ routes.get('/authorize', pageHeaders, async (c) => {
     const session = await readSession(c.env, c.req.header('Cookie'));
     if (!session || !isAllowed(c.env, session.email)) {
       const url = new URL(c.req.url);
-      return c.redirect(`/auth/login?next=${encodeURIComponent(url.pathname + url.search)}`, 302);
+      const next = url.pathname + url.search;
+      // Sign-in keeps `next` in a cookie; a longer request would be dropped and the client would never get an answer.
+      if (next.length > MAX_NEXT_LENGTH) {
+        return c.html(<ErrorPage message="This authorization request is too long. Sign in to Artifacts first, then try again." />, 400);
+      }
+      return c.redirect(`/auth/login?next=${encodeURIComponent(next)}`, 302);
     }
     const details = await oauth.describeConsent(authRequest);
     const consent = await oauth.beginConsent(authRequest);
