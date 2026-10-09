@@ -210,6 +210,7 @@ describe('GET /auth/callback', () => {
       async () => json({ access_token: 'ya29.secret' }),
       async () => json({ id_token: '' }),
       async () => json({ id_token: 'not-a-jwt' }),
+      async () => json({ id_token: ['e30', toBase64Url(new TextEncoder().encode('null')), 'sig'].join('.') }),
     ];
     for (const failure of failures) {
       const login = await startLogin();

@@ -83,6 +83,7 @@ routes.get('/auth/callback', async (c) => {
   } catch {
     return c.text(SIGN_IN_FAILED, 502);
   }
+  if (!claims || typeof claims !== 'object' || Array.isArray(claims)) return c.text(SIGN_IN_FAILED, 502);
   const { iss, aud, exp, sub, email, email_verified, name, picture } = claims;
   if (
     typeof iss !== 'string' || !GOOGLE_ISSUERS.includes(iss) ||
