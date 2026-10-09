@@ -72,6 +72,9 @@ describe('renderDocument', () => {
     expect(doc).toContain("callee.type === 'Import'");
     expect(doc).toContain('createRoot(');
     expect(doc).toContain('onUncaughtError');
+    expect(doc).toContain('react.useEffect(');
+    expect(doc).toContain('react.createElement(Ready, null, react.createElement(Component))');
+    expect(doc).not.toContain('requestAnimationFrame');
     expect(doc).toContain("addEventListener('unhandledrejection'");
   });
 
@@ -128,6 +131,8 @@ describe('renderDocument', () => {
         expect(doc).toContain('window.__artifactReady = true');
         const printed = renderDocument(meta(type), 'x', true);
         expect(printed).toContain('window.print()');
+        expect(printed).toContain('const start=Date.now()');
+        expect(printed).not.toContain('var start');
         expect(printed).toContain('__artifactReady||Date.now()-start>10000');
         expect(printed).not.toContain(FLAG);
       },

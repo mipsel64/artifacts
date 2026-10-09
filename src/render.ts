@@ -93,16 +93,24 @@ try {
     Component = name && mod[name];
   }
   if (!Component) throw new Error('The file must export a React component (default export or a function export).');
-  var report = function (err) { showError(err); };
+  var react = imports[1];
+  // A failed render never commits the wrapper, so every error path also releases print.
+  var report = function (err) {
+    showError(err);
+    window.__artifactReady = true;
+  };
+  // Passive effects run after the commit, so the wrapper's effect fires once the artifact is in the DOM.
+  var Ready = function (props) {
+    react.useEffect(function () {
+      window.__artifactReady = true;
+    }, []);
+    return props.children;
+  };
   imports[2].createRoot(document.getElementById('root'), {
     onUncaughtError: report,
     onCaughtError: report,
     onRecoverableError: report,
-  }).render(imports[1].createElement(Component));
-  // React paints asynchronously; the flag after the first frame means the root is on screen.
-  requestAnimationFrame(function () {
-    window.__artifactReady = true;
-  });
+  }).render(react.createElement(Ready, null, react.createElement(Component)));
 } catch (err) {
   showError(err);
   window.__artifactReady = true;
@@ -174,7 +182,7 @@ const moduleScript = (code: string) => `<script type="module">${code}</script>`;
 // artifact document itself.
 const PRINT_READY_FLAG = '<script>window.__artifactReady = true</script>';
 const PRINT_SCRIPT =
-  '<script>window.addEventListener("load",function(){var start=Date.now();(function wait(){' +
+  '<script>window.addEventListener("load",function(){const start=Date.now();(function wait(){' +
   'if(window.__artifactReady||Date.now()-start>10000)setTimeout(function(){window.print()},400);' +
   'else setTimeout(wait,50)})()})</script>';
 

@@ -266,7 +266,10 @@ function toggleMenu(button, edge = 'first') {
 
 function placeMenuBelowHeader(panel) {
   // The signed-in header wraps over several rows on small screens; fixed menus must clear all of them.
-  if (!window.matchMedia('(max-width: 720px)').matches) return;
+  if (!window.matchMedia('(max-width: 720px)').matches) {
+    panel.style.removeProperty('top');
+    return;
+  }
   const header = document.querySelector('.site-header');
   if (header) panel.style.top = `${Math.ceil(header.getBoundingClientRect().bottom) + 8}px`;
 }
