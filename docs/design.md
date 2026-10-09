@@ -8,7 +8,7 @@ In scope:
 
 - Artifact types: `html`, `react`, `svg`, `mermaid`, `markdown`, `code`.
 - Preview/Code view, version history, copy, download, open in a new tab, edit (new version), remix a shared artifact into your own account.
-- GitHub OAuth sign-in (allowlist), personal API tokens.
+- Google sign-in (OpenID Connect) restricted to an email allowlist, personal API tokens.
 - Share links (public, revocable).
 - Retention: 30 days by default, make permanent, set back to expiring, delete. A daily cron deletes expired artifacts.
 - MCP server (Streamable HTTP, stateless) with Bearer API tokens.
@@ -28,10 +28,10 @@ Out of scope: AI-powered artifacts (`window.claude`), artifact persistent storag
 | --- | --- | --- |
 | `BUCKET` | R2 binding | Artifact `meta.json` and version content |
 | `KV` | KV binding | Owner index, shares, users, API tokens |
-| `GITHUB_CLIENT_ID` | var | GitHub OAuth app client id |
-| `GITHUB_CLIENT_SECRET` | secret | GitHub OAuth app secret |
+| `GOOGLE_CLIENT_ID` | var | Google OAuth client id (Web application) |
+| `GOOGLE_CLIENT_SECRET` | secret | Google OAuth client secret |
 | `SESSION_SECRET` | secret | HMAC key for session cookies (>= 32 random bytes) |
-| `ALLOWED_USERS` | var | Comma-separated GitHub logins (case-insensitive) allowed to sign in, or `*` for anyone. Empty = nobody. |
+| `ALLOWED_EMAILS` | var | Comma-separated email addresses allowed to sign in (exact match, case-insensitive). No wildcards or domains. Empty = nobody. |
 
 ## Source layout and ownership
 
@@ -41,7 +41,7 @@ Out of scope: AI-powered artifacts (`window.claude`), artifact persistent storag
 | `src/types.ts` | foundation | Shared types |
 | `src/artifacts.ts` | foundation | Domain + R2/KV storage |
 | `src/auth.ts` | foundation | Sessions, API tokens, users, middleware |
-| `src/routes/auth.ts` | lane auth | GitHub OAuth routes, `/api/tokens` |
+| `src/routes/auth.ts` | lane auth | Google sign-in routes, `/api/tokens` |
 | `src/routes/api.ts` | lane api | REST artifacts API |
 | `src/routes/mcp.ts` | lane mcp | MCP endpoint |
 | `src/render.ts`, `src/routes/render.ts` | lane render | Sandboxed render documents and routes |
@@ -57,7 +57,7 @@ Each route module exports `default` a `new Hono<AppEnv>()` that declares full pa
 export type ArtifactType = 'html' | 'react' | 'svg' | 'mermaid' | 'markdown' | 'code';
 export const ARTIFACT_TYPES: readonly ArtifactType[];
 
-export interface SessionUser { id: string; login: string }            // id = `gh_<github numeric id>`
+export interface SessionUser { id: string; email: string }            // id = `google_<sub>`; email is lowercased
 export interface User extends SessionUser { name: string | null; avatarUrl: string | null; createdAt: string }
 
 export interface VersionInfo { version: number; key: string; size: number; createdAt: string }
@@ -94,7 +94,7 @@ KV (`KV`):
 | `index:{ownerId}:{id}` | `''` | metadata: `{ title, type, version, updatedAt, expiresAt, shared }` (`title` cut to 100 chars to stay under the 1024-byte KV metadata limit; `expiresAt` null = permanent) |
 | `share:{shareId}` | `{ artifactId, ownerId }` JSON | |
 | `user:{userId}` | `User` JSON | |
-| `token:{sha256hex(token)}` | `{ id, userId, login, name, createdAt }` JSON | |
+| `token:{sha256hex(token)}` | `{ id, userId, email, name, createdAt }` JSON | |
 | `user-token:{userId}:{tokenId}` | `''` | metadata: `{ name, createdAt, hash }` |
 
 No KV key uses a TTL: the sweep finds expired artifacts through the index.
@@ -142,8 +142,8 @@ Rules:
 export const SESSION_COOKIE = 'session';
 export const SESSION_TTL_SECONDS = 7 * 24 * 3600;
 
-isAllowed(env, login): boolean
-upsertUser(env, user: { githubId: number; login: string; name: string | null; avatarUrl: string | null }, now?): Promise<User>
+isAllowed(env, email): boolean
+upsertUser(env, user: { sub: string; email: string; name: string | null; avatarUrl: string | null }, now?): Promise<User>
 getUser(env, userId): Promise<User | null>
 createSessionCookie(env, user: SessionUser, now?): Promise<string>   // full Set-Cookie header value
 clearSessionCookie(): string                                           // Set-Cookie value that expires it
@@ -157,8 +157,8 @@ requireUser: MiddlewareHandler<AppEnv>                                 // sets c
 requireSession: MiddlewareHandler<AppEnv>                              // like requireUser but rejects Bearer tokens (403)
 ```
 
-- Session cookie value: `base64url(JSON {uid, login, exp})` + `.` + `base64url(HMAC-SHA256(SESSION_SECRET, payload))`; `HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=604800`. Verify with constant-time comparison (`crypto.subtle.verify`).
-- `authenticate`: `Authorization: Bearer <token>` first, else the session cookie. Every successful path re-checks `isAllowed(env, login)`.
+- Session cookie value: `base64url(JSON {uid, email, exp})` + `.` + `base64url(HMAC-SHA256(SESSION_SECRET, payload))`; `HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=604800`. Verify with constant-time comparison (`crypto.subtle.verify`).
+- `authenticate`: `Authorization: Bearer <token>` first, else the session cookie. Every successful path re-checks `isAllowed(env, email)`.
 - CSRF: for cookie-authenticated requests with a method other than GET/HEAD/OPTIONS, the `Origin` header must equal the request URL origin, else 403.
 
 ## HTTP surface
@@ -178,8 +178,8 @@ Auth (lane auth):
 
 | Route | Behaviour |
 | --- | --- |
-| `GET /auth/login` | Random `state` in cookie `oauth_state` (HttpOnly, Secure, SameSite=Lax, Path=/auth, Max-Age=600); redirect to GitHub authorize (`scope=read:user`, `redirect_uri={origin}/auth/callback`) |
-| `GET /auth/callback` | Check `state`; exchange code; fetch `/user`; 403 page if not allowed; `upsertUser`; set session; redirect `/` |
+| `GET /auth/login` | Random `state`, `nonce` and PKCE `code_verifier` in one signed cookie `oauth_state` (HMAC with `SESSION_SECRET`; HttpOnly, Secure, SameSite=Lax, Path=/auth, Max-Age=600); redirect to `https://accounts.google.com/o/oauth2/v2/auth` (`response_type=code`, `scope=openid email profile`, `redirect_uri={origin}/auth/callback`, `state`, `nonce`, `code_challenge` S256, `prompt=select_account`) |
+| `GET /auth/callback` | Clear `oauth_state`; check `state`; exchange the code at `https://oauth2.googleapis.com/token` (form body with `code_verifier`); validate the ID token claims (`iss`, `aud`, `exp`, `nonce`, `email_verified === true`); 403 if the email is not allowed; `upsertUser`; set session; redirect `/` |
 | `POST /auth/logout` | Clear session (CSRF origin check applies); redirect `/` |
 | `GET /api/tokens` | `requireSession`; `{ items }` |
 | `POST /api/tokens` | `requireSession`; body `{ name }` (1..100 chars); 201 `{ token, id, name, createdAt }` (token shown once) |
