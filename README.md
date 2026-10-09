@@ -33,15 +33,17 @@ Set up Google sign-in in the [Google Cloud Console](https://console.cloud.google
 Configure the Worker:
 
 ```sh
-# wrangler.jsonc → vars
-#   GOOGLE_CLIENT_ID: your OAuth client id
-#   ALLOWED_EMAILS:   comma-separated email addresses allowed to sign in (exact match, case-insensitive; empty = nobody)
+# wrangler.jsonc → routes: set your domain (or remove "routes" to use workers.dev)
 
+bunx wrangler secret put GOOGLE_CLIENT_ID
 bunx wrangler secret put GOOGLE_CLIENT_SECRET
+bunx wrangler secret put ALLOWED_EMAILS     # comma-separated addresses (exact match, case-insensitive; empty = nobody)
 openssl rand -base64 48 | bunx wrangler secret put SESSION_SECRET
 
 bunx wrangler deploy
 ```
+
+All four values are Worker secrets, so the committed config holds no personal data.
 
 ## Connect an agent
 

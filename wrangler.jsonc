@@ -5,8 +5,8 @@
   "compatibility_date": "2026-10-09",
   "compatibility_flags": ["nodejs_compat"],
   "r2_buckets": [{ "binding": "BUCKET", "bucket_name": "artifacts" }],
-  "kv_namespaces": [{ "binding": "KV", "id": "REPLACE_WITH_KV_NAMESPACE_ID" }],
-  "vars": { "GOOGLE_CLIENT_ID": "", "ALLOWED_EMAILS": "" },
+  "kv_namespaces": [{ "binding": "KV", "id": "c60f149f94204ed492eaf5af6e533588" }],
+  "routes": [{ "pattern": "artifacts.m64.sh", "custom_domain": true }],
   "triggers": { "crons": ["0 3 * * *"] },
   "assets": { "directory": "./public" },
   "observability": { "enabled": true }
