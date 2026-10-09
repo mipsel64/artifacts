@@ -51,7 +51,7 @@ function copyFor(status: Status, path: string, message: string): ErrorCopy {
   if (status === 500) {
     return { icon: 'circle-alert', danger: true, heading: '500', title: 'Something went wrong', text: 'Try again in a moment.', home: 'Go to Artifacts', signInAction: false };
   }
-  return { icon: 'circle-alert', danger: true, heading: String(status), title: 'Request problem', text: message, home: 'Go back', signInAction: false };
+  return { icon: 'circle-alert', danger: true, heading: String(status), title: 'Request problem', text: message, home: 'Go to Artifacts', signInAction: false };
 }
 
 function ErrorPage({ copy, me }: { copy: ErrorCopy; me: Identity | null }) {
@@ -108,6 +108,7 @@ export function handleError(err: Error, c: Context<AppEnv>): Response | Promise<
 }
 
 export function handleNotFound(c: Context<AppEnv>): Response | Promise<Response> {
+  if (c.req.path === '/api' || c.req.path.startsWith('/api/')) return c.json({ error: 'Not found' }, 404);
   if (!isPagePath(c.req.path)) return c.text('404 Not Found', 404);
   return errorPage(c, 404, 'Page not found');
 }

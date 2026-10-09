@@ -93,7 +93,7 @@ describe('artifact page errors', () => {
     const artifact = await createArtifact(env, user.id, { title: 'Doc', type: 'html', content: '<p>x</p>' });
     const body = await expectErrorPage(await request(`/a/${artifact.id}?v=abc`, asUser(cookie)), 400, 'Request problem');
     expect(body).toContain('v must be a positive integer');
-    expect(body).toContain('Go back');
+    expect(body).toContain('Go to Artifacts');
   });
 });
 
@@ -147,6 +147,15 @@ describe('non-page responses are unchanged', () => {
     expect(res.status).toBe(404);
     expect(res.headers.get('content-type')).toContain('application/json');
     expect(await res.json()).toEqual({ error: 'Artifact not found' });
+  });
+
+  it('answers unknown API paths with JSON', async () => {
+    for (const path of ['/api', '/api/unknown']) {
+      const res = await request(path);
+      expect(res.status, path).toBe(404);
+      expect(res.headers.get('content-type'), path).toContain('application/json');
+      expect(await res.json()).toEqual({ error: 'Not found' });
+    }
   });
 
   it('keeps plain text and the sandbox CSP for raw and render documents', async () => {
