@@ -1,5 +1,5 @@
 import { env } from 'cloudflare:workers';
-import { reset } from 'cloudflare:test';
+import { createExecutionContext, reset } from 'cloudflare:test';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createArtifact, shareArtifact, unshareArtifact, updateArtifact } from '../src/artifacts';
 import { renderDocument } from '../src/render';
@@ -252,7 +252,7 @@ describe('shared artifact routes', () => {
         return typeof value === 'function' ? value.bind(target) : value;
       },
     });
-    const res = await main.fetch(new Request(`${ORIGIN}/s/${shareId}/raw`), { ...env, BUCKET: broken });
+    const res = await main.fetch(new Request(`${ORIGIN}/s/${shareId}/raw`), { ...env, BUCKET: broken }, createExecutionContext());
     expect(res.status).toBe(500);
     expectSandboxHeaders(res);
   });

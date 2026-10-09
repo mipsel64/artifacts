@@ -136,6 +136,8 @@ describe('new and settings pages', () => {
     expect(body).toContain('&quot;url&quot;: &quot;https://artifacts.test/mcp&quot;');
     expect(body).toContain('&quot;mcpServers&quot;');
     expect(body).toContain('you will not see it again');
+    expect(body).toContain('Connected apps');
+    expect(body).toContain('>claude mcp add --transport http artifacts https://artifacts.test/mcp<');
     expect(body).toContain('method="post" data-form="token"');
   });
 

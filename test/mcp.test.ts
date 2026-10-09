@@ -137,8 +137,9 @@ describe('/mcp authentication and methods', () => {
 
   async function expectUnauthorized(res: Response) {
     expect(res.status).toBe(401);
-    expect(res.headers.get('WWW-Authenticate')).toBe('Bearer');
-    expect(await res.json()).toEqual({ error: 'Unauthorized' });
+    expect(res.headers.get('WWW-Authenticate')).toContain(
+      `resource_metadata="${ORIGIN}/.well-known/oauth-protected-resource/mcp"`,
+    );
   }
 
   it('rejects a missing Authorization header', async () => {
@@ -159,12 +160,13 @@ describe('/mcp authentication and methods', () => {
     await expectUnauthorized(await rpc(token, 'tools/list'));
   });
 
-  it('answers GET and DELETE with 405', async () => {
+  it('answers GET and DELETE with 405 for a valid token and with the 401 challenge without one', async () => {
     const { token } = await createTestUser();
     for (const method of ['GET', 'DELETE']) {
       const res = await request('/mcp', { method, headers: bearer(token) });
       expect(res.status).toBe(405);
       expect(res.headers.get('Allow')).toBe('POST');
+      await expectUnauthorized(await request('/mcp', { method }));
     }
   });
 });

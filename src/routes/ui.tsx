@@ -1,21 +1,11 @@
-import { Hono, type Context, type MiddlewareHandler } from 'hono';
+import { Hono, type Context } from 'hono';
 import { ArtifactError, getArtifact, getContent, getSharedArtifact, listArtifacts, toView } from '../artifacts';
 import { authenticate, getUser, listApiTokens } from '../auth';
+import { listGrants, oauthHelpers } from './oauth';
 import type { AppEnv } from '../types';
+import { pageHeaders } from '../ui/headers';
 import { Layout, type Identity } from '../ui/layout';
 import { ArtifactList, EditArtifact, Landing, NewArtifact, Settings, SharedViewer, Viewer } from '../ui/pages';
-
-const CSP =
-  "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' https://lh3.googleusercontent.com data:; frame-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'";
-
-const pageHeaders: MiddlewareHandler<AppEnv> = async (c, next) => {
-  c.header('Content-Security-Policy', CSP);
-  c.header('X-Frame-Options', 'DENY');
-  c.header('Referrer-Policy', 'same-origin');
-  c.header('X-Content-Type-Options', 'nosniff');
-  c.header('Cache-Control', 'private, no-store');
-  await next();
-};
 
 async function identify(c: Context<AppEnv>): Promise<(Identity & { id: string }) | null> {
   const auth = await authenticate(c);
@@ -100,9 +90,17 @@ routes.get('/settings', pageHeaders, async (c) => {
   const me = await identify(c);
   if (!me) return c.redirect('/');
   const tokens = await listApiTokens(c.env, me.id);
+  const oauth = oauthHelpers(c);
+  const apps = await Promise.all(
+    (await listGrants(oauth, me.id)).map(async (grant) => ({
+      id: grant.id,
+      name: (await oauth.lookupClient(grant.clientId))?.clientName ?? grant.clientId,
+      createdAt: new Date(grant.createdAt * 1000).toISOString(),
+    })),
+  );
   return c.html(
     <Layout title="Settings" me={me}>
-      <Settings tokens={tokens} origin={new URL(c.req.url).origin} />
+      <Settings tokens={tokens} apps={apps} origin={new URL(c.req.url).origin} />
     </Layout>,
   );
 });

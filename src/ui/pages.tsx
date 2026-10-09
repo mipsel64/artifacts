@@ -301,15 +301,33 @@ export function SharedViewer({ shareId, meta, content, signedIn }: SharedProps) 
 
 interface SettingsProps {
   tokens: { id: string; name: string; createdAt: string }[];
+  apps: { id: string; name: string; createdAt: string }[];
   origin: string;
 }
 
-export function Settings({ tokens, origin }: SettingsProps) {
+export function Settings({ tokens, apps, origin }: SettingsProps) {
   const command = `claude mcp add --transport http artifacts ${origin}/mcp --header "Authorization: Bearer <YOUR_TOKEN>"`;
   const json = `{ "mcpServers": { "artifacts": { "type": "http", "url": "${origin}/mcp", "headers": { "Authorization": "Bearer <YOUR_TOKEN>" } } } }`;
+  const oauthCommand = `claude mcp add --transport http artifacts ${origin}/mcp`;
   return (
     <>
       <h1>Settings</h1>
+      <section class="section" aria-labelledby="apps-heading">
+        <h2 id="apps-heading">Connected apps</h2>
+        <p class="muted">Apps you allowed to use your artifacts by signing in over MCP. Revoking stops them.</p>
+        <ul class="list" id="app-list">
+          {apps.map((app) => (
+            <li class="row">
+              <span class="row-title">{app.name}</span>
+              <time class="muted" datetime={app.createdAt}>
+                Connected {formatDate(app.createdAt)}
+              </time>
+              <ApiButton method="DELETE" url={`/api/grants/${app.id}`} label="Revoke" confirm={`Revoke access for "${app.name}"?`} danger />
+            </li>
+          ))}
+        </ul>
+        {apps.length === 0 && <p class="empty">No connected apps.</p>}
+      </section>
       <section class="section" aria-labelledby="tokens-heading">
         <h2 id="tokens-heading">API tokens</h2>
         <p class="muted">Tokens let agents call the MCP server and REST API as you.</p>
@@ -347,13 +365,23 @@ export function Settings({ tokens, origin }: SettingsProps) {
       </section>
       <section class="section" aria-labelledby="mcp-heading">
         <h2 id="mcp-heading">Connect an agent (MCP)</h2>
-        <p class="muted">Replace &lt;YOUR_TOKEN&gt; with a token from above.</p>
-        <h3>Claude Code</h3>
+        <h3>Sign in with Google (OAuth)</h3>
+        <p class="muted">
+          Claude.ai (custom connector) and Claude Desktop: add <code>{origin}/mcp</code> as a connector and sign in when asked. Claude Code: run the
+          command below, then <code>/mcp</code> and choose artifacts to sign in.
+        </p>
+        <pre class="code" tabindex={0}>
+          <code id="mcp-oauth-command">{oauthCommand}</code>
+        </pre>
+        <CopyButton target="#mcp-oauth-command" />
+        <h3>API token</h3>
+        <p class="muted">Alternatively, send a token from above in the Authorization header. Replace &lt;YOUR_TOKEN&gt; with it.</p>
+        <h4>Claude Code</h4>
         <pre class="code" tabindex={0}>
           <code id="mcp-command">{command}</code>
         </pre>
         <CopyButton target="#mcp-command" />
-        <h3>JSON config</h3>
+        <h4>JSON config</h4>
         <pre class="code" tabindex={0}>
           <code id="mcp-json">{json}</code>
         </pre>

@@ -1,6 +1,5 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js';
-import { Hono } from 'hono';
 import { z } from 'zod';
 import {
   ArtifactError,
@@ -15,8 +14,8 @@ import {
   unshareArtifact,
   updateArtifact,
 } from '../artifacts';
-import { isAllowed, verifyApiToken } from '../auth';
-import { ARTIFACT_TYPES, type AppEnv } from '../types';
+import { isAllowed } from '../auth';
+import { ARTIFACT_TYPES } from '../types';
 
 const INSTRUCTIONS =
   'Store and share rendered artifacts (HTML pages, React components, SVG, Mermaid diagrams, Markdown, code). ' +
@@ -171,22 +170,17 @@ function buildServer(env: Env, ownerId: string, origin: string): McpServer {
   return server;
 }
 
-const unauthorized = () =>
-  Response.json({ error: 'Unauthorized' }, { status: 401, headers: { 'WWW-Authenticate': 'Bearer' } });
+export interface McpProps {
+  userId: string;
+  email: string;
+}
 
-const routes = new Hono<AppEnv>();
-
-routes.post('/mcp', async (c) => {
-  const match = /^Bearer\s+(\S+)$/i.exec(c.req.header('Authorization') ?? '');
-  const user = match && (await verifyApiToken(c.env, match[1]));
-  if (!user || !isAllowed(c.env, user.email)) return unauthorized();
-
-  const server = buildServer(c.env, user.id, new URL(c.req.url).origin);
+// Serves both OAuth access tokens and `art_` API tokens: the provider resolves either to the same props.
+export async function handleMcp(request: Request, env: Env, props: McpProps): Promise<Response> {
+  if (request.method !== 'POST') return new Response(null, { status: 405, headers: { Allow: 'POST' } });
+  if (!isAllowed(env, props.email)) return Response.json({ error: 'Forbidden' }, { status: 403 });
+  const server = buildServer(env, props.userId, new URL(request.url).origin);
   const transport = new WebStandardStreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true });
   await server.connect(transport);
-  return transport.handleRequest(c.req.raw);
-});
-
-routes.on(['GET', 'DELETE'], '/mcp', (c) => c.body(null, 405, { Allow: 'POST' }));
-
-export default routes;
+  return transport.handleRequest(request);
+}

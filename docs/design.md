@@ -8,16 +8,16 @@ In scope:
 
 - Artifact types: `html`, `react`, `svg`, `mermaid`, `markdown`, `code`.
 - Preview/Code view, version history, copy, download, open in a new tab, edit (new version), remix a shared artifact into your own account.
-- Google sign-in (OpenID Connect) restricted to an email allowlist, personal API tokens.
+- Google sign-in (OpenID Connect) restricted to an email allowlist, personal API tokens, and OAuth 2.1 for MCP clients (Claude.ai, Claude Desktop, Claude Code) using the Google session for consent.
 - Share links (public, revocable).
 - Retention: 30 days by default, make permanent, set back to expiring, delete. A daily cron deletes expired artifacts.
-- MCP server (Streamable HTTP, stateless) with Bearer API tokens.
+- MCP server (Streamable HTTP, stateless) with OAuth access tokens or Bearer API tokens.
 
-Out of scope: AI-powered artifacts (`window.claude`), artifact persistent storage (`window.storage`), shadcn/ui imports, MCP OAuth, collaborative editing.
+Out of scope: AI-powered artifacts (`window.claude`), artifact persistent storage (`window.storage`), shadcn/ui imports, collaborative editing.
 
 ## Stack
 
-- TypeScript, Cloudflare Workers, Hono (routing + `hono/jsx` SSR). One R2 bucket `BUCKET` holds artifact metadata and content (strongly consistent, conditional writes). One KV namespace `KV` holds the owner index, share lookups, users and API tokens. No D1.
+- TypeScript, Cloudflare Workers, Hono (routing + `hono/jsx` SSR). One R2 bucket `BUCKET` holds artifact metadata and content (strongly consistent, conditional writes). One KV namespace `KV` holds the owner index, share lookups, users and API tokens. A second namespace `OAUTH_KV` belongs to `@cloudflare/workers-oauth-provider` (clients, grants, tokens, consent state). It must stay separate because the library hardcodes the binding name and both stores use `token:` keys. No D1.
 - Static assets: Workers static assets from `public/` (`assets.directory`).
 - Tests: vitest 5 + `@cloudflare/vitest-plugin` (real R2 and KV via Miniflare; `afterEach(reset)` from `cloudflare:test` isolates storage).
 - Package manager: bun. Scripts: `bun run test`, `bun run typecheck`, `bun run build` (= `wrangler deploy --dry-run --outdir dist`).
@@ -28,6 +28,7 @@ Out of scope: AI-powered artifacts (`window.claude`), artifact persistent storag
 | --- | --- | --- |
 | `BUCKET` | R2 binding | Artifact `meta.json` and version content |
 | `KV` | KV binding | Owner index, shares, users, API tokens |
+| `OAUTH_KV` | KV binding | OAuth provider storage (clients, grants, hashed tokens); the name is fixed by the library |
 | `GOOGLE_CLIENT_ID` | var | Google OAuth client id (Web application) |
 | `GOOGLE_CLIENT_SECRET` | secret | Google OAuth client secret |
 | `SESSION_SECRET` | secret | HMAC key for session cookies (>= 32 random bytes) |
@@ -37,13 +38,14 @@ Out of scope: AI-powered artifacts (`window.claude`), artifact persistent storag
 
 | Path | Owner | Contents |
 | --- | --- | --- |
-| `src/index.ts` | foundation | App assembly, `onError`, `scheduled` |
+| `src/index.ts` | foundation | App assembly, `OAuthProvider` wrapper, `onError`, `scheduled` |
 | `src/types.ts` | foundation | Shared types |
 | `src/artifacts.ts` | foundation | Domain + R2/KV storage |
 | `src/auth.ts` | foundation | Sessions, API tokens, users, middleware |
 | `src/routes/auth.ts` | lane auth | Google sign-in routes, `/api/tokens` |
 | `src/routes/api.ts` | lane api | REST artifacts API |
-| `src/routes/mcp.ts` | lane mcp | MCP endpoint |
+| `src/routes/mcp.ts` | lane mcp | MCP tools and handler (called by the provider) |
+| `src/routes/oauth.tsx` | lane auth | `/authorize` consent page, `/api/grants/:id` |
 | `src/render.ts`, `src/routes/render.ts` | lane render | Sandboxed render documents and routes |
 | `src/routes/ui.tsx`, `src/ui/**`, `public/**` | lane ui | SSR pages and client JS/CSS |
 | `test/helpers.ts` | foundation | Test helpers |
@@ -172,18 +174,20 @@ Pages (lane ui; HTML; unauthenticated pages show the landing / sign-in link):
 | `GET /a/:id` | Viewer: Preview/Code, version switcher (`?v=n`), copy, download, open in new tab, edit, share, retention, delete |
 | `GET /a/:id/edit` | Edit form (title + content of latest version) |
 | `GET /s/:shareId` | Public read-only viewer + "Remix" for signed-in users |
-| `GET /settings` | API tokens + MCP setup snippet |
+| `GET /settings` | Connected apps (OAuth grants), API tokens, MCP setup (OAuth first, API token as the alternative) |
+| `GET /authorize` | OAuth consent page (see OAuth below) |
 
 Auth (lane auth):
 
 | Route | Behaviour |
 | --- | --- |
-| `GET /auth/login` | Random `state`, `nonce` and PKCE `code_verifier` in one signed cookie `oauth_state` (HMAC with `SESSION_SECRET`; HttpOnly, Secure, SameSite=Lax, Path=/auth, Max-Age=600); redirect to `https://accounts.google.com/o/oauth2/v2/auth` (`response_type=code`, `scope=openid email profile`, `redirect_uri={origin}/auth/callback`, `state`, `nonce`, `code_challenge` S256, `prompt=select_account`) |
-| `GET /auth/callback` | Clear `oauth_state`; check `state`; exchange the code at `https://oauth2.googleapis.com/token` (form body with `code_verifier`); validate the ID token claims (`iss`, `aud`, `exp`, `nonce`, `email_verified === true`); 403 if the email is not allowed; `upsertUser`; set session; redirect `/` |
+| `GET /auth/login` | Random `state`, `nonce` and PKCE `code_verifier` in one signed cookie `oauth_state` (HMAC with `SESSION_SECRET`; HttpOnly, Secure, SameSite=Lax, Path=/auth, Max-Age=600); redirect to `https://accounts.google.com/o/oauth2/v2/auth` (`response_type=code`, `scope=openid email profile`, `redirect_uri={origin}/auth/callback`, `state`, `nonce`, `code_challenge` S256, `prompt=select_account`). `?next=` is accepted only if it starts with `/authorize?` (anything else is ignored) and is appended to the `oauth_state` cookie value (`state.nonce.verifier.next`) |
+| `GET /auth/callback` | Clear `oauth_state`; check `state`; exchange the code at `https://oauth2.googleapis.com/token` (form body with `code_verifier`); validate the ID token claims (`iss`, `aud`, `exp`, `nonce`, `email_verified === true`); 403 if the email is not allowed; `upsertUser`; set session; redirect to `next` if one was saved by `/auth/login`, else `/` |
 | `POST /auth/logout` | Clear session (CSRF origin check applies); redirect `/` |
 | `GET /api/tokens` | `requireSession`; `{ items }` |
 | `POST /api/tokens` | `requireSession`; body `{ name }` (1..100 chars); 201 `{ token, id, name, createdAt }` (token shown once) |
 | `DELETE /api/tokens/:id` | `requireSession`; 204 |
+| `DELETE /api/grants/:id` | `requireSession`; `revokeGrant(id, user.id)`; 204, 404 if the grant is not the user's |
 
 REST API (lane api; `requireUser`; JSON errors `{ error }`):
 
@@ -209,7 +213,31 @@ Render (lane render):
 
 Render responses carry `Content-Security-Policy: sandbox allow-scripts allow-forms allow-modals allow-popups allow-downloads`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`, `Cache-Control: private, no-store`. The sandbox (no `allow-same-origin`) gives the document an opaque origin, so artifact code cannot read app cookies, call the API with credentials or touch the parent page. The viewer iframe also sets the same `sandbox` attribute.
 
-MCP (lane mcp): `POST /mcp`, stateless Streamable HTTP, JSON responses, Bearer token only (cookies are ignored). `GET`/`DELETE /mcp` → 405. Tools:
+### MCP and OAuth
+
+`src/index.ts` wraps the Hono app in `OAuthProvider` (`@cloudflare/workers-oauth-provider`), built once per request origin because the resource (`{origin}/mcp`) and issuer (`{origin}`) must match it. The provider owns these paths and sends everything else to the Hono app:
+
+| Path | Handled by |
+| --- | --- |
+| `/mcp` (`apiRoute`) | Provider validates the bearer token, then calls the MCP handler with `ctx.props = { userId, email }` |
+| `/.well-known/oauth-authorization-server`, `/.well-known/oauth-protected-resource/mcp` | Provider (RFC 8414, RFC 9728) |
+| `POST /token`, `POST /register` | Provider (token, refresh, revocation; dynamic client registration) |
+| `GET`/`POST /authorize` | Hono (`src/routes/oauth.tsx`) using the provider helpers in `env.OAUTH_PROVIDER` |
+
+Two kinds of bearer token reach `/mcp`, both resolved to the same props:
+
+- OAuth access tokens issued by the provider (1 h, refresh tokens rotate, 30 days from consent). Scope `artifacts` is advertised in the `401` challenge and metadata but nothing is gated on scopes. `offline_access` is accepted but not needed: refresh tokens are issued to clients that register the `refresh_token` grant.
+- Personal `art_` API tokens, through `resolveExternalToken`: `verifyApiToken` + `isAllowed`, audience `{origin}/mcp`.
+
+The handler re-checks `isAllowed(env, email)` on every request (403 `{ error: 'Forbidden' }`), so removing an address from `ALLOWED_EMAILS` also stops its OAuth tokens. Cookies are never accepted on `/mcp`. Without a valid token, any method gets the provider's `401` with `WWW-Authenticate: Bearer ... resource_metadata="{origin}/.well-known/oauth-protected-resource/mcp"`. With a valid token, `GET`/`DELETE` → 405.
+
+`GET /authorize`: `parseAuthRequest` (a validation error without a safe redirect renders a 400 page; one with a validated redirect URI redirects to the client with the error). Then it needs a Google browser session (the `session` cookie only; an `Authorization` header is ignored): without one it redirects to `/auth/login?next=<path+query of the request>`. With a session it renders the consent page: the client name (escaped; stated as unverified), the redirect host, a warning for a loopback redirect, the signed-in email, and Allow/Deny in one POST form that carries only the library's consent `handle`. The page sends the library's headers (browser-bound `__Host-oauth-consent-…` cookie, no framing) and the app's page headers, except that `form-action` is `'self'` plus the redirect URI's origin (its scheme for a native app): browsers apply `form-action` to the redirect that answers the form POST, so a stricter policy would block the redirect to the client.
+
+`POST /authorize` (`requireSession`, so same-origin `Origin` check and no Bearer): `denyConsent` redirects with `access_denied`; `approveConsent` then `completeAuthorization({ userId: user.id, metadata: { email }, scope: request.scope, props: { userId, email } })` redirects with the code. The request comes from provider storage, never from the form. Consent is asked every time (no remembered consent). Handle errors (expired, reused, missing binding cookie) render a 400 page.
+
+Revoking: `DELETE /api/grants/:id` or deleting the client. Revoked tokens stop working once the KV deletion propagates (KV is eventually consistent, about 60 s in other locations). The daily cron also runs the provider's `purgeExpiredData`.
+
+MCP tools (`POST /mcp`, stateless Streamable HTTP, JSON responses):
 
 | Tool | Input | Result |
 | --- | --- | --- |
@@ -226,8 +254,8 @@ Domain errors become tool results with `isError: true` and the error message.
 
 ## Error handling
 
-`src/index.ts` `onError`: `ArtifactError` → its status; JSON `{ error }` for `/api/*` and `/mcp`, plain text otherwise. Other errors → 500 with a generic message (log the error).
+`src/index.ts` `onError`: `ArtifactError` → its status; JSON `{ error }` for `/api/*`, plain text otherwise. Errors on `/mcp` are the provider's or the MCP tool results. Other errors → 500 with a generic message (log the error).
 
 ## Cron
 
-`triggers.crons = ["0 3 * * *"]`. `scheduled` runs `sweepExpired(env)` in `ctx.waitUntil`.
+`triggers.crons = ["0 3 * * *"]`. `scheduled` runs `sweepExpired(env)` and the OAuth provider's `purgeExpiredData(env)`, each in `ctx.waitUntil`.

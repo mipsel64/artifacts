@@ -18,7 +18,15 @@ import type { AppEnv } from '../types';
 const STATE_COOKIE = 'oauth_state';
 const STATE_COOKIE_PATH = '/auth';
 const SIGN_IN_FAILED = 'Google sign-in failed';
+const MAX_NEXT_LENGTH = 2000;
 const GOOGLE_ISSUERS = ['https://accounts.google.com', 'accounts.google.com'];
+
+// Only /authorize?... on this origin: the sign-in redirect must never leave the app (no open redirect).
+function safeNext(raw: string | undefined | null, origin: string): string | null {
+  if (!raw?.startsWith('/authorize?') || raw.length > MAX_NEXT_LENGTH) return null;
+  const url = new URL(raw, origin);
+  return url.origin === origin && url.pathname === '/authorize' ? url.pathname + url.search : null;
+}
 
 const routes = new Hono<AppEnv>();
 
@@ -28,7 +36,9 @@ routes.get('/auth/login', async (c) => {
   const nonce = randomId();
   const verifier = randomId(32);
   const challenge = toBase64Url(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier))));
-  await setSignedCookie(c, STATE_COOKIE, `${state}.${nonce}.${verifier}`, c.env.SESSION_SECRET, {
+  const next = safeNext(c.req.query('next'), new URL(c.req.url).origin);
+  // `next` goes last because it can contain dots.
+  await setSignedCookie(c, STATE_COOKIE, [state, nonce, verifier, ...(next ? [next] : [])].join('.'), c.env.SESSION_SECRET, {
     httpOnly: true,
     secure: true,
     sameSite: 'Lax',
@@ -55,7 +65,7 @@ routes.get('/auth/callback', async (c) => {
   if (c.req.query('error') !== undefined) return c.text('Google sign-in was cancelled', 400);
   const code = c.req.query('code');
   const state = c.req.query('state');
-  const [expectedState, nonce, verifier] = saved ? saved.split('.') : [];
+  const [expectedState, nonce, verifier, ...nextParts] = saved ? saved.split('.') : [];
   if (!code || !state || !verifier || state !== expectedState) return c.text('Invalid OAuth callback', 400);
 
   const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
@@ -104,7 +114,7 @@ routes.get('/auth/callback', async (c) => {
     avatarUrl: typeof picture === 'string' ? picture : null,
   });
   c.header('Set-Cookie', await createSessionCookie(c.env, user), { append: true });
-  return c.redirect('/', 302);
+  return c.redirect(safeNext(nextParts.join('.'), new URL(c.req.url).origin) ?? '/', 302);
 });
 
 routes.post('/auth/logout', (c) => {
