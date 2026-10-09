@@ -100,20 +100,20 @@ async function readMeta(env: Env, id: string): Promise<{ meta: ArtifactMeta; eta
 }
 
 // KV allows one write per second per key and may throw after the R2 commit; the index must never fail a committed mutation.
-async function bestEffort(operation: () => Promise<unknown>) {
+async function bestEffort(operation: () => Promise<unknown>, retry: () => Promise<unknown> = operation) {
   try {
     await operation();
   } catch {
     await new Promise((resolve) => setTimeout(resolve, KV_RETRY_DELAY_MS));
     try {
-      await operation();
+      await retry();
     } catch (err) {
       console.error(err);
     }
   }
 }
 
-function putIndex(env: Env, meta: ArtifactMeta) {
+function writeIndex(env: Env, meta: ArtifactMeta) {
   const metadata: IndexMetadata = {
     title: meta.title.slice(0, INDEX_TITLE_LENGTH),
     type: meta.type,
@@ -122,7 +122,18 @@ function putIndex(env: Env, meta: ArtifactMeta) {
     expiresAt: meta.expiresAt,
     shared: meta.shareId !== null,
   };
-  return bestEffort(() => env.KV.put(indexKey(meta.ownerId, meta.id), '', { metadata }));
+  return env.KV.put(indexKey(meta.ownerId, meta.id), '', { metadata });
+}
+
+// The retry republishes the latest meta, not the snapshot, so a delayed retry cannot overwrite a newer index entry.
+function putIndex(env: Env, meta: ArtifactMeta) {
+  return bestEffort(
+    () => writeIndex(env, meta),
+    async () => {
+      const latest = await readMeta(env, meta.id);
+      if (latest) await writeIndex(env, latest.meta);
+    },
+  );
 }
 
 async function listIndex(env: Env, prefix: string, onPage: (keys: KVNamespaceListKey<IndexMetadata>[]) => Promise<boolean | void>) {
@@ -140,6 +151,15 @@ async function claim(env: Env, current: { meta: ArtifactMeta; etag: string }): P
     httpMetadata: { contentType: 'application/json' },
   });
   return claimed !== null;
+}
+
+async function purgeClaimed(env: Env, meta: ArtifactMeta) {
+  try {
+    await purge(env, meta.ownerId, meta.id, meta.shareId);
+  } catch (err) {
+    await putIndex(env, { ...meta, expiresAt: EPOCH });
+    throw err;
+  }
 }
 
 async function purge(env: Env, ownerId: string, id: string, shareId: string | null) {
@@ -323,7 +343,7 @@ export async function deleteArtifact(env: Env, ownerId: string, id: string): Pro
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
     const current = await readMeta(env, id);
     if (!current || current.meta.ownerId !== ownerId || isExpired(current.meta.expiresAt, new Date())) throw notFound();
-    if (await claim(env, current)) return purge(env, ownerId, id, current.meta.shareId);
+    if (await claim(env, current)) return purgeClaimed(env, current.meta);
   }
   throw new ArtifactError(409, 'Artifact was modified concurrently, retry');
 }
@@ -364,8 +384,12 @@ export async function sweepExpired(env: Env, now: Date = new Date(), limit = 100
       if (!key.metadata || !isExpired(key.metadata.expiresAt, now)) continue;
       const [, ownerId, id] = key.name.split(':');
       const current = await readMeta(env, id);
-      if (current && (!isExpired(current.meta.expiresAt, now) || !(await claim(env, current)))) continue;
-      await purge(env, ownerId, id, current?.meta.shareId ?? null);
+      if (current) {
+        if (!isExpired(current.meta.expiresAt, now) || !(await claim(env, current))) continue;
+        await purgeClaimed(env, current.meta);
+      } else {
+        await purge(env, ownerId, id, null);
+      }
       deleted++;
     }
   });

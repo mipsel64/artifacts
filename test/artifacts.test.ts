@@ -48,6 +48,20 @@ function flakyKv(failures: { put?: number; delete?: number }): Env {
   return { ...env, KV: kv };
 }
 
+function failingBucketDelete(): Env {
+  const bucket = new Proxy(env.BUCKET, {
+    get(target, prop) {
+      const value = Reflect.get(target, prop);
+      if (typeof value !== 'function') return value;
+      return (...args: unknown[]) => {
+        if (prop === 'delete') throw new Error('purge interrupted');
+        return value.apply(target, args);
+      };
+    },
+  });
+  return { ...env, BUCKET: bucket };
+}
+
 async function status(promise: Promise<unknown>): Promise<number | undefined> {
   try {
     await promise;
@@ -387,20 +401,29 @@ describe('sweepExpired', () => {
 describe('claim before purge', () => {
   it('makes a concurrent update 404 once the artifact is claimed for deletion', async () => {
     const meta = await createArtifact(env, 'u1', input);
-    const failingDelete = { ...env, BUCKET: new Proxy(env.BUCKET, {
-      get(target, prop) {
-        const value = Reflect.get(target, prop);
-        if (typeof value !== 'function') return value;
-        return (...args: unknown[]) => {
-          if (prop === 'delete') throw new Error('purge interrupted');
-          return value.apply(target, args);
-        };
-      },
-    }) };
-    await expect(deleteArtifact(failingDelete, 'u1', meta.id)).rejects.toThrow('purge interrupted');
+    await expect(deleteArtifact(failingBucketDelete(), 'u1', meta.id)).rejects.toThrow('purge interrupted');
     expect(await status(updateArtifact(env, 'u1', meta.id, { content: 'late' }))).toBe(404);
     expect(await status(getArtifact(env, 'u1', meta.id))).toBe(404);
     expect(await sweepExpired(env, days(1000))).toBe(1);
+    expect(await allKeys()).toEqual([]);
+  });
+
+  it('publishes an expired index entry when the purge fails so a later sweep retries it', async () => {
+    const meta = await createArtifact(env, 'u1', input, T0);
+    await setRetention(env, 'u1', meta.id, true, T0);
+    await expect(deleteArtifact(failingBucketDelete(), 'u1', meta.id)).rejects.toThrow('purge interrupted');
+    const entry = (await env.KV.list({ prefix: `index:u1:${meta.id}` })).keys[0];
+    expect(entry.metadata).toMatchObject({ expiresAt: new Date(0).toISOString() });
+    expect(await sweepExpired(env, days(1))).toBe(1);
+    expect(await allKeys()).toEqual([]);
+  });
+
+  it('does the same when a sweep purge fails', async () => {
+    const meta = await createArtifact(env, 'u1', input, T0);
+    await expect(sweepExpired(failingBucketDelete(), days(31))).rejects.toThrow('purge interrupted');
+    const entry = (await env.KV.list({ prefix: `index:u1:${meta.id}` })).keys[0];
+    expect(entry.metadata).toMatchObject({ expiresAt: new Date(0).toISOString() });
+    expect(await sweepExpired(env, days(31))).toBe(1);
     expect(await allKeys()).toEqual([]);
   });
 });
@@ -411,6 +434,26 @@ describe('best-effort KV index writes', () => {
     const next = await updateArtifact(flakyKv({ put: 1 }), 'u1', meta.id, { content: 'two' }, days(1));
     expect(next.version).toBe(2);
     expect((await listArtifacts(env, 'u1', days(1)))[0].version).toBe(2);
+  });
+
+  it('republishes the latest meta when a delayed retry runs after a newer operation', async () => {
+    const meta = await createArtifact(env, 'u1', input, T0);
+    const first = setRetention(flakyKv({ put: 1 }), 'u1', meta.id, true, days(1));
+    await vi.waitFor(async () => expect((await getArtifact(env, 'u1', meta.id, days(1))).expiresAt).toBeNull());
+    await setRetention(env, 'u1', meta.id, false, days(2));
+    await first;
+    const [item] = await listArtifacts(env, 'u1', days(2));
+    expect(item.expiresAt).toBe(days(32).toISOString());
+  });
+
+  it('skips the retry write when the meta is gone', async () => {
+    const meta = await createArtifact(env, 'u1', input, T0);
+    const pending = updateArtifact(flakyKv({ put: 1 }), 'u1', meta.id, { content: 'two' }, days(1));
+    await vi.waitFor(async () => expect((await getArtifact(env, 'u1', meta.id, days(1))).version).toBe(2));
+    await env.BUCKET.delete(`artifacts/${meta.id}/meta.json`);
+    await env.KV.delete(`index:u1:${meta.id}`);
+    await pending;
+    expect((await env.KV.list()).keys).toEqual([]);
   });
 
   it('retries a failed index delete once and removes the entry', async () => {
