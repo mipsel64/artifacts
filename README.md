@@ -64,7 +64,7 @@ The same token works with the REST API under `/api/artifacts` (see [docs/design.
 ## Security model
 
 - Artifact code runs in a sandboxed document (`Content-Security-Policy: sandbox` without `allow-same-origin`). It gets an opaque origin, so it cannot read your cookies, call the API as you or touch the app page.
-- Only allowlisted GitHub users can sign in; the allowlist is re-checked on every request. Sessions are HMAC-signed cookies (`HttpOnly`, `Secure`, `SameSite=Lax`) and cookie-authenticated writes require a same-origin `Origin` header.
+- Only allowlisted GitHub users can sign in; the allowlist is re-checked on every request. It matches GitHub logins: if an allowed user renames their account, update `ALLOWED_USERS` (a released login can be claimed by someone else). Sessions are HMAC-signed cookies (`HttpOnly`, `Secure`, `SameSite=Lax`) and cookie-authenticated writes require a same-origin `Origin` header.
 - API tokens are stored only as SHA-256 hashes and are shown once.
 - KV is eventually consistent: the artifact list can lag for up to about a minute in other locations, and a revoked token can keep working there for about a minute. Share revocation is immediate.
 - Rendering loads React, Babel, Tailwind, Mermaid, marked and highlight.js from public CDNs (jsDelivr, esm.sh) at pinned versions; npm packages that React artifacts import resolve from esm.sh at view time.
