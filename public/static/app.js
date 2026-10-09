@@ -270,10 +270,14 @@ function placeMenuBelowTrigger(panel, button) {
   // On small screens menus are fixed and span the viewport, so they sit just under their row.
   if (!window.matchMedia('(max-width: 720px)').matches) {
     panel.style.removeProperty('top');
+    panel.style.removeProperty('max-height');
     return;
   }
   const row = button.closest('.viewer-bar, .site-header') || button;
-  panel.style.top = `${Math.ceil(row.getBoundingClientRect().bottom) + 4}px`;
+  const top = Math.ceil(row.getBoundingClientRect().bottom) + 4;
+  panel.style.top = `${top}px`;
+  // Keep the panel's own scroll area on screen in short viewports.
+  panel.style.maxHeight = `${Math.max(120, window.innerHeight - top - 8)}px`;
 }
 
 window.addEventListener('resize', () => {

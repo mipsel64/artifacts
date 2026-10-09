@@ -1828,8 +1828,17 @@ textarea:focus-visible {
     padding: 0;
   }
 
+  /* Each icon control owns a 44px slot: 30px visual (28px inside the 1px border) + 8px slop per side, and a 14px gap so slots never overlap. */
+  .viewer-bar-end {
+    gap: 14px;
+  }
+
   .button-compact:has(> .btn-label)::after {
-    inset: -8px -8px;
+    inset: -8px;
+  }
+
+  .viewer-bar-end .quiet-button::after {
+    inset: -8px 0;
   }
 
   .button-compact .btn-label,
