@@ -9,10 +9,10 @@ export function request(path: string, init?: RequestInit): Promise<Response> {
 }
 
 export async function createTestUser(
-  login = 'alice',
-  githubId = 1,
+  email = 'alice@example.com',
+  sub = '1',
 ): Promise<{ user: User; token: string; cookie: string }> {
-  const user = await upsertUser(env, { githubId, login, name: login, avatarUrl: null });
+  const user = await upsertUser(env, { sub, email, name: email, avatarUrl: null });
   const { token } = await createApiToken(env, user, 'test');
   const cookie = (await createSessionCookie(env, user)).split(';')[0];
   return { user, token, cookie };

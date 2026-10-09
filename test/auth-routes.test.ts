@@ -1,7 +1,7 @@
 import { env } from 'cloudflare:workers';
 import { reset } from 'cloudflare:test';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { getUser, readSession, verifyApiToken } from '../src/auth';
+import { getUser, readSession, toBase64Url, verifyApiToken } from '../src/auth';
 import routes from '../src/routes/auth';
 import { ORIGIN, bearer, createTestUser, request } from './helpers';
 
@@ -10,150 +10,274 @@ afterEach(() => {
   return reset();
 });
 
+const TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const setCookies = (res: Response) => res.headers.getSetCookie();
 const cookieNamed = (res: Response, name: string) => setCookies(res).find((c) => c.startsWith(`${name}=`));
+const cleared = (res: Response) => expect(cookieNamed(res, 'oauth_state')).toMatch(/Max-Age=0|Expires=/);
 const json = (body: unknown, status = 200) => Response.json(body, { status });
+const sha256Base64Url = async (value: string) =>
+  toBase64Url(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value))));
 
-function mockGitHub(token: Response, user?: Response) {
+const now = () => Math.floor(Date.now() / 1000);
+const claims = (overrides: Record<string, unknown> = {}, nonce = 'n0nce') => ({
+  iss: 'https://accounts.google.com',
+  aud: 'test-client',
+  exp: now() + 3600,
+  nonce,
+  sub: '1',
+  email: 'alice@example.com',
+  email_verified: true,
+  name: 'Alice',
+  picture: 'https://lh3.googleusercontent.com/a/alice',
+  ...overrides,
+});
+const idToken = (payload: Record<string, unknown>) =>
+  ['e30', toBase64Url(new TextEncoder().encode(JSON.stringify(payload))), 'sig'].join('.');
+
+function mockToken(response: Response | (() => Promise<Response>)) {
   return vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
     const url = new Request(input).url;
-    if (url === 'https://github.com/login/oauth/access_token') return token;
-    if (url === 'https://api.github.com/user' && user) return user;
-    throw new Error(`unexpected fetch ${url}`);
+    if (url !== TOKEN_URL) throw new Error(`unexpected fetch ${url}`);
+    return typeof response === 'function' ? response() : response;
   });
 }
 
-const githubUser = { id: 1, login: 'alice', name: 'Alice', avatar_url: 'https://avatars.test/a.png' };
+// Starts a real login so the signed oauth_state cookie is valid; returns what the callback needs.
+async function startLogin() {
+  const res = await request('/auth/login', { redirect: 'manual' });
+  const location = new URL(res.headers.get('Location')!);
+  const setCookie = cookieNamed(res, 'oauth_state')!;
+  return {
+    res,
+    location,
+    setCookie,
+    cookie: setCookie.split(';')[0],
+    state: location.searchParams.get('state')!,
+    nonce: location.searchParams.get('nonce')!,
+  };
+}
 
-// Called in-process so that the fetch spy sees the Worker's outbound GitHub requests.
-const callback = (state = 'abc', cookie: string | null = 'oauth_state=abc', query = `code=c0de&state=${state}`) =>
+// Called in-process so that the fetch spy sees the Worker's outbound Google requests.
+const callback = (query: string, cookie?: string) =>
   routes.fetch(new Request(`${ORIGIN}/auth/callback?${query}`, { headers: cookie ? { Cookie: cookie } : {} }), env);
 
+async function signIn(overrides: Record<string, unknown> = {}) {
+  const login = await startLogin();
+  const fetchMock = mockToken(json({ id_token: idToken(claims(overrides, login.nonce)) }));
+  const res = await callback(`code=c0de&state=${login.state}`, login.cookie);
+  return { res, login, fetchMock };
+}
+
 describe('GET /auth/login', () => {
-  it('redirects to GitHub with a state that matches the cookie', async () => {
-    const res = await request('/auth/login', { redirect: 'manual' });
+  it('redirects to Google with state, nonce and a PKCE challenge bound to the cookie', async () => {
+    const { res, location, setCookie, state, nonce } = await startLogin();
     expect(res.status).toBe(302);
-    const location = new URL(res.headers.get('Location')!);
-    expect(location.origin + location.pathname).toBe('https://github.com/login/oauth/authorize');
-    expect(location.searchParams.get('client_id')).toBe('test-client');
-    expect(location.searchParams.get('scope')).toBe('read:user');
-    expect(location.searchParams.get('redirect_uri')).toBe(`${ORIGIN}/auth/callback`);
-    const state = location.searchParams.get('state')!;
+    expect(location.origin + location.pathname).toBe('https://accounts.google.com/o/oauth2/v2/auth');
+    const params = location.searchParams;
+    expect(params.get('client_id')).toBe('test-client');
+    expect(params.get('redirect_uri')).toBe(`${ORIGIN}/auth/callback`);
+    expect(params.get('response_type')).toBe('code');
+    expect(params.get('scope')).toBe('openid email profile');
+    expect(params.get('code_challenge_method')).toBe('S256');
+    expect(params.get('prompt')).toBe('select_account');
     expect(state).toHaveLength(22);
-    const cookie = cookieNamed(res, 'oauth_state')!;
-    expect(cookie.split(';')[0]).toBe(`oauth_state=${state}`);
+    expect(nonce).toHaveLength(22);
+    expect(state).not.toBe(nonce);
+
+    const value = decodeURIComponent(setCookie.split(';')[0].slice('oauth_state='.length));
+    const [cookieState, cookieNonce, verifier] = value.split('.');
+    expect([cookieState, cookieNonce]).toEqual([state, nonce]);
+    expect(verifier).toHaveLength(43);
+    expect(params.get('code_challenge')).toBe(await sha256Base64Url(verifier));
     for (const attribute of ['HttpOnly', 'Secure', 'SameSite=Lax', 'Path=/auth', 'Max-Age=600']) {
-      expect(cookie).toContain(attribute);
+      expect(setCookie).toContain(attribute);
     }
   });
 
-  it('is 500 when GitHub OAuth is not configured', async () => {
-    const res = await routes.fetch(new Request(`${ORIGIN}/auth/login`), { ...env, GITHUB_CLIENT_ID: '' } as Env);
+  it('uses fresh values on every login', async () => {
+    const a = await startLogin();
+    const b = await startLogin();
+    expect(a.state).not.toBe(b.state);
+    expect(a.nonce).not.toBe(b.nonce);
+    expect(a.location.searchParams.get('code_challenge')).not.toBe(b.location.searchParams.get('code_challenge'));
+  });
+
+  it('is 500 when Google sign-in is not configured', async () => {
+    const res = await routes.fetch(new Request(`${ORIGIN}/auth/login`), { ...env, GOOGLE_CLIENT_ID: '' } as Env);
     expect(res.status).toBe(500);
-    expect(await res.text()).toBe('GitHub OAuth is not configured');
+    expect(await res.text()).toBe('Google sign-in is not configured');
+    expect(cookieNamed(res, 'oauth_state')).toBeUndefined();
   });
 });
 
 describe('GET /auth/callback', () => {
   it('signs the user in', async () => {
-    const fetchMock = mockGitHub(json({ access_token: 'gho_secret' }), json(githubUser));
-    const res = await callback();
+    const { res, login, fetchMock } = await signIn();
     expect(res.status).toBe(302);
     expect(res.headers.get('Location')).toBe('/');
 
     const session = cookieNamed(res, 'session')!;
     expect(session).toContain('HttpOnly');
-    expect(await readSession(env, session.split(';')[0])).toEqual({ id: 'gh_1', login: 'alice' });
-    expect(await getUser(env, 'gh_1')).toMatchObject({ login: 'alice', name: 'Alice', avatarUrl: githubUser.avatar_url });
-    expect(cookieNamed(res, 'oauth_state')).toMatch(/Max-Age=0|Expires=/);
+    expect(await readSession(env, session.split(';')[0])).toEqual({ id: 'google_1', email: 'alice@example.com' });
+    expect(await getUser(env, 'google_1')).toMatchObject({
+      email: 'alice@example.com',
+      name: 'Alice',
+      avatarUrl: 'https://lh3.googleusercontent.com/a/alice',
+    });
+    cleared(res);
     expect(cookieNamed(res, 'oauth_state')).toContain('Path=/auth');
-    expect(JSON.stringify([...res.headers])).not.toContain('gho_secret');
 
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-    const [tokenReq, userReq] = fetchMock.mock.calls;
-    expect(tokenReq[0]).toBe('https://github.com/login/oauth/access_token');
-    expect(tokenReq[1]?.method).toBe('POST');
-    expect(new Headers(tokenReq[1]?.headers).get('Accept')).toBe('application/json');
-    expect(JSON.parse(tokenReq[1]?.body as string)).toEqual({
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe(TOKEN_URL);
+    expect(init?.method).toBe('POST');
+    expect(new Headers(init?.headers).get('Content-Type')).toBe('application/x-www-form-urlencoded');
+    const body = new URLSearchParams(init?.body as string);
+    const verifier = decodeURIComponent(login.cookie.slice('oauth_state='.length)).split('.')[2];
+    expect(Object.fromEntries(body)).toEqual({
+      code: 'c0de',
       client_id: 'test-client',
       client_secret: 'test-secret',
-      code: 'c0de',
       redirect_uri: `${ORIGIN}/auth/callback`,
+      grant_type: 'authorization_code',
+      code_verifier: verifier,
     });
-    expect(userReq[0]).toBe('https://api.github.com/user');
-    const headers = new Headers(userReq[1]?.headers);
-    expect(headers.get('Authorization')).toBe('Bearer gho_secret');
-    expect(headers.get('Accept')).toBe('application/vnd.github+json');
-    expect(headers.get('User-Agent')).toBe('artifacts');
+    expect(await sha256Base64Url(verifier)).toBe(login.location.searchParams.get('code_challenge'));
   });
 
-  it('is 400 for a state mismatch, missing cookie, missing code or missing state, without calling GitHub', async () => {
-    const fetchMock = mockGitHub(json({ access_token: 't' }), json(githubUser));
+  it('accepts the accounts.google.com issuer and a profile without name or picture', async () => {
+    const { res } = await signIn({ iss: 'accounts.google.com', name: undefined, picture: 42 });
+    expect(res.status).toBe(302);
+    expect(await getUser(env, 'google_1')).toMatchObject({ name: null, avatarUrl: null });
+  });
+
+  it('lowercases the email and matches the allowlist case-insensitively', async () => {
+    const { res } = await signIn({ email: 'Alice@Example.com' });
+    expect(res.status).toBe(302);
+    expect(await readSession(env, cookieNamed(res, 'session')!.split(';')[0])).toEqual({
+      id: 'google_1',
+      email: 'alice@example.com',
+    });
+  });
+
+  it('keeps one user record across sign-ins and an email change', async () => {
+    await signIn();
+    const created = (await getUser(env, 'google_1'))!;
+    await signIn({ email: 'bob@example.com' });
+    expect(await getUser(env, 'google_1')).toMatchObject({ email: 'bob@example.com', createdAt: created.createdAt });
+  });
+
+  it('is 400 when Google reports an error, without calling Google', async () => {
+    const login = await startLogin();
+    const fetchMock = mockToken(json({}));
+    const res = await callback(`error=access_denied&state=${login.state}`, login.cookie);
+    expect(res.status).toBe(400);
+    expect(await res.text()).toBe('Google sign-in was cancelled');
+    expect(cookieNamed(res, 'session')).toBeUndefined();
+    cleared(res);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('is 400 for a state mismatch, missing or tampered cookie, missing code or missing state, without calling Google', async () => {
+    const login = await startLogin();
+    const other = await startLogin();
+    const value = login.cookie.slice('oauth_state='.length);
+    const tampered = `oauth_state=${value.slice(0, 3)}${value[3] === 'A' ? 'B' : 'A'}${value.slice(4)}`;
+    const unsigned = `oauth_state=${encodeURIComponent(decodeURIComponent(value).split('.').slice(0, 3).join('.'))}`;
+    const fetchMock = mockToken(json({ id_token: idToken(claims({}, login.nonce)) }));
     const responses = [
-      await callback('other'),
-      await callback('abc', null),
-      await callback('abc', 'oauth_state=abc', 'state=abc'),
-      await callback('abc', 'oauth_state=abc', 'code=c0de'),
+      await callback('code=c0de&state=other', login.cookie),
+      await callback(`code=c0de&state=${login.state}`),
+      await callback(`code=c0de&state=${login.state}`, tampered),
+      await callback(`code=c0de&state=${login.state}`, unsigned),
+      await callback(`code=c0de&state=${other.state}`, login.cookie),
+      await callback(`state=${login.state}`, login.cookie),
+      await callback('code=c0de', login.cookie),
     ];
     for (const res of responses) {
       expect(res.status).toBe(400);
       expect(cookieNamed(res, 'session')).toBeUndefined();
-      expect(cookieNamed(res, 'oauth_state')).toMatch(/Max-Age=0|Expires=/);
+      cleared(res);
     }
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('is 502 when the token exchange fails', async () => {
-    for (const token of [json({ error: 'bad_verification_code' }), json({}, 500)]) {
-      mockGitHub(token);
-      const res = await callback();
+  it('is 502 when the token request rejects, is not OK, is not JSON or has no id_token', async () => {
+    const failures: (() => Promise<Response>)[] = [
+      () => Promise.reject(new TypeError('network down')),
+      async () => json({ error: 'invalid_grant' }, 400),
+      async () => new Response('<html>oops</html>'),
+      async () => json({ access_token: 'ya29.secret' }),
+      async () => json({ id_token: '' }),
+      async () => json({ id_token: 'not-a-jwt' }),
+    ];
+    for (const failure of failures) {
+      const login = await startLogin();
+      mockToken(failure);
+      const res = await callback(`code=c0de&state=${login.state}`, login.cookie);
       expect(res.status).toBe(502);
-      expect(await res.text()).toBe('GitHub sign-in failed');
+      expect(await res.text()).toBe('Google sign-in failed');
       expect(cookieNamed(res, 'session')).toBeUndefined();
-      expect(cookieNamed(res, 'oauth_state')).toBeDefined();
+      cleared(res);
       vi.restoreAllMocks();
     }
+    expect(await getUser(env, 'google_1')).toBeNull();
   });
 
-  it('is 502 when the user lookup fails', async () => {
-    mockGitHub(json({ access_token: 't' }), json({ message: 'Bad credentials' }, 401));
-    const res = await callback();
-    expect(res.status).toBe(502);
-    expect(cookieNamed(res, 'session')).toBeUndefined();
-    expect(await getUser(env, 'gh_1')).toBeNull();
+  it('is 502 for ID token claims that do not validate', async () => {
+    const bad: Record<string, unknown>[] = [
+      { iss: 'https://evil.test' },
+      { iss: undefined },
+      { aud: 'other-client' },
+      { aud: ['test-client'] },
+      { exp: now() - 1 },
+      { exp: undefined },
+      { exp: String(now() + 3600) },
+      { nonce: 'wrong' },
+      { nonce: undefined },
+      { sub: '' },
+      { sub: 1 },
+      { email: '' },
+      { email: undefined },
+    ];
+    for (const overrides of bad) {
+      const { res } = await signIn(overrides);
+      expect(res.status, JSON.stringify(overrides)).toBe(502);
+      expect(await res.text()).toBe('Google sign-in failed');
+      expect(cookieNamed(res, 'session')).toBeUndefined();
+      vi.restoreAllMocks();
+    }
+    expect(await getUser(env, 'google_1')).toBeNull();
   });
 
-  it('is 502 with the state cookie cleared when the token exchange request rejects', async () => {
-    const fetchMock = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new TypeError('network down'));
-    const res = await callback();
-    expect(res.status).toBe(502);
-    expect(await res.text()).toBe('GitHub sign-in failed');
-    expect(cookieNamed(res, 'session')).toBeUndefined();
-    expect(cookieNamed(res, 'oauth_state')).toMatch(/Max-Age=0|Expires=/);
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+  it('is 403 when the email is not verified', async () => {
+    for (const email_verified of [false, undefined, 'true']) {
+      const { res } = await signIn({ email_verified });
+      expect(res.status).toBe(403);
+      expect(await res.text()).toBe('Email address is not verified');
+      expect(cookieNamed(res, 'session')).toBeUndefined();
+      vi.restoreAllMocks();
+    }
+    expect(await getUser(env, 'google_1')).toBeNull();
   });
 
-  it('is 502 with the state cookie cleared when the user request rejects', async () => {
-    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
-      if (new Request(input).url === 'https://github.com/login/oauth/access_token') return json({ access_token: 't' });
-      throw new TypeError('network down');
-    });
-    const res = await callback();
-    expect(res.status).toBe(502);
-    expect(await res.text()).toBe('GitHub sign-in failed');
-    expect(cookieNamed(res, 'session')).toBeUndefined();
-    expect(cookieNamed(res, 'oauth_state')).toMatch(/Max-Age=0|Expires=/);
-    expect(await getUser(env, 'gh_1')).toBeNull();
+  it('is 403 without a session for an email that is not allowed', async () => {
+    for (const email of ['carol@example.com', 'alice@example.com.evil.test', 'xalice@example.com']) {
+      const { res } = await signIn({ sub: '3', email });
+      expect(res.status).toBe(403);
+      expect(await res.text()).toBe(`${email} is not allowed to sign in`);
+      expect(cookieNamed(res, 'session')).toBeUndefined();
+      cleared(res);
+      vi.restoreAllMocks();
+    }
+    expect(await getUser(env, 'google_3')).toBeNull();
   });
 
-  it('is 403 without a session for a login that is not allowed', async () => {
-    mockGitHub(json({ access_token: 't' }), json({ ...githubUser, id: 3, login: 'carol' }));
-    const res = await callback();
-    expect(res.status).toBe(403);
-    expect(await res.text()).toBe('carol is not allowed to sign in');
-    expect(cookieNamed(res, 'session')).toBeUndefined();
-    expect(cookieNamed(res, 'oauth_state')).toBeDefined();
-    expect(await getUser(env, 'gh_3')).toBeNull();
+  it('never returns Google tokens', async () => {
+    mockToken(json({ id_token: 'x', access_token: 'ya29.secret' }));
+    const login = await startLogin();
+    const res = await callback(`code=c0de&state=${login.state}`, login.cookie);
+    expect(JSON.stringify([...res.headers]) + (await res.text())).not.toContain('ya29.secret');
   });
 });
 
@@ -191,7 +315,7 @@ describe('/api/tokens', () => {
     expect(res.status).toBe(201);
     const created = (await res.json()) as { token: string; id: string; name: string; createdAt: string };
     expect(created).toEqual({ token: expect.stringMatching(/^art_/), id: expect.any(String), name: 'laptop', createdAt: expect.any(String) });
-    expect(await verifyApiToken(env, created.token)).toEqual({ id: 'gh_1', login: 'alice' });
+    expect(await verifyApiToken(env, created.token)).toEqual({ id: 'google_1', email: 'alice@example.com' });
   });
 
   it('lists tokens without secrets', async () => {
@@ -212,8 +336,8 @@ describe('/api/tokens', () => {
   });
 
   it('only lists the signed-in user tokens', async () => {
-    await createTestUser('alice', 1);
-    const bob = await createTestUser('bob', 2);
+    await createTestUser('alice@example.com', '1');
+    const bob = await createTestUser('bob@example.com', '2');
     const res = await request('/api/tokens', { headers: { Cookie: bob.cookie } });
     expect(((await res.json()) as { items: unknown[] }).items).toHaveLength(1);
   });
@@ -227,8 +351,8 @@ describe('/api/tokens', () => {
   });
 
   it('is 404 for an unknown or another user token id', async () => {
-    const alice = await createTestUser('alice', 1);
-    const bob = await createTestUser('bob', 2);
+    const alice = await createTestUser('alice@example.com', '1');
+    const bob = await createTestUser('bob@example.com', '2');
     const created = (await (await post(alice.cookie, { name: 'laptop' })).json()) as { id: string; token: string };
     const del = (cookie: string, id: string) =>
       request(`/api/tokens/${id}`, { method: 'DELETE', headers: { Cookie: cookie, Origin: ORIGIN } });
@@ -236,7 +360,7 @@ describe('/api/tokens', () => {
       expect(res.status).toBe(404);
       expect(await res.json()).toEqual({ error: expect.any(String) });
     }
-    expect(await verifyApiToken(env, created.token)).toEqual({ id: 'gh_1', login: 'alice' });
+    expect(await verifyApiToken(env, created.token)).toEqual({ id: 'google_1', email: 'alice@example.com' });
   });
 
   it('rejects Bearer tokens with 403', async () => {

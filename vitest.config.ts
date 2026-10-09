@@ -8,9 +8,9 @@ export default defineConfig({
       miniflare: {
         bindings: {
           SESSION_SECRET: 'test-session-secret-0123456789abcdef0123456789',
-          GITHUB_CLIENT_ID: 'test-client',
-          GITHUB_CLIENT_SECRET: 'test-secret',
-          ALLOWED_USERS: 'alice,bob',
+          GOOGLE_CLIENT_ID: 'test-client',
+          GOOGLE_CLIENT_SECRET: 'test-secret',
+          ALLOWED_EMAILS: 'alice@example.com,bob@example.com',
         },
       },
     }),

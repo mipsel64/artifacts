@@ -24,35 +24,56 @@ import { ORIGIN, bearer, createTestUser } from './helpers';
 afterEach(() => reset());
 
 const T0 = new Date('2026-01-01T00:00:00.000Z');
-const alice = { id: 'gh_1', login: 'alice' };
+const alice = { id: 'google_1', email: 'alice@example.com' };
 const cookieValue = (setCookie: string) => setCookie.split(';')[0];
 
 describe('isAllowed', () => {
-  const withUsers = (ALLOWED_USERS: string) => ({ ...env, ALLOWED_USERS }) as Env;
+  const withEmails = (ALLOWED_EMAILS: string) => ({ ...env, ALLOWED_EMAILS }) as Env;
 
-  it('matches a trimmed, case-insensitive comma list', () => {
-    const e = withUsers(' Alice , bob,');
-    expect(isAllowed(e, 'alice')).toBe(true);
-    expect(isAllowed(e, 'BOB')).toBe(true);
-    expect(isAllowed(e, 'carol')).toBe(false);
+  it('matches an exact email', () => {
+    const e = withEmails('alice@example.com,bob@example.com');
+    expect(isAllowed(e, 'alice@example.com')).toBe(true);
+    expect(isAllowed(e, 'bob@example.com')).toBe(true);
+    expect(isAllowed(e, 'carol@example.com')).toBe(false);
   });
 
-  it('allows everyone for * and nobody when empty', () => {
-    expect(isAllowed(withUsers('*'), 'anyone')).toBe(true);
-    expect(isAllowed(withUsers(''), 'alice')).toBe(false);
-    expect(isAllowed(withUsers(' , '), 'alice')).toBe(false);
+  it('ignores case and surrounding whitespace', () => {
+    const e = withEmails(' Alice@Example.com , bob@example.com,');
+    expect(isAllowed(e, 'alice@example.com')).toBe(true);
+    expect(isAllowed(e, 'ALICE@EXAMPLE.COM')).toBe(true);
+    expect(isAllowed(e, 'Bob@example.com')).toBe(true);
+  });
+
+  it('allows nobody when the list is empty', () => {
+    expect(isAllowed(withEmails(''), 'alice@example.com')).toBe(false);
+    expect(isAllowed(withEmails(' , '), 'alice@example.com')).toBe(false);
+    expect(isAllowed(withEmails(''), '')).toBe(false);
+  });
+
+  it('does not treat * as a wildcard', () => {
+    expect(isAllowed(withEmails('*'), 'alice@example.com')).toBe(false);
+    expect(isAllowed(withEmails('*,bob@example.com'), 'alice@example.com')).toBe(false);
+    expect(isAllowed(withEmails('*@example.com'), 'alice@example.com')).toBe(false);
+  });
+
+  it('does not match domains or suffixes', () => {
+    const e = withEmails('alice@example.com,@example.com,example.com');
+    expect(isAllowed(e, 'mallory@example.com')).toBe(false);
+    expect(isAllowed(e, 'malice@example.com')).toBe(false);
+    expect(isAllowed(e, 'alice@example.com.evil.test')).toBe(false);
+    expect(isAllowed(e, 'xalice@example.com')).toBe(false);
   });
 });
 
 describe('users', () => {
   it('upserts keeping createdAt and updating profile fields', async () => {
-    const first = await upsertUser(env, { githubId: 7, login: 'alice', name: null, avatarUrl: null }, T0);
-    expect(first).toEqual({ id: 'gh_7', login: 'alice', name: null, avatarUrl: null, createdAt: T0.toISOString() });
+    const first = await upsertUser(env, { sub: '7', email: 'alice@example.com', name: null, avatarUrl: null }, T0);
+    expect(first).toEqual({ id: 'google_7', email: 'alice@example.com', name: null, avatarUrl: null, createdAt: T0.toISOString() });
     const later = new Date(T0.getTime() + 1000);
-    const second = await upsertUser(env, { githubId: 7, login: 'alice2', name: 'Alice', avatarUrl: 'u' }, later);
-    expect(second).toEqual({ id: 'gh_7', login: 'alice2', name: 'Alice', avatarUrl: 'u', createdAt: T0.toISOString() });
-    expect(await getUser(env, 'gh_7')).toEqual(second);
-    expect(await getUser(env, 'gh_8')).toBeNull();
+    const second = await upsertUser(env, { sub: '7', email: 'Alice2@Example.com', name: 'Alice', avatarUrl: 'u' }, later);
+    expect(second).toEqual({ id: 'google_7', email: 'alice2@example.com', name: 'Alice', avatarUrl: 'u', createdAt: T0.toISOString() });
+    expect(await getUser(env, 'google_7')).toEqual(second);
+    expect(await getUser(env, 'google_8')).toBeNull();
   });
 });
 
@@ -67,7 +88,7 @@ describe('sessions', () => {
   it('rejects missing, malformed and tampered cookies', async () => {
     const value = cookieValue(await createSessionCookie(env, alice, T0));
     const [payload, signature] = value.slice('session='.length).split('.');
-    const forged = btoa(JSON.stringify({ uid: 'gh_2', login: 'bob', exp: 9999999999 })).replace(/=+$/, '');
+    const forged = btoa(JSON.stringify({ uid: 'google_2', email: 'bob@example.com', exp: 9999999999 })).replace(/=+$/, '');
     expect(await readSession(env, undefined, T0)).toBeNull();
     expect(await readSession(env, 'other=1', T0)).toBeNull();
     expect(await readSession(env, 'session=', T0)).toBeNull();
@@ -109,7 +130,7 @@ describe('API tokens', () => {
     expect(await verifyApiToken(env, 'art_unknown')).toBeNull();
 
     const second = await createApiToken(env, alice, 'ci', new Date(T0.getTime() + 1000));
-    await createApiToken(env, { id: 'gh_2', login: 'bob' }, 'bobs', T0);
+    await createApiToken(env, { id: 'google_2', email: 'bob@example.com' }, 'bobs', T0);
     expect(await listApiTokens(env, alice.id)).toEqual([
       { id: created.id, name: 'laptop', createdAt: T0.toISOString() },
       { id: second.id, name: 'ci', createdAt: new Date(T0.getTime() + 1000).toISOString() },
@@ -131,7 +152,7 @@ describe('API tokens', () => {
 
   it('is 404 when revoking another user token or an unknown id', async () => {
     const created = await createApiToken(env, alice, 'laptop', T0);
-    for (const attempt of [revokeApiToken(env, 'gh_2', created.id), revokeApiToken(env, alice.id, 'nope')]) {
+    for (const attempt of [revokeApiToken(env, 'google_2', created.id), revokeApiToken(env, alice.id, 'nope')]) {
       await expect(attempt).rejects.toBeInstanceOf(ArtifactError);
       await expect(attempt).rejects.toMatchObject({ status: 404 });
     }
@@ -149,7 +170,7 @@ describe('API tokens', () => {
     expect(await env.KV.get(`token:${hash}`, 'json')).toEqual({
       id: created.id,
       userId: alice.id,
-      login: 'alice',
+      email: 'alice@example.com',
       name: 'laptop',
       createdAt: T0.toISOString(),
     });
@@ -196,10 +217,10 @@ describe('middleware', () => {
   });
 
   it('re-checks the allowlist for tokens and cookies', async () => {
-    const carol = await createTestUser('carol', 3);
+    const carol = await createTestUser('carol@example.com', '3');
     expect((await call('/user', { headers: bearer(carol.token) })).status).toBe(401);
     expect((await call('/user', { headers: { Cookie: carol.cookie } })).status).toBe(401);
-    const open = { ...env, ALLOWED_USERS: '*' } as Env;
+    const open = { ...env, ALLOWED_EMAILS: 'carol@example.com' } as Env;
     const res = await app.fetch(new Request(ORIGIN + '/user', { headers: bearer(carol.token) }), open);
     expect(res.status).toBe(200);
   });

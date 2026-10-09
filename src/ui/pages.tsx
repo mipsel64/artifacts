@@ -9,7 +9,7 @@ export function Landing() {
       <h1>Artifacts</h1>
       <p class="lead">Create, version and share the HTML, React, SVG, Mermaid, Markdown and code your agents write.</p>
       <a class="button button-primary" href="/auth/login">
-        Sign in with GitHub
+        Sign in with Google
       </a>
     </section>
   );

@@ -9,13 +9,13 @@ const MAX_TOKEN_NAME_LENGTH = 100;
 const COOKIE_ATTRIBUTES = 'HttpOnly; Secure; SameSite=Lax; Path=/';
 const encoder = new TextEncoder();
 
-const toBase64Url = (bytes: Uint8Array) =>
+export const toBase64Url = (bytes: Uint8Array) =>
   btoa(String.fromCharCode(...bytes))
     .replace(/\+/g, '-')
     .replace(/\//g, '_')
     .replace(/=+$/, '');
 
-function fromBase64Url(value: string): Uint8Array {
+export function fromBase64Url(value: string): Uint8Array {
   const binary = atob(value.replace(/-/g, '+').replace(/_/g, '/'));
   return Uint8Array.from(binary, (ch) => ch.charCodeAt(0));
 }
@@ -28,11 +28,11 @@ async function sha256Hex(value: string): Promise<string> {
   return Array.from(digest, (b) => b.toString(16).padStart(2, '0')).join('');
 }
 
-export function isAllowed(env: Env, login: string): boolean {
-  const allowed = env.ALLOWED_USERS.split(',')
+export function isAllowed(env: Env, email: string): boolean {
+  const allowed = env.ALLOWED_EMAILS.split(',')
     .map((entry) => entry.trim().toLowerCase())
     .filter(Boolean);
-  return allowed.includes('*') || allowed.includes(login.toLowerCase());
+  return allowed.includes(email.trim().toLowerCase());
 }
 
 const userKey = (userId: string) => `user:${userId}`;
@@ -41,14 +41,14 @@ const userTokenKey = (userId: string, tokenId: string) => `user-token:${userId}:
 
 export async function upsertUser(
   env: Env,
-  user: { githubId: number; login: string; name: string | null; avatarUrl: string | null },
+  user: { sub: string; email: string; name: string | null; avatarUrl: string | null },
   now: Date = new Date(),
 ): Promise<User> {
-  const id = `gh_${user.githubId}`;
+  const id = `google_${user.sub}`;
   const existing = await getUser(env, id);
   const saved: User = {
     id,
-    login: user.login,
+    email: user.email.toLowerCase(),
     name: user.name,
     avatarUrl: user.avatarUrl,
     createdAt: existing?.createdAt ?? now.toISOString(),
@@ -63,7 +63,7 @@ export function getUser(env: Env, userId: string): Promise<User | null> {
 
 export async function createSessionCookie(env: Env, user: SessionUser, now: Date = new Date()): Promise<string> {
   const exp = Math.floor(now.getTime() / 1000) + SESSION_TTL_SECONDS;
-  const payload = toBase64Url(encoder.encode(JSON.stringify({ uid: user.id, login: user.login, exp })));
+  const payload = toBase64Url(encoder.encode(JSON.stringify({ uid: user.id, email: user.email, exp })));
   const signature = new Uint8Array(await crypto.subtle.sign('HMAC', await hmacKey(env, 'sign'), encoder.encode(payload)));
   return `${SESSION_COOKIE}=${payload}.${toBase64Url(signature)}; ${COOKIE_ATTRIBUTES}; Max-Age=${SESSION_TTL_SECONDS}`;
 }
@@ -94,9 +94,9 @@ export async function readSession(
     );
     if (!valid) return null;
     const data = JSON.parse(new TextDecoder().decode(fromBase64Url(payload)));
-    if (typeof data.uid !== 'string' || typeof data.login !== 'string' || typeof data.exp !== 'number') return null;
+    if (typeof data.uid !== 'string' || typeof data.email !== 'string' || typeof data.exp !== 'number') return null;
     if (data.exp <= Math.floor(now.getTime() / 1000)) return null;
-    return { id: data.uid, login: data.login };
+    return { id: data.uid, email: data.email };
   } catch {
     return null;
   }
@@ -118,7 +118,7 @@ export async function createApiToken(
   const createdAt = now.toISOString();
   const hash = await sha256Hex(token);
   await env.KV.put(userTokenKey(user.id, id), '', { metadata: { name, createdAt, hash } });
-  await env.KV.put(tokenKey(hash), JSON.stringify({ id, userId: user.id, login: user.login, name, createdAt }));
+  await env.KV.put(tokenKey(hash), JSON.stringify({ id, userId: user.id, email: user.email, name, createdAt }));
   return { token, id, name, createdAt };
 }
 
@@ -147,8 +147,8 @@ export async function revokeApiToken(env: Env, userId: string, tokenId: string):
 }
 
 export async function verifyApiToken(env: Env, token: string): Promise<SessionUser | null> {
-  const record = await env.KV.get<{ userId: string; login: string }>(tokenKey(await sha256Hex(token)), 'json');
-  return record ? { id: record.userId, login: record.login } : null;
+  const record = await env.KV.get<{ userId: string; email: string }>(tokenKey(await sha256Hex(token)), 'json');
+  return record ? { id: record.userId, email: record.email } : null;
 }
 
 type Authenticated = { user: SessionUser; method: 'session' | 'token' };
@@ -164,7 +164,7 @@ export async function authenticate(c: Context<AppEnv>): Promise<Authenticated | 
     const user = await readSession(c.env, c.req.header('Cookie'));
     result = user && { user, method: 'session' };
   }
-  return result && isAllowed(c.env, result.user.login) ? result : null;
+  return result && isAllowed(c.env, result.user.email) ? result : null;
 }
 
 const SAFE_METHODS = ['GET', 'HEAD', 'OPTIONS'];

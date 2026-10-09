@@ -134,7 +134,7 @@ function expectSandboxHeaders(res: Response) {
 
 describe('GET /render/:id', () => {
   it('renders the latest version for the owner with sandbox headers', async () => {
-    const { user, token } = await createTestUser('alice', 1);
+    const { user, token } = await createTestUser('alice@example.com', '1');
     const artifact = await createArtifact(env, user.id, { title: 'Page', type: 'html', content: '<h1>v1</h1>' });
     const res = await request(`/render/${artifact.id}`, { headers: bearer(token) });
     expect(res.status).toBe(200);
@@ -143,7 +143,7 @@ describe('GET /render/:id', () => {
   });
 
   it('accepts the session cookie and renders non-html types as documents', async () => {
-    const { user, cookie } = await createTestUser('alice', 1);
+    const { user, cookie } = await createTestUser('alice@example.com', '1');
     const artifact = await createArtifact(env, user.id, { title: 'Notes', type: 'markdown', content: '# Hi' });
     const res = await request(`/render/${artifact.id}`, { headers: { Cookie: cookie } });
     expect(res.status).toBe(200);
@@ -153,7 +153,7 @@ describe('GET /render/:id', () => {
   });
 
   it('renders the requested version with ?v=', async () => {
-    const { user, token } = await createTestUser('alice', 1);
+    const { user, token } = await createTestUser('alice@example.com', '1');
     const artifact = await createArtifact(env, user.id, { title: 'Page', type: 'html', content: '<h1>v1</h1>' });
     await updateArtifact(env, user.id, artifact.id, { content: '<h1>v2</h1>' });
     const v1 = await request(`/render/${artifact.id}?v=1`, { headers: bearer(token) });
@@ -164,7 +164,7 @@ describe('GET /render/:id', () => {
   });
 
   it.each(['0', '-1', '1.5', 'abc', ''])('rejects v=%j with 400', async (v) => {
-    const { user, token } = await createTestUser('alice', 1);
+    const { user, token } = await createTestUser('alice@example.com', '1');
     const artifact = await createArtifact(env, user.id, { title: 'Page', type: 'html', content: '<p>x</p>' });
     const res = await request(`/render/${artifact.id}?v=${v}`, { headers: bearer(token) });
     expect(res.status).toBe(400);
@@ -172,8 +172,8 @@ describe('GET /render/:id', () => {
   });
 
   it('returns 404 for another user and for an unknown id', async () => {
-    const alice = await createTestUser('alice', 1);
-    const bob = await createTestUser('bob', 2);
+    const alice = await createTestUser('alice@example.com', '1');
+    const bob = await createTestUser('bob@example.com', '2');
     const artifact = await createArtifact(env, alice.user.id, { title: 'Page', type: 'html', content: '<p>x</p>' });
     const other = await request(`/render/${artifact.id}`, { headers: bearer(bob.token) });
     expect(other.status).toBe(404);
@@ -182,7 +182,7 @@ describe('GET /render/:id', () => {
   });
 
   it('returns 401 without auth', async () => {
-    const { user } = await createTestUser('alice', 1);
+    const { user } = await createTestUser('alice@example.com', '1');
     const artifact = await createArtifact(env, user.id, { title: 'Page', type: 'html', content: '<p>x</p>' });
     const res = await request(`/render/${artifact.id}`);
     expect(res.status).toBe(401);
@@ -192,7 +192,7 @@ describe('GET /render/:id', () => {
 
 describe('shared artifact routes', () => {
   async function shared(type: 'html' | 'code' = 'html', content = '<h1>shared</h1>') {
-    const { user } = await createTestUser('alice', 1);
+    const { user } = await createTestUser('alice@example.com', '1');
     const artifact = await createArtifact(env, user.id, { title: 'My Page', type, content, language: 'python' });
     const { shareId } = await shareArtifact(env, user.id, artifact.id);
     return { user, artifact, shareId: shareId! };

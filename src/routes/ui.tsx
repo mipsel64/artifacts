@@ -6,7 +6,7 @@ import { Layout, type Identity } from '../ui/layout';
 import { ArtifactList, EditArtifact, Landing, NewArtifact, Settings, SharedViewer, Viewer } from '../ui/pages';
 
 const CSP =
-  "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' https://avatars.githubusercontent.com data:; frame-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'";
+  "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' https://lh3.googleusercontent.com data:; frame-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'";
 
 const pageHeaders: MiddlewareHandler<AppEnv> = async (c, next) => {
   c.header('Content-Security-Policy', CSP);
@@ -21,7 +21,7 @@ async function identify(c: Context<AppEnv>): Promise<(Identity & { id: string })
   const auth = await authenticate(c);
   if (!auth) return null;
   const profile = await getUser(c.env, auth.user.id);
-  return { id: auth.user.id, login: auth.user.login, avatarUrl: profile?.avatarUrl ?? null };
+  return { id: auth.user.id, email: auth.user.email, avatarUrl: profile?.avatarUrl ?? null };
 }
 
 function parseVersion(raw: string | undefined): number | undefined {

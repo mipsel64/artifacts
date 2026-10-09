@@ -2,7 +2,7 @@
 declare namespace Cloudflare {
   interface Env {
     SESSION_SECRET: string;
-    GITHUB_CLIENT_SECRET: string;
+    GOOGLE_CLIENT_SECRET: string;
   }
 }
 interface Env extends Cloudflare.Env {}

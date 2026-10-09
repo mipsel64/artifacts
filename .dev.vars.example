@@ -1,4 +1,4 @@
 SESSION_SECRET=change-me-to-32-or-more-random-bytes
-GITHUB_CLIENT_SECRET=
-GITHUB_CLIENT_ID=
-ALLOWED_USERS=your-github-login
+GOOGLE_CLIENT_SECRET=
+GOOGLE_CLIENT_ID=
+ALLOWED_EMAILS=you@example.com

@@ -179,7 +179,7 @@ const routes = new Hono<AppEnv>();
 routes.post('/mcp', async (c) => {
   const match = /^Bearer\s+(\S+)$/i.exec(c.req.header('Authorization') ?? '');
   const user = match && (await verifyApiToken(c.env, match[1]));
-  if (!user || !isAllowed(c.env, user.login)) return unauthorized();
+  if (!user || !isAllowed(c.env, user.email)) return unauthorized();
 
   const server = buildServer(c.env, user.id, new URL(c.req.url).origin);
   const transport = new WebStandardStreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true });

@@ -3,7 +3,7 @@ export type ArtifactType = (typeof ARTIFACT_TYPES)[number];
 
 export interface SessionUser {
   id: string;
-  login: string;
+  email: string;
 }
 
 export interface User extends SessionUser {

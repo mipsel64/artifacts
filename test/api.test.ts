@@ -16,8 +16,8 @@ function send(token: string, method: string, path: string, body?: unknown) {
 }
 
 async function setup() {
-  const alice = await createTestUser('alice', 1);
-  const bob = await createTestUser('bob', 2);
+  const alice = await createTestUser('alice@example.com', '1');
+  const bob = await createTestUser('bob@example.com', '2');
   return { alice, bob };
 }
 

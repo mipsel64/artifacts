@@ -12,13 +12,13 @@ afterEach(() => reset());
 const asUser = (cookie: string): RequestInit => ({ headers: { Cookie: cookie } });
 
 async function signedInAlice() {
-  const { user, cookie } = await createTestUser('alice', 1);
+  const { user, cookie } = await createTestUser('alice@example.com', '1');
   return { user, init: asUser(cookie) };
 }
 
 const HEADERS: Record<string, string> = {
   'content-security-policy':
-    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' https://avatars.githubusercontent.com data:; frame-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'",
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' https://lh3.googleusercontent.com data:; frame-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'",
   'x-frame-options': 'DENY',
   'referrer-policy': 'same-origin',
   'x-content-type-options': 'nosniff',
@@ -37,7 +37,7 @@ describe('landing', () => {
     const body = await res.text();
     expect(body).toContain('<!doctype html>');
     expect(body).toContain('href="/auth/login"');
-    expect(body).toContain('Sign in with GitHub');
+    expect(body).toContain('Sign in with Google');
     expect(body).not.toContain('Sign out');
     expect(body).toContain('href="/static/app.css"');
     expect(body).toContain('<script type="module" src="/static/app.js">');
@@ -45,12 +45,13 @@ describe('landing', () => {
 
   it('shows header links, avatar and sign out when signed in', async () => {
     const { user, init } = await signedInAlice();
-    await upsertUser(env, { githubId: 1, login: 'alice', name: 'Alice', avatarUrl: 'https://avatars.githubusercontent.com/u/1' });
+    await upsertUser(env, { sub: '1', email: 'alice@example.com', name: 'Alice', avatarUrl: 'https://lh3.googleusercontent.com/a/1' });
     const body = await (await request('/', init)).text();
-    expect(user.id).toBe('gh_1');
+    expect(user.id).toBe('google_1');
+    expect(body).toContain('alice@example.com');
     expect(body).toContain('href="/new"');
     expect(body).toContain('href="/settings"');
-    expect(body).toContain('src="https://avatars.githubusercontent.com/u/1"');
+    expect(body).toContain('src="https://lh3.googleusercontent.com/a/1"');
     expect(body).toContain('action="/auth/logout"');
     expect(body).toContain('method="post"');
   });
@@ -59,7 +60,7 @@ describe('landing', () => {
 describe('artifact list', () => {
   it('lists only the user artifacts with escaped titles and badges', async () => {
     const { user, init } = await signedInAlice();
-    const bob = await createTestUser('bob', 2);
+    const bob = await createTestUser('bob@example.com', '2');
     const first = await createArtifact(env, user.id, { title: '<img src=x onerror=alert(1)>', type: 'html', content: 'a' });
     const second = await createArtifact(env, user.id, { title: 'Permanent one', type: 'svg', content: 'b' });
     await updateArtifact(env, user.id, second.id, { content: 'b2' });
@@ -217,7 +218,7 @@ describe('viewer', () => {
 
   it('404s for another user artifact and 400s for a bad v', async () => {
     const { user, init } = await signedInAlice();
-    const bob = await createTestUser('bob', 2);
+    const bob = await createTestUser('bob@example.com', '2');
     const bobs = await createArtifact(env, bob.user.id, { title: 'Bobs', type: 'html', content: 'x' });
     const mine = await createArtifact(env, user.id, { title: 'Mine', type: 'html', content: 'x' });
     const other = await request(`/a/${bobs.id}`, init);
@@ -258,7 +259,7 @@ describe('edit page', () => {
 
   it("404s for another user's artifact", async () => {
     const { init } = await signedInAlice();
-    const bob = await createTestUser('bob', 2);
+    const bob = await createTestUser('bob@example.com', '2');
     const bobs = await createArtifact(env, bob.user.id, { title: 'Bobs', type: 'html', content: 'x' });
     expect((await request(`/a/${bobs.id}/edit`, init)).status).toBe(404);
   });

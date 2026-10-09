@@ -121,8 +121,8 @@ describe('MCP tools', () => {
   });
 
   it("does not expose one user's artifacts to another", async () => {
-    const alice = await createTestUser('alice', 1);
-    const bob = await createTestUser('bob', 2);
+    const alice = await createTestUser('alice@example.com', '1');
+    const bob = await createTestUser('bob@example.com', '2');
     const { value } = await callTool(alice.token, 'create_artifact', { title: 'Secret', type: 'markdown', content: '# hi' });
 
     expect((await callTool(bob.token, 'list_artifacts')).value.items).toEqual([]);
@@ -154,8 +154,8 @@ describe('/mcp authentication and methods', () => {
     await expectUnauthorized(await request('/mcp', { method: 'POST', headers: { ...MCP_HEADERS, Cookie: cookie, Origin: ORIGIN }, body }));
   });
 
-  it('rejects a token of a user outside ALLOWED_USERS', async () => {
-    const { token } = await createApiToken(env, { id: 'gh_99', login: 'mallory' }, 'test');
+  it('rejects a token of a user outside ALLOWED_EMAILS', async () => {
+    const { token } = await createApiToken(env, { id: 'google_99', email: 'mallory@example.com' }, 'test');
     await expectUnauthorized(await rpc(token, 'tools/list'));
   });
 

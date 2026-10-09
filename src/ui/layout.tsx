@@ -2,7 +2,7 @@ import { html } from 'hono/html';
 import type { Child } from 'hono/jsx';
 
 export interface Identity {
-  login: string;
+  email: string;
   avatarUrl: string | null;
 }
 
@@ -37,7 +37,7 @@ export function Layout({ title, me, fill, children }: LayoutProps) {
                 <a href="/settings">Settings</a>
                 <span class="user">
                   {me.avatarUrl && <img class="avatar" src={me.avatarUrl} alt="" width="24" height="24" />}
-                  <span>{me.login}</span>
+                  <span>{me.email}</span>
                 </span>
                 <form method="post" action="/auth/logout">
                   <button type="submit" class="button button-quiet">
