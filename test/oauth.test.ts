@@ -269,7 +269,12 @@ describe('consent page', () => {
     expect(html).toContain('&lt;img src=x onerror=alert(1)&gt;');
     expect(html).toContain('<strong>client.example.com</strong>');
     expect(html).toContain('not verified');
-    expect(html).toContain(user.email);
+    expect(html).toContain('wants to access your Artifacts');
+    expect(html).toContain('<dt>Sends access to</dt>');
+    expect(html).toContain('<dt>Signed in as</dt>');
+    expect(html).toContain(`<dd>${user.email}</dd>`);
+    expect(html).toContain('<dt>Can</dt>');
+    expect(html).not.toContain('callout-warning');
     expect(html).not.toContain('on your computer');
     expect(handle).not.toBe('');
     expect(binding).toContain('__Host-oauth-');
@@ -289,6 +294,7 @@ describe('consent page', () => {
     const { challenge } = await pkce();
     const clientId = await registerClient('Local', LOOPBACK_REDIRECT);
     const { res, html } = await openConsent(cookie, authorizePath(clientId, challenge, LOOPBACK_REDIRECT));
+    expect(html).toContain('callout callout-warning');
     expect(html).toContain('on your computer');
     expect(html).toContain('<strong>localhost</strong>');
     expect(res.headers.get('Content-Security-Policy')).toContain("form-action 'self' http://localhost:8976;");

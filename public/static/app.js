@@ -1,9 +1,8 @@
 const $ = (selector, root = document) => root.querySelector(selector);
 
 function showError(message) {
-  const box = $('#error');
-  box.textContent = message;
-  box.hidden = false;
+  $('#error-message').textContent = message;
+  $('#error').hidden = false;
 }
 
 async function api(method, url, body) {
@@ -35,6 +34,8 @@ async function guarded(button, task) {
   }
 }
 
+const copyTimers = new WeakMap();
+
 async function copy(button) {
   const source = $(button.dataset.copy);
   try {
@@ -43,12 +44,21 @@ async function copy(button) {
     showError('Could not copy to the clipboard');
     return;
   }
-  const label = button.dataset.label || button.textContent;
-  button.dataset.label = label;
-  button.textContent = 'Copied';
-  setTimeout(() => {
-    button.textContent = label;
-  }, 1500);
+  const label = $('span', button);
+  const original = button.dataset.label || label.textContent;
+  button.dataset.label = original;
+  clearTimeout(copyTimers.get(button));
+  label.textContent = 'Copied';
+  button.dataset.copied = '';
+  if (button.hasAttribute('aria-label')) button.setAttribute('aria-label', 'Copied');
+  copyTimers.set(
+    button,
+    setTimeout(() => {
+      label.textContent = original;
+      delete button.dataset.copied;
+      if (button.hasAttribute('aria-label')) button.setAttribute('aria-label', original);
+    }, 1500),
+  );
 }
 
 function request(button) {
@@ -75,21 +85,27 @@ function remix(button) {
 
 function addTokenRow(token) {
   const row = document.createElement('li');
-  row.className = 'row';
+  row.className = 'item';
   const name = document.createElement('span');
-  name.className = 'row-title';
+  name.className = 'item-title';
   name.textContent = token.name;
-  const created = document.createElement('span');
-  created.className = 'muted';
+  const created = document.createElement('time');
+  created.className = 'item-meta';
+  created.dateTime = token.createdAt;
   created.textContent = `Created ${token.createdAt.slice(0, 10)}`;
+  const main = document.createElement('div');
+  main.className = 'item-main';
+  main.append(name, created);
   const revoke = document.createElement('button');
   revoke.type = 'button';
   revoke.className = 'button button-danger';
-  revoke.textContent = 'Revoke';
+  const revokeLabel = document.createElement('span');
+  revokeLabel.textContent = 'Revoke';
+  revoke.append(revokeLabel);
   revoke.dataset.method = 'DELETE';
   revoke.dataset.url = `/api/tokens/${token.id}`;
   revoke.dataset.confirm = `Revoke token "${token.name}"?`;
-  row.append(name, created, revoke);
+  row.append(main, revoke);
   $('#token-list').append(row);
   $('#no-tokens').hidden = true;
 }
@@ -169,3 +185,19 @@ if (typeSelect) {
   typeSelect.addEventListener('change', toggle);
   toggle();
 }
+
+function closeVersionMenus(except) {
+  for (const menu of document.querySelectorAll('details.version-menu[open]')) {
+    if (menu !== except) menu.open = false;
+  }
+}
+
+document.addEventListener('click', (event) => closeVersionMenus(event.target.closest('details.version-menu')));
+
+document.addEventListener('keydown', (event) => {
+  if (event.key !== 'Escape') return;
+  const menu = document.querySelector('details.version-menu[open]');
+  if (!menu) return;
+  menu.open = false;
+  menu.querySelector('summary').focus();
+});

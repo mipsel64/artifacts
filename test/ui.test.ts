@@ -93,8 +93,69 @@ describe('artifact list', () => {
     const { init } = await signedInAlice();
     const body = await (await request('/', init)).text();
     expect(body).toContain('No artifacts yet');
-    expect(body).toContain('<a href="/new">Create one</a>');
-    expect(body).toContain('<a href="/settings">Settings</a>');
+    expect(body).toContain('class="button button-primary" href="/new"');
+    expect(body).toContain('Connect an agent');
+    expect(body).toContain('class="button" href="/settings"');
+  });
+});
+
+describe('app shell', () => {
+  it('marks the current nav item and hides decorative icons', async () => {
+    const { init } = await signedInAlice();
+    for (const [path, current] of [
+      ['/', '<a href="/" aria-current="page">Artifacts</a>'],
+      ['/new', '<a href="/new" aria-current="page">New</a>'],
+      ['/settings', '<a href="/settings" aria-current="page">Settings</a>'],
+    ] as const) {
+      const body = await (await request(path, init)).text();
+      expect(body, path).toContain(current);
+      expect(body.match(/aria-current="page"/g), path).toHaveLength(1);
+      expect(body, path).toContain('class="skip-link" href="#main"');
+      for (const svg of body.match(/<svg [^>]*>/g) ?? []) expect(svg, path).toContain('aria-hidden="true"');
+    }
+  });
+
+  it('preloads the self-hosted body font and loads no external assets', async () => {
+    const body = await (await request('/')).text();
+    expect(body).toContain('<link rel="preload" href="/static/fonts/ibm-plex-sans-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin="anonymous"/>');
+    expect(body).not.toMatch(/(?:href|src)="https?:\/\/(?!lh3\.googleusercontent\.com)/);
+  });
+
+  it('shows the landing hero with the Google mark and three feature points', async () => {
+    const body = await (await request('/')).text();
+    expect(body).toContain('class="button button-primary button-lg" href="/auth/login"');
+    expect(body).toContain('fill="#4285F4"');
+    for (const feature of ['MCP for agents', 'Sandboxed preview', 'Share links']) expect(body).toContain(`>${feature}<`);
+  });
+});
+
+describe('artifact list rows', () => {
+  it('makes each row a single link and flags only shared and permanent artifacts', async () => {
+    const { user, init } = await signedInAlice();
+    const plain = await createArtifact(env, user.id, { title: 'Plain', type: 'markdown', content: 'a' });
+    const body = await (await request('/', init)).text();
+    expect(body).toContain(`<a class="row" href="/a/${plain.id}">`);
+    expect(body).toContain('<span class="meta"><span>v1</span>');
+    expect(body).toContain('>Expires in 30 days</span></span></span>');
+    expect(body).not.toContain('chip-accent');
+    expect(body).not.toContain('Shared');
+    expect(body).not.toContain('infinity');
+    expect(body).toContain('<span class="sr-only">markdown</span>');
+
+    await shareArtifact(env, user.id, plain.id);
+    await setRetention(env, user.id, plain.id, true);
+    const flagged = await (await request('/', init)).text();
+    expect(flagged).toContain('<span class="chip chip-accent">');
+    expect(flagged).toContain('>Shared<');
+    expect(flagged).toContain('>Permanent<');
+    expect(flagged).not.toContain('Expires in');
+  });
+
+  it('shows the count in the page header', async () => {
+    const { user, init } = await signedInAlice();
+    await createArtifact(env, user.id, { title: 'One', type: 'html', content: 'a' });
+    await createArtifact(env, user.id, { title: 'Two', type: 'html', content: 'a' });
+    expect(await (await request('/', init)).text()).toContain('<span class="count">2</span>');
   });
 });
 
@@ -141,6 +202,20 @@ describe('new and settings pages', () => {
     expect(body).toContain('method="post" data-form="token"');
   });
 
+  it('puts the agent snippets in tabs with a Copy button inside each block', async () => {
+    const { init } = await signedInAlice();
+    const body = await (await request('/settings', init)).text();
+    for (const tab of ['Claude.ai &amp; Desktop', 'Claude Code', 'API token', 'JSON']) expect(body).toContain(`<span>${tab}</span>`);
+    expect(body.match(/role="tab"/g)).toHaveLength(4);
+    expect(body.match(/aria-selected="true"/g)).toHaveLength(1);
+    for (const id of ['mcp-url', 'mcp-oauth-command', 'mcp-command', 'mcp-json']) {
+      expect(body).toMatch(new RegExp(`<div class="snippet-bar">.{0,600}data-copy="#${id}".{0,900}<code id="${id}">`));
+    }
+    expect(body).toContain('<code id="mcp-url">https://artifacts.test/mcp</code>');
+    expect(body).toContain('id="new-token" class="callout callout-success" hidden');
+    expect(body).toContain('No connected apps.');
+  });
+
   it.each(['/new', '/settings'])('redirects %s to / when signed out', async (path) => {
     const res = await request(path, { redirect: 'manual' });
     expect(res.status).toBe(302);
@@ -176,6 +251,20 @@ describe('viewer', () => {
     expect(body).toContain('data-confirm=');
     expect(body).toContain('data-done="/"');
     expectSecurityHeaders(res);
+  });
+
+  it('gives every icon-only tool a name and groups the side panel sections', async () => {
+    const { user, init } = await signedInAlice();
+    const meta = await createArtifact(env, user.id, { title: 'Doc', type: 'html', content: 'x' });
+    const body = await (await request(`/a/${meta.id}`, init)).text();
+    for (const label of ['Copy', 'Download', 'Open in new tab', 'Edit', 'Previous version', 'Next version']) {
+      expect(body).toContain(`aria-label="${label}" title="${label}"`);
+    }
+    for (const heading of ['Sharing', 'Retention', 'Versions', 'Danger zone']) expect(body).toMatch(new RegExp(`<h2 id="[a-z]+-heading">${heading}</h2>`));
+    expect(body).toContain('aria-current="page"><span class="mono">v1</span>');
+    expect(body).toContain('role="tabpanel" id="panel-preview"');
+    expect(body).toContain('role="tabpanel" id="panel-code"');
+    expect(body).toContain('tabindex="-1" class="tab"');
   });
 
   it('defaults to the latest version', async () => {
@@ -297,6 +386,16 @@ describe('public share page', () => {
     expect(body).toContain('data-title="Snippet"');
     expect(body).toContain('data-type="code"');
     expect(body).toContain('data-language="python"');
+  });
+
+  it('shows the read-only notice and no owner panel', async () => {
+    const { user } = await signedInAlice();
+    const meta = await createArtifact(env, user.id, { title: 'Doc', type: 'html', content: 'x' });
+    const { shareId } = await shareArtifact(env, user.id, meta.id);
+    const body = await (await request(`/s/${shareId}`)).text();
+    expect(body).toContain('Shared artifact · read-only');
+    expect(body).not.toContain('class="side"');
+    expect(body).not.toContain('Danger zone');
   });
 
   it('404s for a revoked or unknown share', async () => {

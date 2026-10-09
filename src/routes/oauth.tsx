@@ -5,6 +5,8 @@ import { isAllowed, readSession, requireSession } from '../auth';
 import { MAX_NEXT_LENGTH } from './auth';
 import type { AppEnv } from '../types';
 import { pageHeaders, setPageHeaders } from '../ui/headers';
+import { Callout, Initial } from '../ui/components';
+import { Icon } from '../ui/icons';
 import { Layout } from '../ui/layout';
 
 export function oauthHelpers(c: Context<AppEnv>): OAuthHelpers {
@@ -32,37 +34,53 @@ function redirectSource(redirectUri: string): string {
 
 function ErrorPage({ message }: { message: string }) {
   return (
-    <Layout title="Authorization error" me={null}>
-      <h1>Authorization failed</h1>
-      <p>{message}</p>
-      <p class="muted">Go back to the app and start signing in again.</p>
+    <Layout title="Authorization error" me={null} width="narrow">
+      <div class="card auth-card">
+        <span class="auth-icon auth-icon-danger">
+          <Icon name="circle-alert" size={24} />
+        </span>
+        <h1>Authorization failed</h1>
+        <p>{message}</p>
+        <p class="muted">Go back to the app and start signing in again.</p>
+      </div>
     </Layout>
   );
 }
 
 function ConsentPage({ details, email, handle }: { details: ConsentDescription; email: string; handle: string }) {
   return (
-    <Layout title="Authorize" me={null}>
-      <form class="form" method="post" action="/authorize">
-        <h1>Allow {details.clientName} to access your artifacts?</h1>
-        <p>This app registered itself, so its name is not verified.</p>
-        <p>
-          Access will be sent to <strong>{details.redirectHost}</strong>.
-        </p>
+    <Layout title="Authorize" me={null} width="narrow">
+      <form class="card auth-card" method="post" action="/authorize">
+        <Initial name={details.clientName} />
+        <h1>{details.clientName} wants to access your Artifacts</h1>
+        <p class="muted">This app registered itself, so its name is not verified.</p>
         {details.redirectIsLoopback && (
-          <p class="alert">
+          <Callout kind="warning">
             <strong>This sends access to an app on your computer.</strong> Continue only if you just started signing in from it.
-          </p>
+          </Callout>
         )}
-        <p class="muted">
-          Signed in as <strong>{email}</strong>. The app can list, read, create, change, share and delete your artifacts until you revoke it in Settings.
-        </p>
+        <dl class="facts">
+          <div>
+            <dt>Sends access to</dt>
+            <dd>
+              <strong>{details.redirectHost}</strong>
+            </dd>
+          </div>
+          <div>
+            <dt>Signed in as</dt>
+            <dd>{email}</dd>
+          </div>
+          <div>
+            <dt>Can</dt>
+            <dd>List, read, create, change, share and delete your artifacts until you revoke it in Settings.</dd>
+          </div>
+        </dl>
         <input type="hidden" name="handle" value={handle} />
-        <div class="actions">
-          <button type="submit" name="decision" value="approve" class="button button-primary">
+        <div class="actions actions-stack">
+          <button type="submit" name="decision" value="approve" class="button button-primary button-lg">
             Allow
           </button>
-          <button type="submit" name="decision" value="deny" class="button">
+          <button type="submit" name="decision" value="deny" class="button button-lg">
             Deny
           </button>
         </div>

@@ -1,17 +1,58 @@
-import { ARTIFACT_TYPES, type ArtifactSummary, type ArtifactView } from '../types';
+import type { Child } from 'hono/jsx';
+import { ARTIFACT_TYPES, type ArtifactSummary, type ArtifactType, type ArtifactView } from '../types';
+import { Initial } from './components';
 import { formatDate, retentionLabel } from './format';
+import { GoogleMark, Icon, Logo, TypeIcon, type IconName } from './icons';
 
 const SANDBOX = 'allow-scripts allow-forms allow-modals allow-popups allow-downloads';
+
+const FEATURES: { icon: IconName; title: string; text: string }[] = [
+  { icon: 'bot', title: 'MCP for agents', text: 'Agents create and update artifacts over MCP or the REST API.' },
+  { icon: 'shield-check', title: 'Sandboxed preview', text: 'Every artifact renders in an isolated iframe on its own origin.' },
+  { icon: 'link', title: 'Share links', text: 'Publish a read-only link and stop sharing whenever you like.' },
+];
 
 export function Landing() {
   return (
     <section class="hero">
-      <h1>Artifacts</h1>
+      <Logo size={48} />
+      <h1>A home for what your agents make</h1>
       <p class="lead">Create, version and share the HTML, React, SVG, Mermaid, Markdown and code your agents write.</p>
-      <a class="button button-primary" href="/auth/login">
-        Sign in with Google
+      <a class="button button-primary button-lg" href="/auth/login">
+        <GoogleMark />
+        <span>Sign in with Google</span>
       </a>
+      <ul class="features">
+        {FEATURES.map((feature) => (
+          <li>
+            <span class="feature-icon">
+              <Icon name={feature.icon} size={20} />
+            </span>
+            <h2>{feature.title}</h2>
+            <p>{feature.text}</p>
+          </li>
+        ))}
+      </ul>
     </section>
+  );
+}
+
+function TypeTile({ type }: { type: ArtifactType }) {
+  return (
+    <span class="type-tile" title={type}>
+      <TypeIcon type={type} size={20} />
+      <span class="sr-only">{type}</span>
+    </span>
+  );
+}
+
+function TypeChip({ type, language }: { type: ArtifactType; language?: string | null }) {
+  return (
+    <span class="chip">
+      <TypeIcon type={type} size={14} />
+      <span>{type}</span>
+      {language && <span class="chip-detail">{language}</span>}
+    </span>
   );
 }
 
@@ -19,29 +60,65 @@ export function ArtifactList({ items, now }: { items: ArtifactSummary[]; now: Da
   return (
     <>
       <div class="page-head">
-        <h1>Artifacts</h1>
+        <h1>
+          Artifacts <span class="count">{items.length}</span>
+        </h1>
         <a class="button button-primary" href="/new">
-          New artifact
+          <Icon name="plus" />
+          <span>New artifact</span>
         </a>
       </div>
       {items.length === 0 ? (
-        <p class="empty">
-          No artifacts yet. <a href="/new">Create one</a>, or connect an agent over MCP in <a href="/settings">Settings</a>.
-        </p>
+        <div class="empty card">
+          <span class="empty-icon">
+            <Icon name="layers" size={24} />
+          </span>
+          <h2>No artifacts yet</h2>
+          <p>Create one here, or let an agent create them over MCP.</p>
+          <div class="actions actions-center">
+            <a class="button button-primary" href="/new">
+              <Icon name="plus" />
+              <span>New artifact</span>
+            </a>
+            <a class="button" href="/settings">
+              <Icon name="plug" />
+              <span>Connect an agent</span>
+            </a>
+          </div>
+        </div>
       ) : (
-        <ul class="list">
+        <ul class="artifact-list">
           {items.map((item) => (
-            <li class="row">
-              <a class="row-title" href={`/a/${item.id}`}>
-                {item.title}
+            <li>
+              <a class="row" href={`/a/${item.id}`}>
+                <TypeTile type={item.type} />
+                <span class="row-main">
+                  <span class="row-title">{item.title}</span>
+                  <span class="meta">
+                    <span>v{item.version}</span>
+                    <span>
+                      Updated{' '}
+                      <time datetime={item.updatedAt}>{formatDate(item.updatedAt)}</time>
+                    </span>
+                    {item.expiresAt !== null && <span>{retentionLabel(item.expiresAt, now)}</span>}
+                  </span>
+                </span>
+                <span class="row-flags">
+                  {item.expiresAt === null && (
+                    <span class="chip">
+                      <Icon name="infinity" size={14} />
+                      <span>{retentionLabel(item.expiresAt, now)}</span>
+                    </span>
+                  )}
+                  {item.shared && (
+                    <span class="chip chip-accent">
+                      <Icon name="link" size={14} />
+                      <span>Shared</span>
+                    </span>
+                  )}
+                </span>
+                <Icon name="chevron-right" class="row-chevron" />
               </a>
-              <span class="badge">{item.type}</span>
-              <span class="muted">v{item.version}</span>
-              <time class="muted" datetime={item.updatedAt}>
-                {formatDate(item.updatedAt)}
-              </time>
-              <span class="badge">{retentionLabel(item.expiresAt, now)}</span>
-              {item.shared && <span class="badge badge-accent">Shared</span>}
             </li>
           ))}
         </ul>
@@ -50,100 +127,169 @@ export function ArtifactList({ items, now }: { items: ArtifactSummary[]; now: Da
   );
 }
 
+function FormPage({ title, children }: { title: string; children?: Child }) {
+  return (
+    <>
+      <h1 class="page-title">{title}</h1>
+      <div class="card form-card">{children}</div>
+    </>
+  );
+}
+
 export function NewArtifact() {
   return (
-    <form class="form" method="post" data-form="new">
-      <h1>New artifact</h1>
-      <div class="field">
-        <label for="title">Title</label>
-        <input id="title" name="title" required maxlength={200} autocomplete="off" />
-      </div>
-      <div class="field">
-        <label for="type">Type</label>
-        <select id="type" name="type">
-          {ARTIFACT_TYPES.map((type) => (
-            <option value={type}>{type}</option>
-          ))}
-        </select>
-      </div>
-      <div class="field" id="language-field" hidden>
-        <label for="language">Language</label>
-        <input id="language" name="language" maxlength={32} placeholder="e.g. python" autocomplete="off" />
-      </div>
-      <div class="field">
-        <label for="content">Content</label>
-        <textarea id="content" name="content" class="editor" required rows={18} spellcheck={false}></textarea>
-      </div>
-      <button type="submit" class="button button-primary">
-        Create
-      </button>
-    </form>
+    <FormPage title="New artifact">
+      <form class="form" method="post" data-form="new">
+        <div class="field">
+          <label for="title">Title</label>
+          <input id="title" name="title" required maxlength={200} autocomplete="off" />
+        </div>
+        <div class="field">
+          <label for="type">Type</label>
+          <div class="select">
+            <select id="type" name="type">
+              {ARTIFACT_TYPES.map((type) => (
+                <option value={type}>{type}</option>
+              ))}
+            </select>
+            <Icon name="chevron-down" />
+          </div>
+        </div>
+        <div class="field" id="language-field" hidden>
+          <label for="language">Language</label>
+          <input id="language" name="language" maxlength={32} placeholder="e.g. python" autocomplete="off" />
+        </div>
+        <div class="field">
+          <label for="content">Content</label>
+          <textarea id="content" name="content" class="editor" required rows={18} spellcheck={false}></textarea>
+        </div>
+        <div class="actions">
+          <button type="submit" class="button button-primary">
+            Create
+          </button>
+          <a class="button" href="/">
+            Cancel
+          </a>
+        </div>
+      </form>
+    </FormPage>
   );
 }
 
 export function EditArtifact({ meta, content }: { meta: ArtifactView; content: string }) {
   return (
-    <form class="form" method="post" data-form="edit" data-id={meta.id}>
-      <h1>Edit artifact</h1>
-      <div class="field">
-        <label for="title">Title</label>
-        <input id="title" name="title" value={meta.title} required maxlength={200} autocomplete="off" />
-      </div>
-      <div class="field">
-        <label for="content">Content</label>
-        <textarea id="content" name="content" class="editor" required rows={22} spellcheck={false}>
-          {'\n' + content}
-        </textarea>
-      </div>
-      <div class="actions">
-        <button type="submit" class="button button-primary">
-          Save
-        </button>
-        <a class="button" href={`/a/${meta.id}`}>
-          Cancel
-        </a>
-      </div>
-    </form>
+    <FormPage title="Edit artifact">
+      <form class="form" method="post" data-form="edit" data-id={meta.id}>
+        <div class="field">
+          <label for="title">Title</label>
+          <input id="title" name="title" value={meta.title} required maxlength={200} autocomplete="off" />
+        </div>
+        <div class="field">
+          <label for="content">Content</label>
+          <textarea id="content" name="content" class="editor" required rows={22} spellcheck={false}>
+            {'\n' + content}
+          </textarea>
+        </div>
+        <div class="actions">
+          <button type="submit" class="button button-primary">
+            Save
+          </button>
+          <a class="button" href={`/a/${meta.id}`}>
+            Cancel
+          </a>
+        </div>
+      </form>
+    </FormPage>
   );
 }
 
-function Tabs({ previewSrc, content }: { previewSrc: string; content: string }) {
+function Tabs({ tabs, label }: { tabs: { id: string; label: string; icon?: IconName }[]; label: string }) {
   return (
-    <>
-      <div role="tablist" aria-label="Artifact view" class="tabs">
-        <button type="button" role="tab" id="tab-preview" aria-controls="panel-preview" aria-selected="true" tabindex={0} class="tab">
-          Preview
+    <div role="tablist" aria-label={label} class="tabs">
+      {tabs.map((tab, index) => (
+        <button
+          type="button"
+          role="tab"
+          id={`tab-${tab.id}`}
+          aria-controls={`panel-${tab.id}`}
+          aria-selected={index === 0 ? 'true' : 'false'}
+          tabindex={index === 0 ? 0 : -1}
+          class="tab"
+        >
+          {tab.icon && <Icon name={tab.icon} />}
+          <span>{tab.label}</span>
         </button>
-        <button type="button" role="tab" id="tab-code" aria-controls="panel-code" aria-selected="false" tabindex={-1} class="tab">
-          Code
-        </button>
-      </div>
-      <div role="tabpanel" id="panel-preview" aria-labelledby="tab-preview" class="panel panel-preview">
-        <iframe src={previewSrc} sandbox={SANDBOX} title="Artifact preview" class="preview"></iframe>
-      </div>
-      <div role="tabpanel" id="panel-code" aria-labelledby="tab-code" class="panel panel-code" hidden>
-        <pre class="code" tabindex={0}>
-          <code id="code">{content}</code>
-        </pre>
-      </div>
-    </>
+      ))}
+    </div>
   );
 }
 
-function CopyButton({ target, label = 'Copy' }: { target: string; label?: string }) {
+interface CopyButtonProps {
+  target: string;
+  label?: string;
+  compact?: boolean;
+  class?: string;
+}
+
+// With `compact` the label is hidden on narrow screens, so the button carries an aria-label and a title.
+function CopyButton({ target, label = 'Copy', compact, class: className = 'button' }: CopyButtonProps) {
   return (
-    <button type="button" class="button" data-copy={target}>
-      {label}
+    <button
+      type="button"
+      class={className}
+      data-copy={target}
+      aria-label={compact ? label : undefined}
+      title={compact ? label : undefined}
+    >
+      <Icon name="copy" class="icon-copy" />
+      <Icon name="check" class="icon-check" />
+      <span class={compact ? 'btn-label' : undefined}>{label}</span>
     </button>
   );
 }
 
-function Title({ meta }: { meta: ArtifactView }) {
+function ToolLink({ href, label, icon, external }: { href: string; label: string; icon: IconName; external?: boolean }) {
+  return (
+    <a class="button" href={href} target={external ? '_blank' : undefined} rel={external ? 'noopener noreferrer' : undefined} aria-label={label} title={label}>
+      <Icon name={icon} />
+      <span class="btn-label">{label}</span>
+    </a>
+  );
+}
+
+function ViewerPanel({ previewSrc, content, tools }: { previewSrc: string; content: string; tools: Child }) {
+  return (
+    <section class="panel stage" aria-label="Artifact">
+      <div class="panel-bar">
+        <Tabs
+          label="Artifact view"
+          tabs={[
+            { id: 'preview', label: 'Preview', icon: 'eye' },
+            { id: 'code', label: 'Code', icon: 'code-xml' },
+          ]}
+        />
+        <div class="tools">{tools}</div>
+      </div>
+      <div role="tabpanel" id="panel-preview" aria-labelledby="tab-preview" class="panel-body panel-preview">
+        <iframe src={previewSrc} sandbox={SANDBOX} title="Artifact preview" class="preview"></iframe>
+      </div>
+      <div role="tabpanel" id="panel-code" aria-labelledby="tab-code" class="panel-body panel-code" hidden>
+        <pre class="code" tabindex={0}>
+          <code id="code">{content}</code>
+        </pre>
+      </div>
+    </section>
+  );
+}
+
+function Title({ meta, children }: { meta: ArtifactView; children?: Child }) {
   return (
     <div class="viewer-title">
       <h1>{meta.title}</h1>
-      <span class="badge">{meta.type}</span>
-      {meta.language && <span class="badge">{meta.language}</span>}
+      <div class="chips">
+        <TypeChip type={meta.type} language={meta.language} />
+        {children}
+      </div>
     </div>
   );
 }
@@ -153,36 +299,42 @@ function Versions({ meta, version }: { meta: ArtifactView; version: number }) {
   return (
     <nav class="versions" aria-label="Versions">
       {version > 1 ? (
-        <a class="button" href={href(version - 1)} rel="prev" aria-label="Previous version">
-          ←
+        <a class="button button-icon" href={href(version - 1)} rel="prev" aria-label="Previous version" title="Previous version">
+          <Icon name="chevron-left" />
         </a>
       ) : (
-        <span class="button button-disabled" aria-disabled="true" aria-label="Previous version">
-          ←
-        </span>
+        <button type="button" class="button button-icon" disabled aria-label="Previous version" title="Previous version">
+          <Icon name="chevron-left" />
+        </button>
       )}
-      <details class="version-list">
+      <details class="version-menu">
         <summary class="button">
-          v{version} of {meta.version}
+          <span>
+            v{version} of {meta.version}
+          </span>
+          <Icon name="chevron-down" />
         </summary>
-        <ul>
+        <ul class="menu">
           {[...meta.versions].reverse().map((info) => (
             <li>
               <a href={href(info.version)} aria-current={info.version === version ? 'page' : undefined}>
-                v{info.version} · {formatDate(info.createdAt)}
+                <span>
+                  v{info.version} · {formatDate(info.createdAt)}
+                </span>
+                <Icon name="check" />
               </a>
             </li>
           ))}
         </ul>
       </details>
       {version < meta.version ? (
-        <a class="button" href={href(version + 1)} rel="next" aria-label="Next version">
-          →
+        <a class="button button-icon" href={href(version + 1)} rel="next" aria-label="Next version" title="Next version">
+          <Icon name="chevron-right" />
         </a>
       ) : (
-        <span class="button button-disabled" aria-disabled="true" aria-label="Next version">
-          →
-        </span>
+        <button type="button" class="button button-icon" disabled aria-label="Next version" title="Next version">
+          <Icon name="chevron-right" />
+        </button>
       )}
     </nav>
   );
@@ -192,6 +344,7 @@ function ApiButton(props: {
   method: string;
   url: string;
   label: string;
+  icon?: IconName;
   body?: string;
   confirm?: string;
   done?: string;
@@ -207,8 +360,18 @@ function ApiButton(props: {
       data-confirm={props.confirm}
       data-done={props.done}
     >
-      {props.label}
+      {props.icon && <Icon name={props.icon} />}
+      <span>{props.label}</span>
     </button>
+  );
+}
+
+function SideSection({ id, title, danger, children }: { id: string; title: string; danger?: boolean; children?: Child }) {
+  return (
+    <section class={danger ? 'side-section side-danger' : 'side-section'} aria-labelledby={id}>
+      <h2 id={id}>{title}</h2>
+      {children}
+    </section>
   );
 }
 
@@ -222,40 +385,81 @@ export function Viewer({ meta, version, content, now }: { meta: ArtifactView; ve
         <Title meta={meta} />
         <Versions meta={meta} version={version} />
       </div>
-      <div class="actions">
-        <CopyButton target="#code" />
-        <a class="button" href={`${api}/content?version=${version}&download=1`}>
-          Download
-        </a>
-        <a class="button" href={render} target="_blank" rel="noopener noreferrer">
-          Open in new tab
-        </a>
-        <a class="button" href={`/a/${meta.id}/edit`}>
-          Edit
-        </a>
-        <span class="badge">{retentionLabel(meta.expiresAt, now)}</span>
-        <ApiButton
-          method="PUT"
-          url={`${api}/retention`}
-          body={JSON.stringify({ permanent: !permanent })}
-          label={permanent ? 'Set to expire' : 'Make permanent'}
+      <div class="viewer-body">
+        <ViewerPanel
+          previewSrc={render}
+          content={content}
+          tools={
+            <>
+              <CopyButton target="#code" compact />
+              <ToolLink href={`${api}/content?version=${version}&download=1`} label="Download" icon="download" />
+              <ToolLink href={render} label="Open in new tab" icon="external-link" external />
+              <ToolLink href={`/a/${meta.id}/edit`} label="Edit" icon="pencil" />
+            </>
+          }
         />
-        {meta.shareUrl ? (
-          <>
-            <label class="sr-only" for="share-url">
-              Share link
-            </label>
-            <input id="share-url" class="share-url" readonly value={meta.shareUrl} />
-            <CopyButton target="#share-url" label="Copy link" />
-            <ApiButton method="DELETE" url={`${api}/share`} label="Stop sharing" />
-          </>
-        ) : (
-          <ApiButton method="POST" url={`${api}/share`} label="Share" />
-        )}
-        <ApiButton method="DELETE" url={api} label="Delete" confirm="Delete this artifact and all its versions?" done="/" danger />
-      </div>
-      <div class="stage">
-        <Tabs previewSrc={render} content={content} />
+        <aside class="side" aria-label="Artifact details">
+          <SideSection id="sharing-heading" title="Sharing">
+            {meta.shareUrl ? (
+              <>
+                <p class="side-text">
+                  <Icon name="link" /> Anyone with the link can view this artifact, read-only.
+                </p>
+                <label class="sr-only" for="share-url">
+                  Share link
+                </label>
+                <input id="share-url" class="mono-input" readonly value={meta.shareUrl} />
+                <div class="actions">
+                  <CopyButton target="#share-url" label="Copy link" />
+                  <ApiButton method="DELETE" url={`${api}/share`} label="Stop sharing" />
+                </div>
+              </>
+            ) : (
+              <>
+                <p class="side-text">
+                  <Icon name="lock" /> Only you can see this artifact.
+                </p>
+                <ApiButton method="POST" url={`${api}/share`} label="Share" icon="share-2" />
+              </>
+            )}
+          </SideSection>
+          <SideSection id="retention-heading" title="Retention">
+            <p class="side-text">
+              <Icon name={permanent ? 'infinity' : 'clock'} /> {retentionLabel(meta.expiresAt, now)}
+            </p>
+            <ApiButton
+              method="PUT"
+              url={`${api}/retention`}
+              body={JSON.stringify({ permanent: !permanent })}
+              label={permanent ? 'Set to expire' : 'Make permanent'}
+            />
+          </SideSection>
+          <SideSection id="versions-heading" title="Versions">
+            <ol class="version-history">
+              {[...meta.versions].reverse().map((info) => (
+                <li>
+                  <a href={`/a/${meta.id}?v=${info.version}`} aria-current={info.version === version ? 'page' : undefined}>
+                    <span class="mono">v{info.version}</span>
+                    <span class="muted">{formatDate(info.createdAt)}</span>
+                    {info.version === version && <span class="chip chip-accent">Viewing</span>}
+                  </a>
+                </li>
+              ))}
+            </ol>
+          </SideSection>
+          <SideSection id="danger-heading" title="Danger zone" danger>
+            <p class="side-text">Permanently deletes this artifact and all its versions.</p>
+            <ApiButton
+              method="DELETE"
+              url={api}
+              label="Delete"
+              icon="trash-2"
+              confirm="Delete this artifact and all its versions?"
+              done="/"
+              danger
+            />
+          </SideSection>
+        </aside>
       </div>
     </>
   );
@@ -272,28 +476,39 @@ export function SharedViewer({ shareId, meta, content, signedIn }: SharedProps) 
   return (
     <>
       <div class="viewer-head">
-        <Title meta={meta} />
+        <Title meta={meta}>
+          <span class="chip">
+            <Icon name="eye" size={14} />
+            <span>Shared artifact · read-only</span>
+          </span>
+        </Title>
       </div>
-      <div class="actions">
-        <CopyButton target="#code" />
-        <a class="button" href={`/s/${shareId}/raw?download=1`}>
-          Download
-        </a>
-        {signedIn && (
-          <button
-            type="button"
-            class="button button-primary"
-            data-remix={shareId}
-            data-title={meta.title}
-            data-type={meta.type}
-            data-language={meta.language ?? undefined}
-          >
-            Remix
-          </button>
-        )}
-      </div>
-      <div class="stage">
-        <Tabs previewSrc={`/s/${shareId}/render`} content={content} />
+      <div class="viewer-body viewer-body-single">
+        <ViewerPanel
+          previewSrc={`/s/${shareId}/render`}
+          content={content}
+          tools={
+            <>
+              <CopyButton target="#code" compact />
+              <ToolLink href={`/s/${shareId}/raw?download=1`} label="Download" icon="download" />
+              {signedIn && (
+                <button
+                  type="button"
+                  class="button button-primary"
+                  data-remix={shareId}
+                  data-title={meta.title}
+                  data-type={meta.type}
+                  data-language={meta.language ?? undefined}
+                  aria-label="Remix"
+                  title="Remix"
+                >
+                  <Icon name="git-fork" />
+                  <span class="btn-label">Remix</span>
+                </button>
+              )}
+            </>
+          }
+        />
       </div>
     </>
   );
@@ -305,46 +520,88 @@ interface SettingsProps {
   origin: string;
 }
 
+function Snippet({ id, label, children }: { id: string; label: string; children: string }) {
+  return (
+    <div class="snippet">
+      <div class="snippet-bar">
+        <span class="snippet-label">{label}</span>
+        <CopyButton target={`#${id}`} class="button button-sm" />
+      </div>
+      <pre class="code" tabindex={0}>
+        <code id={id}>{children}</code>
+      </pre>
+    </div>
+  );
+}
+
+function SettingsCard({ id, title, intro, children }: { id: string; title: string; intro: string; children?: Child }) {
+  return (
+    <section class="card settings-card" aria-labelledby={id}>
+      <h2 id={id}>{title}</h2>
+      <p class="muted">{intro}</p>
+      {children}
+    </section>
+  );
+}
+
 export function Settings({ tokens, apps, origin }: SettingsProps) {
   const command = `claude mcp add --transport http artifacts ${origin}/mcp --header "Authorization: Bearer <YOUR_TOKEN>"`;
   const json = `{ "mcpServers": { "artifacts": { "type": "http", "url": "${origin}/mcp", "headers": { "Authorization": "Bearer <YOUR_TOKEN>" } } } }`;
   const oauthCommand = `claude mcp add --transport http artifacts ${origin}/mcp`;
   return (
     <>
-      <h1>Settings</h1>
-      <section class="section" aria-labelledby="apps-heading">
-        <h2 id="apps-heading">Connected apps</h2>
-        <p class="muted">Apps you allowed to use your artifacts by signing in over MCP. Revoking stops them.</p>
-        <ul class="list" id="app-list">
+      <h1 class="page-title">Settings</h1>
+      <SettingsCard
+        id="mcp-heading"
+        title="Connect an agent"
+        intro="Agents reach Artifacts over MCP. Sign in with Google, or send an API token in the Authorization header."
+      >
+        <Tabs
+          label="Connection method"
+          tabs={[
+            { id: 'claude-ai', label: 'Claude.ai & Desktop' },
+            { id: 'claude-code', label: 'Claude Code' },
+            { id: 'token', label: 'API token' },
+            { id: 'json', label: 'JSON' },
+          ]}
+        />
+        <div role="tabpanel" id="panel-claude-ai" aria-labelledby="tab-claude-ai" class="tab-panel">
+          <Snippet id="mcp-url" label="Connector URL">{`${origin}/mcp`}</Snippet>
+          <p class="help">Add it as a custom connector and sign in with Google when asked.</p>
+        </div>
+        <div role="tabpanel" id="panel-claude-code" aria-labelledby="tab-claude-code" class="tab-panel" hidden>
+          <Snippet id="mcp-oauth-command" label="Shell">{oauthCommand}</Snippet>
+          <p class="help">
+            Run it, then type <code>/mcp</code> in Claude Code and choose artifacts to sign in.
+          </p>
+        </div>
+        <div role="tabpanel" id="panel-token" aria-labelledby="tab-token" class="tab-panel" hidden>
+          <Snippet id="mcp-command" label="Shell">{command}</Snippet>
+          <p class="help">Replace &lt;YOUR_TOKEN&gt; with a token from API tokens below.</p>
+        </div>
+        <div role="tabpanel" id="panel-json" aria-labelledby="tab-json" class="tab-panel" hidden>
+          <Snippet id="mcp-json" label="JSON">{json}</Snippet>
+          <p class="help">Paste it into your MCP client configuration and replace &lt;YOUR_TOKEN&gt;.</p>
+        </div>
+      </SettingsCard>
+      <SettingsCard id="apps-heading" title="Connected apps" intro="Apps you allowed to use your artifacts by signing in over MCP. Revoking stops them.">
+        <ul class="items" id="app-list">
           {apps.map((app) => (
-            <li class="row">
-              <span class="row-title">{app.name}</span>
-              <time class="muted" datetime={app.createdAt}>
-                Connected {formatDate(app.createdAt)}
-              </time>
+            <li class="item">
+              <Initial name={app.name} />
+              <div class="item-main">
+                <span class="item-title">{app.name}</span>
+                <span class="item-meta">
+                  Connected <time datetime={app.createdAt}>{formatDate(app.createdAt)}</time>
+                </span>
+              </div>
               <ApiButton method="DELETE" url={`/api/grants/${app.id}`} label="Revoke" confirm={`Revoke access for "${app.name}"?`} danger />
             </li>
           ))}
         </ul>
-        {apps.length === 0 && <p class="empty">No connected apps.</p>}
-      </section>
-      <section class="section" aria-labelledby="tokens-heading">
-        <h2 id="tokens-heading">API tokens</h2>
-        <p class="muted">Tokens let agents call the MCP server and REST API as you.</p>
-        <ul class="list" id="token-list">
-          {tokens.map((token) => (
-            <li class="row">
-              <span class="row-title">{token.name}</span>
-              <time class="muted" datetime={token.createdAt}>
-                Created {formatDate(token.createdAt)}
-              </time>
-              <ApiButton method="DELETE" url={`/api/tokens/${token.id}`} label="Revoke" confirm={`Revoke token "${token.name}"?`} danger />
-            </li>
-          ))}
-        </ul>
-        <p class="empty" id="no-tokens" hidden={tokens.length > 0}>
-          No tokens yet.
-        </p>
+        {apps.length === 0 && <p class="empty-text">No connected apps.</p>}
+      </SettingsCard>
+      <SettingsCard id="tokens-heading" title="API tokens" intro="Tokens let agents call the MCP server and REST API as you.">
         <form class="form form-inline" method="post" data-form="token">
           <div class="field">
             <label for="token-name">Token name</label>
@@ -354,39 +611,34 @@ export function Settings({ tokens, apps, origin }: SettingsProps) {
             Create token
           </button>
         </form>
-        <div id="new-token" class="notice" hidden>
-          <label for="new-token-value">New token</label>
-          <div class="actions">
-            <input id="new-token-value" class="share-url" readonly />
-            <CopyButton target="#new-token-value" />
+        <div id="new-token" class="callout callout-success" hidden>
+          <Icon name="shield-check" size={20} />
+          <div class="callout-body">
+            <label for="new-token-value">New token</label>
+            <div class="inline-field">
+              <input id="new-token-value" class="mono-input" readonly />
+              <CopyButton target="#new-token-value" />
+            </div>
+            <p>Copy it now: you will not see it again.</p>
           </div>
-          <p>Copy it now: you will not see it again.</p>
         </div>
-      </section>
-      <section class="section" aria-labelledby="mcp-heading">
-        <h2 id="mcp-heading">Connect an agent (MCP)</h2>
-        <h3>Sign in with Google (OAuth)</h3>
-        <p class="muted">
-          Claude.ai (custom connector) and Claude Desktop: add <code>{origin}/mcp</code> as a connector and sign in when asked. Claude Code: run the
-          command below, then <code>/mcp</code> and choose artifacts to sign in.
+        <ul class="items" id="token-list">
+          {tokens.map((token) => (
+            <li class="item">
+              <div class="item-main">
+                <span class="item-title">{token.name}</span>
+                <span class="item-meta">
+                  Created <time datetime={token.createdAt}>{formatDate(token.createdAt)}</time>
+                </span>
+              </div>
+              <ApiButton method="DELETE" url={`/api/tokens/${token.id}`} label="Revoke" confirm={`Revoke token "${token.name}"?`} danger />
+            </li>
+          ))}
+        </ul>
+        <p class="empty-text" id="no-tokens" hidden={tokens.length > 0}>
+          No tokens yet.
         </p>
-        <pre class="code" tabindex={0}>
-          <code id="mcp-oauth-command">{oauthCommand}</code>
-        </pre>
-        <CopyButton target="#mcp-oauth-command" />
-        <h3>API token</h3>
-        <p class="muted">Alternatively, send a token from above in the Authorization header. Replace &lt;YOUR_TOKEN&gt; with it.</p>
-        <h4>Claude Code</h4>
-        <pre class="code" tabindex={0}>
-          <code id="mcp-command">{command}</code>
-        </pre>
-        <CopyButton target="#mcp-command" />
-        <h4>JSON config</h4>
-        <pre class="code" tabindex={0}>
-          <code id="mcp-json">{json}</code>
-        </pre>
-        <CopyButton target="#mcp-json" />
-      </section>
+      </SettingsCard>
     </>
   );
 }

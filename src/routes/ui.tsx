@@ -33,7 +33,7 @@ routes.get('/', pageHeaders, async (c) => {
   }
   const items = await listArtifacts(c.env, me.id);
   return c.html(
-    <Layout title="Artifacts" me={me}>
+    <Layout title="Artifacts" me={me} active="artifacts">
       <ArtifactList items={items} now={new Date()} />
     </Layout>,
   );
@@ -43,7 +43,7 @@ routes.get('/new', pageHeaders, async (c) => {
   const me = await identify(c);
   if (!me) return c.redirect('/');
   return c.html(
-    <Layout title="New artifact" me={me}>
+    <Layout title="New artifact" me={me} active="new" width="narrow">
       <NewArtifact />
     </Layout>,
   );
@@ -56,7 +56,7 @@ routes.get('/a/:id', pageHeaders, async (c) => {
   const version = parseVersion(c.req.query('v')) ?? meta.version;
   const content = await getContent(c.env, meta, version);
   return c.html(
-    <Layout title={meta.title} me={me} fill>
+    <Layout title={meta.title} me={me} active="artifacts" fill>
       <Viewer meta={toView(meta, new URL(c.req.url).origin)} version={version} content={content} now={new Date()} />
     </Layout>,
   );
@@ -68,7 +68,7 @@ routes.get('/a/:id/edit', pageHeaders, async (c) => {
   const meta = await getArtifact(c.env, me.id, c.req.param('id'));
   const content = await getContent(c.env, meta);
   return c.html(
-    <Layout title={`Edit ${meta.title}`} me={me}>
+    <Layout title={`Edit ${meta.title}`} me={me} active="artifacts" width="narrow">
       <EditArtifact meta={toView(meta, new URL(c.req.url).origin)} content={content} />
     </Layout>,
   );
@@ -99,7 +99,7 @@ routes.get('/settings', pageHeaders, async (c) => {
     })),
   );
   return c.html(
-    <Layout title="Settings" me={me}>
+    <Layout title="Settings" me={me} active="settings" width="medium">
       <Settings tokens={tokens} apps={apps} origin={new URL(c.req.url).origin} />
     </Layout>,
   );
