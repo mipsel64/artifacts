@@ -1,0 +1,16 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "artifacts",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-09",
+  "compatibility_flags": ["nodejs_compat"],
+  "r2_buckets": [{ "binding": "BUCKET", "bucket_name": "artifacts" }],
+  "kv_namespaces": [
+    { "binding": "KV", "id": "c60f149f94204ed492eaf5af6e533588" },
+    { "binding": "OAUTH_KV", "id": "2f0abbe86eae4826839e0490b7cc33fa" }
+  ],
+  "routes": [{ "pattern": "artifacts.m64.sh", "custom_domain": true }],
+  "triggers": { "crons": ["0 3 * * *"] },
+  "assets": { "directory": "./public" },
+  "observability": { "enabled": true }
+}

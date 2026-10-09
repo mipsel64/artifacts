@@ -1,0 +1,4 @@
+SESSION_SECRET=change-me-to-32-or-more-random-bytes
+GOOGLE_CLIENT_SECRET=
+GOOGLE_CLIENT_ID=
+ALLOWED_EMAILS=you@example.com
