@@ -170,7 +170,10 @@ async function purge(env: Env, ownerId: string, id: string, shareId: string | nu
     keys.push(...page.objects.map((o) => o.key));
     cursor = page.truncated ? page.cursor : undefined;
   } while (cursor);
-  for (let i = 0; i < keys.length; i += 1000) await env.BUCKET.delete(keys.slice(i, i + 1000));
+  // meta.json goes last so a failed purge leaves a claimed meta that recovery can republish.
+  const versions = keys.filter((key) => key !== metaKey(id));
+  for (let i = 0; i < versions.length; i += 1000) await env.BUCKET.delete(versions.slice(i, i + 1000));
+  await env.BUCKET.delete(metaKey(id));
   await bestEffort(() => env.KV.delete(indexKey(ownerId, id)));
   if (shareId) await bestEffort(() => env.KV.delete(shareKey(shareId)));
 }
