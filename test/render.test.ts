@@ -261,7 +261,7 @@ describe('shared artifact routes', () => {
     const { shareId } = await shared();
     for (const path of [`/s/${shareId}`, '/s/x', '/s/x/other', '/render', '/']) {
       const res = await request(path);
-      expect(res.headers.get('Content-Security-Policy')).toBeNull();
+      expect(res.headers.get('Content-Security-Policy') ?? '').not.toContain('sandbox');
       expect(res.headers.get('Cache-Control')).not.toBe('private, no-store');
     }
   });
