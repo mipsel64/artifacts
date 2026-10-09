@@ -96,8 +96,7 @@ The same token works with the REST API under `/api/artifacts` (see [docs/design.
 
 ```sh
 cp .dev.vars.example .dev.vars   # set SESSION_SECRET, GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET (redirect URI http://localhost:8787/auth/callback), ALLOWED_EMAILS
-bunx wrangler dev
-
+bun run dev         # wrangler dev on http://localhost:8787 (keeps the request origin local despite the custom-domain route; OAuth needs it)
 bun run test        # vitest with real R2/KV in Miniflare
 bun run typecheck
 bun run build       # wrangler deploy --dry-run
