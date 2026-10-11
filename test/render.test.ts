@@ -2,7 +2,7 @@ import { env } from 'cloudflare:workers';
 import { createExecutionContext, reset } from 'cloudflare:test';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createArtifact, shareArtifact, unshareArtifact, updateArtifact } from '../src/artifacts';
-import { renderDocument } from '../src/render';
+import { THEME_CSS, THEME_SCRIPT, renderDocument } from '../src/render';
 import { ARTIFACT_TYPES, type ArtifactType } from '../src/types';
 import main from '../src/index';
 import { ORIGIN, bearer, createTestUser, request } from './helpers';
@@ -10,6 +10,8 @@ import { ORIGIN, bearer, createTestUser, request } from './helpers';
 afterEach(() => reset());
 
 const meta = (type: ArtifactType, language: string | null = null, title = 'Demo') => ({ type, language, title });
+// What html and motion documents get appended after the artifact's own markup.
+const THEME_TAIL = `<style>${THEME_CSS}</style>\n<script>${THEME_SCRIPT}</script>`;
 // Types whose content is placed in the document as markup instead of embedded JSON.
 const RAW_TYPES: readonly ArtifactType[] = ['html', 'svg', 'design', 'motion'];
 
@@ -20,9 +22,9 @@ function sourceData(doc: string): string {
 }
 
 describe('renderDocument', () => {
-  it('returns html content unchanged', () => {
+  it('returns html content unchanged, followed by the theme', () => {
     const html = '<!doctype html><title>x</title><h1>Hi</h1>';
-    expect(renderDocument(meta('html'), html)).toBe(html);
+    expect(renderDocument(meta('html'), html)).toBe(html + THEME_TAIL);
   });
 
   it('inlines svg markup, centred and scaled to fit', () => {
@@ -151,7 +153,7 @@ describe('renderDocument', () => {
 
     it('appends the ready flag and waiter after html documents, even past misleading </body> text', () => {
       const content = '<!doctype html><html><body><h1>hi</h1><!-- </body> --></body></html>';
-      expect(renderDocument(meta('html'), content)).toBe(content);
+      expect(renderDocument(meta('html'), content)).toBe(content + THEME_TAIL);
       const printed = renderDocument(meta('html'), content, true);
       expect(printed.startsWith(content)).toBe(true);
       expect(printed).toContain(FLAG);
@@ -188,7 +190,7 @@ describe('GET /render/:id', () => {
     const res = await request(`/render/${artifact.id}`, { headers: bearer(token) });
     expect(res.status).toBe(200);
     expectSandboxResponse(res, 'text/html; charset=utf-8');
-    expect(await res.text()).toBe('<h1>v1</h1>');
+    expect(await res.text()).toBe('<h1>v1</h1>' + THEME_TAIL);
   });
 
   it('includes the print script only with ?print=1', async () => {
@@ -215,9 +217,9 @@ describe('GET /render/:id', () => {
     const artifact = await createArtifact(env, user.id, { title: 'Page', type: 'html', content: '<h1>v1</h1>' });
     await updateArtifact(env, user.id, artifact.id, { content: '<h1>v2</h1>' });
     const v1 = await request(`/render/${artifact.id}?v=1`, { headers: bearer(token) });
-    expect(await v1.text()).toBe('<h1>v1</h1>');
+    expect(await v1.text()).toBe('<h1>v1</h1>' + THEME_TAIL);
     const latest = await request(`/render/${artifact.id}`, { headers: bearer(token) });
-    expect(await latest.text()).toBe('<h1>v2</h1>');
+    expect(await latest.text()).toBe('<h1>v2</h1>' + THEME_TAIL);
     expect((await request(`/render/${artifact.id}?v=3`, { headers: bearer(token) })).status).toBe(404);
   });
 
@@ -262,7 +264,7 @@ describe('shared artifact routes', () => {
     const res = await request(`/s/${shareId}/render`);
     expect(res.status).toBe(200);
     expectSandboxResponse(res, 'text/html; charset=utf-8');
-    expect(await res.text()).toBe('<h1>latest</h1>');
+    expect(await res.text()).toBe('<h1>latest</h1>' + THEME_TAIL);
   });
 
   it('supports print=1 on the shared render route too', async () => {

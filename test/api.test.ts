@@ -223,7 +223,9 @@ describe('export', () => {
     expect(res.headers.get('Content-Disposition')).toBe('attachment; filename="hello-world.html"');
     expect(res.headers.get('X-Content-Type-Options')).toBe('nosniff');
     expect(res.headers.get('Cache-Control')).toBe('private, no-store, no-transform');
-    expect(await res.text()).toBe('<p>hi</p>');
+    const body = await res.text();
+    expect(body.startsWith('<p>hi</p>')).toBe(true);
+    expect(body).toContain('@layer artifact-theme');
   });
 
   it('exports a specific version', async () => {
