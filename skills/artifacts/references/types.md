@@ -7,6 +7,7 @@ Each section gives the renderer behavior, the limits and a small example. All ty
 - Send a full standalone document with `<!doctype html>`, `<meta name="viewport">` and a `<title>`. The renderer adds only the theme tokens and script after your document.
 - There is no Tailwind and no import map. Write plain CSS with the tokens.
 - You can load libraries from a CDN, for example `<script type="module">import * as d3 from 'https://esm.sh/d3@7';</script>`.
+- A Mermaid diagram that the page draws itself (`<pre class="mermaid">` or `mermaid.render`) gets pan and zoom from the renderer: drag, pinch or Ctrl/Cmd + wheel, double-click to reset, and a toolbar on hover. This also applies in `react`. For a page that is only one diagram, use the `mermaid` type.
 - The renderer adds no error panel to `html`. A script error is silent, so keep scripts small and simple.
 - Open external links in a new tab: `<a href="..." target="_blank" rel="noopener">`. The sandbox blocks navigation of the top window.
 - Print gives the PDF export. Add `@media print` rules when the page contains fixed or interactive parts.

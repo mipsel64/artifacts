@@ -2,7 +2,7 @@ import { env } from 'cloudflare:workers';
 import { createExecutionContext, reset } from 'cloudflare:test';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createArtifact, shareArtifact, unshareArtifact, updateArtifact } from '../src/artifacts';
-import { THEME_CSS, THEME_SCRIPT, renderDocument } from '../src/render';
+import { DIAGRAM_ZOOM_SCRIPT, THEME_CSS, THEME_SCRIPT, renderDocument } from '../src/render';
 import { ARTIFACT_TYPES, type ArtifactType } from '../src/types';
 import main from '../src/index';
 import { ORIGIN, bearer, createTestUser, request } from './helpers';
@@ -10,8 +10,8 @@ import { ORIGIN, bearer, createTestUser, request } from './helpers';
 afterEach(() => reset());
 
 const meta = (type: ArtifactType, language: string | null = null, title = 'Demo') => ({ type, language, title });
-// What html and motion documents get appended after the artifact's own markup.
-const THEME_TAIL = `<style>${THEME_CSS}</style>\n<script>${THEME_SCRIPT}</script>`;
+// What html documents get appended after the artifact's own markup.
+const THEME_TAIL = `<style>${THEME_CSS}</style>\n<script>${THEME_SCRIPT}</script><script>${DIAGRAM_ZOOM_SCRIPT}</script>`;
 // Types whose content is placed in the document as markup instead of embedded JSON.
 const RAW_TYPES: readonly ArtifactType[] = ['html', 'svg', 'design', 'motion'];
 

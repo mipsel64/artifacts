@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { THEME_CSS, THEME_SCRIPT, renderDocument } from '../src/render';
+import { DIAGRAM_ZOOM_SCRIPT, THEME_CSS, THEME_SCRIPT, renderDocument } from '../src/render';
 import { ARTIFACT_TYPES, type ArtifactType } from '../src/types';
 
 const render = (type: ArtifactType) => renderDocument({ type, language: null, title: 'Demo' }, 'x');
@@ -99,5 +99,19 @@ describe('artifact theme', () => {
     expect(doc).toContain("primaryTextColor: token('fg')");
     expect(doc).toContain("window.addEventListener('artifact-theme'");
     expect(doc).toMatch(/draw\(\)\.catch\(function \(err\) \{\s+removeDiagram\(\);\s+showError\(err\);/);
+  });
+});
+
+describe('diagram zoom', () => {
+  it('is added to html and react only', () => {
+    for (const type of ARTIFACT_TYPES) expect(render(type).includes(DIAGRAM_ZOOM_SCRIPT)).toBe(type === 'html' || type === 'react');
+  });
+
+  it('finds Mermaid diagrams, keeps plain wheel scrolling and never changes layout', () => {
+    expect(DIAGRAM_ZOOM_SCRIPT).toContain(`'.mermaid > svg, svg[aria-roledescription][role~="graphics-document"]'`);
+    expect(DIAGRAM_ZOOM_SCRIPT).toContain('if (!e.ctrlKey && !e.metaKey) return;');
+    expect(DIAGRAM_ZOOM_SCRIPT).toContain("svg.setAttribute('viewBox'");
+    expect(DIAGRAM_ZOOM_SCRIPT).toContain("host.attachShadow({ mode: 'open' })");
+    expect(DIAGRAM_ZOOM_SCRIPT).not.toMatch(/eval|Function\(/);
   });
 });
