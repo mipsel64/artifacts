@@ -55,6 +55,11 @@ describe('renderDocument design', () => {
     expect(doc).toMatch(/\}\n\}\)\(\);\n<\/script>\n<\/body>/);
   });
 
+  it('lets Fit go below the manual zoom minimum and keeps zoom-out from jumping back up', () => {
+    expect(doc).toContain('s = Math.max(0.01, Math.min(1, (vw - 2 * MARGIN) / w, (vh - 2 * MARGIN) / h));');
+    expect(doc).toContain('Math.max(Math.min(MIN, s), s * factor)');
+  });
+
   it('pins an exact version in every CDN URL', () => {
     const urls = doc.match(/https:\/\/[^\s"'`<>)]+/g) ?? [];
     expect(urls.length).toBeGreaterThan(0);

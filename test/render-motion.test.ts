@@ -26,6 +26,11 @@ describe('renderDocument motion', () => {
     expect(doc).toContain('z-index:2147483646');
   });
 
+  // play() rewinds a finished animation, so a late-found animation must get the clock after play().
+  it('applies the clock after play() or pause() for newly found animations', () => {
+    expect(renderDocument(meta, CONTENT)).toMatch(/tracked\.add\(a\);\s+if \(playing\) a\.play\(\); else a\.pause\(\);\s+a\.currentTime = t;/);
+  });
+
   it('keeps the ready flag and print waiter after the player in print mode', () => {
     const doc = renderDocument(meta, CONTENT, true);
     expect(doc.startsWith(CONTENT)).toBe(true);

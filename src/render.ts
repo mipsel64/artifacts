@@ -358,7 +358,7 @@ try {
     zoomLevel.setAttribute('aria-label', 'Zoom ' + percent + ', reset to 100%');
   }
   function zoomAt(factor, cx, cy) {
-    var next = Math.min(MAX, Math.max(MIN, s * factor));
+    var next = Math.min(MAX, Math.max(Math.min(MIN, s), s * factor));
     x = cx - (cx - x) * next / s;
     y = cy - (cy - y) * next / s;
     s = next;
@@ -370,7 +370,7 @@ try {
     var w = canvas.offsetWidth, h = canvas.offsetHeight;
     if (!w || !h) return;
     var vw = viewport.clientWidth, vh = viewport.clientHeight;
-    s = Math.min(1, Math.max(MIN, Math.min((vw - 2 * MARGIN) / w, (vh - 2 * MARGIN) / h)));
+    s = Math.max(0.01, Math.min(1, (vw - 2 * MARGIN) / w, (vh - 2 * MARGIN) / h));
     x = (vw - w * s) / 2;
     y = (vh - h * s) / 2;
     auto = true;
@@ -534,8 +534,8 @@ const MOTION_PLAYER_SCRIPT = `
         // The bar's own fade shows up in document.getAnimations(); it must not be controlled.
         if (tracked.has(a) || (a.effect && a.effect.target && a.effect.target.getRootNode() === root)) return;
         tracked.add(a);
-        a.currentTime = t;
         if (playing) a.play(); else a.pause();
+        a.currentTime = t;
       });
       duration = 0;
       each(function (a) {
