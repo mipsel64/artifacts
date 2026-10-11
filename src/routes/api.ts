@@ -100,7 +100,7 @@ routes.get('/api/artifacts/:id/export', async (c) => {
   return c.body(body, 200, {
     'Content-Type': format === 'md' ? 'text/markdown; charset=utf-8' : 'text/html; charset=utf-8',
     'X-Content-Type-Options': 'nosniff',
-    'Cache-Control': 'private, no-store',
+    'Cache-Control': 'private, no-store, no-transform',
     'Content-Disposition': `attachment; filename="${fileSlug(meta)}.${format}"`,
   });
 });

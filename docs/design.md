@@ -211,7 +211,7 @@ Render (lane render):
 | `GET /s/:shareId/render` | Public; latest version; HTML render document |
 | `GET /s/:shareId/raw` | Public; latest content as `text/plain`, `nosniff`; `?download=1` adds attachment disposition |
 
-Render responses carry `Content-Security-Policy: sandbox allow-scripts allow-forms allow-modals allow-popups allow-downloads`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`, `Cache-Control: private, no-store`. The sandbox (no `allow-same-origin`) gives the document an opaque origin, so artifact code cannot read app cookies, call the API with credentials or touch the parent page. The viewer iframe also sets the same `sandbox` attribute.
+Render responses carry `Content-Security-Policy: sandbox allow-scripts allow-forms allow-modals allow-popups allow-downloads`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`, `Cache-Control: private, no-store, no-transform` (`no-transform` stops Cloudflare from injecting its Web Analytics beacon and bot-detection script, which fail inside the sandbox). The sandbox (no `allow-same-origin`) gives the document an opaque origin, so artifact code cannot read app cookies, call the API with credentials or touch the parent page. The viewer iframe also sets the same `sandbox` attribute.
 
 ### MCP and OAuth
 

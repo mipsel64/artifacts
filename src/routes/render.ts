@@ -12,7 +12,8 @@ const sandboxHeaders: MiddlewareHandler<AppEnv> = async (c, next) => {
   c.header('Content-Security-Policy', SANDBOX);
   c.header('X-Content-Type-Options', 'nosniff');
   c.header('Referrer-Policy', 'no-referrer');
-  c.header('Cache-Control', 'private, no-store');
+  // no-transform stops Cloudflare injecting its analytics and bot scripts, which fail inside the opaque-origin sandbox.
+  c.header('Cache-Control', 'private, no-store, no-transform');
   await next();
 };
 

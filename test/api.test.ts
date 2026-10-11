@@ -222,7 +222,7 @@ describe('export', () => {
     expect(res.headers.get('Content-Type')).toBe('text/html; charset=utf-8');
     expect(res.headers.get('Content-Disposition')).toBe('attachment; filename="hello-world.html"');
     expect(res.headers.get('X-Content-Type-Options')).toBe('nosniff');
-    expect(res.headers.get('Cache-Control')).toBe('private, no-store');
+    expect(res.headers.get('Cache-Control')).toBe('private, no-store, no-transform');
     expect(await res.text()).toBe('<p>hi</p>');
   });
 
