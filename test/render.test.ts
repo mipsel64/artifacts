@@ -49,6 +49,15 @@ describe('renderDocument', () => {
     expect(doc).toContain('showError(err)');
   });
 
+  it('puts the mermaid diagram on the pan/zoom canvas and fits it after insertion', () => {
+    const doc = renderDocument(meta('mermaid'), 'graph TD; A-->B');
+    expect(doc).toContain('<div id="viewport"><div id="canvas"></div></div>');
+    expect(doc).toContain('aria-label="Canvas zoom"');
+    expect(doc).toContain("svg.setAttribute('width', box.width)");
+    expect(doc.indexOf('canvas.innerHTML = result.svg')).toBeLessThan(doc.indexOf('new ResizeObserver(refit)'));
+    expect(doc.match(/__artifactReady = true/g)).toHaveLength(2);
+  });
+
   it('highlights code with highlight.js and the requested language', () => {
     const doc = renderDocument(meta('code', 'python'), 'print(1)');
     expect(doc).toContain('@highlightjs/cdn-assets@');

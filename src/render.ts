@@ -259,12 +259,19 @@ try {
   var dark = matchMedia('(prefers-color-scheme: dark)').matches;
   mermaid.initialize({ startOnLoad: false, theme: dark ? 'dark' : 'default', suppressErrorRendering: true });
   var result = await mermaid.render('artifact-diagram', source);
-  document.getElementById('out').innerHTML = result.svg;
-  window.__artifactReady = true;
+  var canvas = document.getElementById('canvas');
+  canvas.innerHTML = result.svg;
+  // Mermaid emits width=100% with a max-width, which has no definite size inside the shrink-to-fit canvas.
+  var svg = canvas.querySelector('svg');
+  var box = svg && svg.viewBox.baseVal;
+  if (box && box.width) {
+    svg.setAttribute('width', box.width);
+    svg.setAttribute('height', box.height);
+    svg.style.maxWidth = 'none';
+  }
 } catch (err) {
   document.querySelectorAll('#dartifact-diagram').forEach(function (el) { el.remove(); });
   showError(err);
-  window.__artifactReady = true;
 }
 `;
 
@@ -683,9 +690,9 @@ export function renderDocument(
       return withPrintScript(
         page(
           meta.title,
-          '<style>body{margin:0;display:grid;place-items:center;min-height:100vh;font-family:system-ui,sans-serif}' +
-            '@media(prefers-color-scheme:dark){body{background:#0d1117}}#out{padding:16px;max-width:100%;overflow:auto}</style>',
-          '<div id="out"></div>\n' + moduleScript(MERMAID_SCRIPT),
+          `<style>${DESIGN_CSS}@media print{#canvas svg{max-width:100%;height:auto}}</style>`,
+          // The canvas script runs after the diagram is inserted, so its first fit and readiness flag see the SVG.
+          `<div id="viewport"><div id="canvas"></div></div>\n${DESIGN_TOOLBAR}\n` + moduleScript(MERMAID_SCRIPT + DESIGN_SCRIPT),
           content,
         ),
         print,
