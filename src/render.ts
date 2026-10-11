@@ -131,8 +131,123 @@ try {
 
 // --- slides ---
 
+const SLIDES_CSS = `
+html,body{margin:0;height:100%;overflow:hidden}
+#stage{position:fixed;inset:0;overflow:hidden;background:#18181b}
+.slide{position:absolute;left:50%;top:50%;width:1280px;height:720px;margin:-360px 0 0 -640px;transform:scale(var(--s,1));box-sizing:border-box;overflow:hidden}
+@media screen{.slide[hidden]{display:none}}
+:where(.slide){display:flex;flex-direction:column;justify-content:center;padding:64px 80px;background:#fff;color:#111827;font:28px/1.4 system-ui,sans-serif}
+:where(.slide h1,.slide h2,.slide h3,.slide h4){line-height:1.15;margin:0 0 .5em}
+:where(.slide h1){font-size:64px}
+:where(.slide h2){font-size:44px}
+:where(.slide h3){font-size:34px}
+:where(.slide p,.slide ul,.slide ol,.slide pre,.slide table,.slide blockquote){margin:0 0 .75em}
+:where(.slide ul,.slide ol){padding-left:1.2em}
+:where(.slide li){margin:.2em 0}
+:where(.slide a){color:#2563eb}
+:where(.slide img){max-width:100%;max-height:100%;object-fit:contain}
+:where(.slide code){font:.85em ui-monospace,monospace;background:#f3f4f6;padding:.1em .3em;border-radius:4px}
+:where(.slide pre){background:#f3f4f6;padding:20px 24px;border-radius:8px;overflow:hidden;font-size:24px}
+:where(.slide pre code){background:none;padding:0;font-size:inherit}
+:where(.slide table){border-collapse:collapse}
+:where(.slide th,.slide td){border:1px solid #d1d5db;padding:8px 16px;text-align:left}
+:where(.slide blockquote){border-left:6px solid #d1d5db;padding-left:24px;color:#4b5563}
+#controls{position:fixed;right:12px;bottom:12px;display:flex;align-items:center;gap:4px;padding:4px;border-radius:8px;background:rgba(24,24,27,.85);color:#fff;font:14px system-ui,sans-serif;opacity:.3;transition:opacity .15s}
+#controls:hover,#controls:focus-within{opacity:1}
+#controls button{min-width:32px;height:32px;border:0;border-radius:6px;background:transparent;color:inherit;font:inherit;cursor:pointer}
+#controls button:hover:not(:disabled){background:rgba(255,255,255,.2)}
+#controls button:focus-visible{outline:2px solid #60a5fa;outline-offset:1px}
+#controls button:disabled{opacity:.4;cursor:default}
+#counter{min-width:4em;text-align:center}
+@page{size:1280px 720px;margin:0}
+@media print{
+html,body{height:auto;overflow:visible}
+#stage{position:static;background:none;overflow:visible}
+.slide{position:relative;left:auto;top:auto;margin:0;transform:none;break-after:page}
+.slide:last-child{break-after:auto}
+#controls{display:none}
+}
+`;
+
+const SLIDES_BODY =
+  '<main id="stage"></main>\n' +
+  '<div id="controls" role="group" aria-label="Slide controls">' +
+  '<button type="button" id="prev" aria-label="Previous slide">&#8592;</button>' +
+  '<span id="counter" aria-live="polite"></span>' +
+  '<button type="button" id="next" aria-label="Next slide">&#8594;</button>' +
+  '<button type="button" id="fullscreen" aria-label="Toggle fullscreen">&#9974;</button></div>';
+
+const SLIDES_SCRIPT = `
+try {
+  var source = ${READ_SOURCE};
+  var marked = await import('${MARKED_URL}');
+  var tokens = marked.lexer(source);
+  var groups = [[]];
+  tokens.forEach(function (t) {
+    if (t.type === 'hr') groups.push([]);
+    else groups[groups.length - 1].push(t);
+  });
+  groups = groups.filter(function (g) { return g.some(function (t) { return t.type !== 'space'; }); });
+  if (!groups.length) groups = [[]];
+  var stage = document.getElementById('stage');
+  var slides = groups.map(function (group, i) {
+    var el = document.createElement('section');
+    el.className = 'slide';
+    el.setAttribute('role', 'group');
+    el.setAttribute('aria-roledescription', 'slide');
+    el.setAttribute('aria-label', (i + 1) + ' of ' + groups.length);
+    el.innerHTML = marked.parser(Object.assign(group, { links: tokens.links }));
+    stage.appendChild(el);
+    return el;
+  });
+  var prev = document.getElementById('prev');
+  var next = document.getElementById('next');
+  var full = document.getElementById('fullscreen');
+  var counter = document.getElementById('counter');
+  var current = 0;
+  var show = function (n) {
+    current = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach(function (el, i) { el.hidden = i !== current; });
+    prev.disabled = current === 0;
+    next.disabled = current === slides.length - 1;
+    counter.textContent = (current + 1) + ' / ' + slides.length;
+  };
+  var fit = function () {
+    document.documentElement.style.setProperty('--s', Math.min(innerWidth / 1280, innerHeight / 720));
+  };
+  var toggleFullscreen = function () {
+    var done = document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen();
+    done.catch(function () {});
+  };
+  if (!document.fullscreenEnabled) full.remove();
+  prev.addEventListener('click', function () { show(current - 1); });
+  next.addEventListener('click', function () { show(current + 1); });
+  full.addEventListener('click', toggleFullscreen);
+  addEventListener('resize', fit);
+  addEventListener('keydown', function (e) {
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    var t = e.target;
+    if (t && t.closest && t.closest('input,textarea,select,button,a,[contenteditable]')) return;
+    var key = e.key;
+    if (key === 'ArrowRight' || key === 'ArrowDown' || key === 'PageDown' || key === ' ') show(current + 1);
+    else if (key === 'ArrowLeft' || key === 'ArrowUp' || key === 'PageUp') show(current - 1);
+    else if (key === 'Home') show(0);
+    else if (key === 'End') show(slides.length - 1);
+    else if ((key === 'f' || key === 'F') && document.fullscreenEnabled) toggleFullscreen();
+    else return;
+    e.preventDefault();
+  });
+  fit();
+  show(0);
+  window.__artifactReady = true;
+} catch (err) {
+  showError(err);
+  window.__artifactReady = true;
+}
+`;
+
 function slidesDocument(title: string, content: string, print: boolean): string {
-  return withPrintScript(page(title, '', '<article id="out"></article>\n' + moduleScript(MARKDOWN_SCRIPT), content), print);
+  return withPrintScript(page(title, `<style>${SLIDES_CSS}</style>`, SLIDES_BODY + '\n' + moduleScript(SLIDES_SCRIPT), content), print);
 }
 
 // --- end slides ---
@@ -171,13 +286,181 @@ try {
 
 // --- design ---
 
+// The artboard defaults live in a layer declared before Tailwind's so utilities and author CSS override them.
+const DESIGN_CSS = `
+@layer artboard, theme, base, components, utilities;
+@layer artboard { [data-artboard] { background: #fff; box-shadow: 0 1px 3px rgb(0 0 0 / .12), 0 8px 30px rgb(0 0 0 / .14); } }
+html, body { margin: 0; height: 100%; }
+#viewport { position: fixed; inset: 0; overflow: hidden; touch-action: none; overscroll-behavior: none; background-color: #f4f4f5;
+  background-image: radial-gradient(circle, #c4c4cc 1px, transparent 1px); background-size: 24px 24px; }
+#viewport.grab { cursor: grab; }
+#viewport.panning { cursor: grabbing; user-select: none; }
+#canvas { position: absolute; top: 0; left: 0; transform-origin: 0 0; }
+#canvas.boards { display: flex; align-items: flex-start; gap: 80px; padding: 80px; width: max-content; }
+figure.artboard { margin: 0; flex: none; }
+figure.artboard > figcaption { margin: 0 0 12px; font: 500 13px/1.2 system-ui, sans-serif; color: #52525b; white-space: nowrap; }
+#toolbar { position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); z-index: 10; display: flex; gap: 2px; padding: 4px;
+  background: rgb(255 255 255 / .92); border: 1px solid #e4e4e7; border-radius: 10px; font: 13px system-ui, sans-serif; }
+#toolbar button { min-width: 32px; height: 32px; padding: 0 8px; border: 0; border-radius: 6px; background: transparent; color: #3f3f46; font: inherit; cursor: pointer; }
+#toolbar button:hover { background: #f4f4f5; }
+#toolbar button:focus-visible { outline: 2px solid #3b82f6; outline-offset: -2px; }
+@media (prefers-color-scheme: dark) {
+  #viewport { background-color: #18181b; background-image: radial-gradient(circle, #3f3f46 1px, transparent 1px); }
+  figure.artboard > figcaption { color: #a1a1aa; }
+  #toolbar { background: rgb(39 39 42 / .92); border-color: #3f3f46; }
+  #toolbar button { color: #e4e4e7; }
+  #toolbar button:hover { background: #3f3f46; }
+}
+@media print {
+  html, body { height: auto; }
+  #viewport { position: static; overflow: visible; background: none; }
+  #canvas, #canvas.boards { position: static; display: block; width: auto; padding: 0; transform: none !important; }
+  figure.artboard { break-after: page; margin: 0 0 16px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  #toolbar { display: none; }
+}
+`;
+
+const DESIGN_TOOLBAR =
+  '<div id="toolbar" role="toolbar" aria-label="Canvas zoom">' +
+  '<button type="button" id="zoom-out" aria-label="Zoom out">&#8722;</button>' +
+  '<button type="button" id="zoom-level" aria-label="Zoom 100%, reset to 100%">100%</button>' +
+  '<button type="button" id="zoom-in" aria-label="Zoom in">+</button>' +
+  '<button type="button" id="zoom-fit" aria-label="Fit all to screen">Fit</button></div>';
+
+const DESIGN_SCRIPT = `
+(function () {
+try {
+  var viewport = document.getElementById('viewport');
+  var canvas = document.getElementById('canvas');
+  var zoomLevel = document.getElementById('zoom-level');
+  var MIN = 0.1, MAX = 4, MARGIN = 16;
+  var x = 0, y = 0, s = 1, auto = true, space = false, drag = null;
+  var boards = Array.prototype.filter.call(canvas.querySelectorAll('[data-artboard]'), function (el) {
+    return !el.parentElement.closest('[data-artboard]');
+  });
+  boards.forEach(function (el) {
+    var figure = document.createElement('figure');
+    figure.className = 'artboard';
+    var caption = document.createElement('figcaption');
+    caption.textContent = el.getAttribute('data-artboard');
+    el.parentNode.insertBefore(figure, el);
+    figure.appendChild(caption);
+    figure.appendChild(el);
+  });
+  if (boards.length) canvas.classList.add('boards');
+
+  function apply() {
+    var percent = Math.round(s * 100) + '%';
+    canvas.style.transform = 'translate(' + x + 'px,' + y + 'px) scale(' + s + ')';
+    viewport.style.backgroundSize = 24 * s + 'px ' + 24 * s + 'px';
+    viewport.style.backgroundPosition = x + 'px ' + y + 'px';
+    zoomLevel.textContent = percent;
+    zoomLevel.setAttribute('aria-label', 'Zoom ' + percent + ', reset to 100%');
+  }
+  function zoomAt(factor, cx, cy) {
+    var next = Math.min(MAX, Math.max(MIN, s * factor));
+    x = cx - (cx - x) * next / s;
+    y = cy - (cy - y) * next / s;
+    s = next;
+    auto = false;
+    apply();
+  }
+  function zoomBy(factor) { zoomAt(factor, viewport.clientWidth / 2, viewport.clientHeight / 2); }
+  function fit() {
+    var w = canvas.offsetWidth, h = canvas.offsetHeight;
+    if (!w || !h) return;
+    var vw = viewport.clientWidth, vh = viewport.clientHeight;
+    s = Math.min(1, Math.max(MIN, Math.min((vw - 2 * MARGIN) / w, (vh - 2 * MARGIN) / h)));
+    x = (vw - w * s) / 2;
+    y = (vh - h * s) / 2;
+    auto = true;
+    apply();
+  }
+  function typing(t) {
+    return !!t && (t.isContentEditable || (!!t.closest && !!t.closest('input,textarea,select,button,a')));
+  }
+  function endDrag() {
+    drag = null;
+    viewport.classList.remove('panning');
+  }
+
+  document.getElementById('zoom-out').addEventListener('click', function () { zoomBy(0.8); });
+  document.getElementById('zoom-in').addEventListener('click', function () { zoomBy(1.25); });
+  zoomLevel.addEventListener('click', function () { zoomBy(1 / s); });
+  document.getElementById('zoom-fit').addEventListener('click', fit);
+
+  viewport.addEventListener('wheel', function (e) {
+    e.preventDefault();
+    var k = e.deltaMode === 1 ? 16 : 1;
+    if (e.ctrlKey || e.metaKey) {
+      zoomAt(Math.exp(-Math.max(-50, Math.min(50, e.deltaY * k)) * 0.01), e.clientX, e.clientY);
+    } else {
+      x -= e.deltaX * k;
+      y -= e.deltaY * k;
+      auto = false;
+      apply();
+    }
+  }, { passive: false });
+
+  viewport.addEventListener('pointerdown', function (e) {
+    if (e.button > 1 || (e.button === 0 && !space && e.target.closest('[data-artboard]'))) return;
+    e.preventDefault();
+    drag = { id: e.pointerId, x: e.clientX, y: e.clientY };
+    viewport.setPointerCapture(e.pointerId);
+    viewport.classList.add('panning');
+  });
+  viewport.addEventListener('pointermove', function (e) {
+    if (!drag || e.pointerId !== drag.id) return;
+    x += e.clientX - drag.x;
+    y += e.clientY - drag.y;
+    drag.x = e.clientX;
+    drag.y = e.clientY;
+    auto = false;
+    apply();
+  });
+  viewport.addEventListener('pointerup', endDrag);
+  viewport.addEventListener('pointercancel', endDrag);
+  viewport.addEventListener('lostpointercapture', endDrag);
+
+  document.addEventListener('keydown', function (e) {
+    // A clicked toolbar button keeps focus, so it must not swallow the zoom keys (Space still activates it).
+    if (e.ctrlKey || e.metaKey || e.altKey || (typing(e.target) && !(e.target.closest('#toolbar') && e.key !== ' '))) return;
+    if (e.key === ' ') {
+      e.preventDefault();
+      space = true;
+      viewport.classList.add('grab');
+    } else if (e.key === '+' || e.key === '=') zoomBy(1.25);
+    else if (e.key === '-') zoomBy(0.8);
+    else if (e.key === '0') fit();
+  });
+  function releaseSpace() {
+    space = false;
+    viewport.classList.remove('grab');
+  }
+  document.addEventListener('keyup', function (e) { if (e.key === ' ') releaseSpace(); });
+  window.addEventListener('blur', releaseSpace);
+
+  function refit() { if (auto) fit(); }
+  new ResizeObserver(refit).observe(canvas);
+  window.addEventListener('resize', refit);
+  fit();
+  window.__artifactReady = true;
+} catch (err) {
+  showError(err);
+  window.__artifactReady = true;
+}
+})();
+`;
+
 function designDocument(title: string, content: string, print: boolean): string {
   return withPrintScript(
     '<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n' +
       '<meta name="viewport" content="width=device-width, initial-scale=1">\n' +
-      `<title>${escapeHtml(title)}</title>\n</head>\n<body>\n${content}\n</body>\n</html>\n`,
+      `<title>${escapeHtml(title)}</title>\n` +
+      `<style>${ERROR_PANEL_CSS}</style>\n<script>${ERROR_PANEL_SCRIPT}</script>\n` +
+      `<style>${DESIGN_CSS}</style>\n<script src="${TAILWIND_URL}"></script>\n</head>\n<body>\n` +
+      `<div id="viewport"><div id="canvas">${content}</div></div>\n${DESIGN_TOOLBAR}\n<script>${DESIGN_SCRIPT}</script>\n</body>\n</html>\n`,
     print,
-    true,
   );
 }
 
@@ -216,8 +499,151 @@ function withPrintScript(document_: string, print: boolean, ready = false): stri
 
 // --- motion ---
 
+const MOTION_PLAYER_CSS =
+  ':host{all:initial}[hidden]{display:none!important}' +
+  '.bar{box-sizing:border-box;display:flex;align-items:center;gap:8px;height:44px;padding:0 10px;background:rgba(17,24,39,.88);' +
+  'color:#f9fafb;font:12px/1 system-ui,sans-serif;pointer-events:auto;transition:opacity .2s}' +
+  '.bar.idle{opacity:0;pointer-events:none}' +
+  'button{box-sizing:border-box;min-width:32px;height:32px;padding:0 8px;border:1px solid rgba(255,255,255,.25);border-radius:6px;' +
+  'background:transparent;color:inherit;font:inherit;font-size:14px;cursor:pointer}' +
+  'button:hover{background:rgba(255,255,255,.14)}button[aria-pressed=true]{background:#2563eb;border-color:#2563eb}' +
+  'button:focus-visible,input:focus-visible{outline:2px solid #93c5fd;outline-offset:2px}' +
+  'input{flex:1;min-width:40px;height:32px;margin:0;accent-color:#60a5fa}' +
+  '.time{min-width:84px;text-align:center;font-variant-numeric:tabular-nums}' +
+  '@media print{:host{display:none!important}}';
+
+const MOTION_PLAYER_SCRIPT = `
+(function () {
+  try {
+    var host = document.getElementById('artifact-motion-player');
+    var root = host.attachShadow({ mode: 'open' });
+    root.innerHTML = '<style>${MOTION_PLAYER_CSS}</style><div class="bar" role="group" aria-label="Animation player">' +
+      '<button type="button" id="play" aria-label="Pause">\\u275A\\u275A</button>' +
+      '<button type="button" id="restart" aria-label="Restart">\\u21BA</button>' +
+      '<input type="range" id="scrub" min="0" max="1000" step="10" value="0" aria-label="Timeline">' +
+      '<span class="time" id="time" aria-hidden="true"></span>' +
+      '<button type="button" id="loop" aria-label="Loop" aria-pressed="false">Loop</button></div>';
+    var bar = root.querySelector('.bar'), playBtn = root.getElementById('play'), scrub = root.getElementById('scrub');
+    var timeEl = root.getElementById('time'), loopBtn = root.getElementById('loop');
+    var tracked = new Set(), duration = 0, t = 0, last = 0, raf = 0, hideTimer = 0, playing = false, loop = false;
+
+    function each(fn) { tracked.forEach(fn); }
+    function seek(ms) { t = ms; each(function (a) { a.currentTime = ms; }); }
+    function collect() {
+      document.getAnimations().forEach(function (a) {
+        // The bar's own fade shows up in document.getAnimations(); it must not be controlled.
+        if (tracked.has(a) || (a.effect && a.effect.target && a.effect.target.getRootNode() === root)) return;
+        tracked.add(a);
+        a.currentTime = t;
+        if (playing) a.play(); else a.pause();
+      });
+      duration = 0;
+      each(function (a) {
+        var end = a.effect ? a.effect.getComputedTiming().endTime : 0;
+        if (isFinite(end) && end > duration) duration = end;
+      });
+    }
+    function format(ms) { return (ms / 1000).toFixed(1) + 's'; }
+    function render() {
+      var shown = Math.min(t, duration);
+      scrub.hidden = timeEl.hidden = !duration;
+      scrub.value = duration ? shown / duration * 1000 : 0;
+      timeEl.textContent = format(shown) + ' / ' + format(duration);
+      scrub.setAttribute('aria-valuetext', timeEl.textContent);
+      playBtn.textContent = playing ? '\\u275A\\u275A' : '\\u25B6';
+      playBtn.setAttribute('aria-label', playing ? 'Pause' : 'Play');
+    }
+    function show() {
+      bar.classList.remove('idle');
+      clearTimeout(hideTimer);
+      if (playing) hideTimer = setTimeout(function () {
+        if (playing && !root.activeElement) bar.classList.add('idle');
+      }, 2500);
+    }
+    function stop() {
+      playing = false;
+      cancelAnimationFrame(raf);
+      each(function (a) { a.pause(); });
+    }
+    function tick() {
+      var now = performance.now();
+      t += now - last;
+      last = now;
+      collect();
+      if (duration && t >= duration) {
+        if (loop) { start(0); return; }
+        stop();
+        seek(duration);
+        render();
+        show();
+        return;
+      }
+      render();
+      raf = requestAnimationFrame(tick);
+    }
+    // play() rewinds a finished animation, so the clock is applied after it.
+    function start(ms) {
+      cancelAnimationFrame(raf);
+      playing = true;
+      each(function (a) { a.play(); });
+      seek(ms);
+      last = performance.now();
+      raf = requestAnimationFrame(tick);
+      render();
+      show();
+    }
+    function pause() { stop(); seek(t); render(); show(); }
+
+    playBtn.addEventListener('click', function () {
+      if (playing) pause();
+      else start(duration && t >= duration ? 0 : t);
+    });
+    root.getElementById('restart').addEventListener('click', function () { start(0); });
+    loopBtn.addEventListener('click', function () {
+      loop = !loop;
+      loopBtn.setAttribute('aria-pressed', String(loop));
+    });
+    scrub.addEventListener('input', function () {
+      stop();
+      seek(scrub.value / 1000 * duration);
+      render();
+      show();
+    });
+    ['pointermove', 'pointerdown', 'keydown'].forEach(function (name) { document.addEventListener(name, show, true); });
+    root.addEventListener('focusin', show);
+    window.addEventListener('load', function () {
+      var atEnd = !playing && t >= duration;
+      collect();
+      if (atEnd) seek(duration);
+      render();
+    });
+    window.addEventListener('beforeprint', function () {
+      stop();
+      collect();
+      seek(duration);
+      render();
+      host.style.display = 'none';
+    });
+    window.addEventListener('afterprint', function () { host.style.display = ''; });
+
+    collect();
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) { stop(); seek(duration); render(); }
+    else start(0);
+  } catch (err) {
+    console.error(err);
+  }
+})();
+`;
+
+// Trailing markup after </html> still runs, so the player follows the artifact document unchanged.
 function motionDocument(content: string, print: boolean): string {
-  return withPrintScript(content, print, true);
+  return withPrintScript(
+    content +
+      '<div id="artifact-motion-player" style="position:fixed;left:0;right:0;bottom:0;z-index:2147483646;pointer-events:none"></div>' +
+      `<script>${MOTION_PLAYER_SCRIPT}</script>`,
+    print,
+    true,
+  );
 }
 
 // --- end motion ---
