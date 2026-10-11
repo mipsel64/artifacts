@@ -177,6 +177,9 @@ describe('export', () => {
     ['react', 'export default () => <p/>', 'jsx'],
     ['svg', '<svg viewBox="0 0 1 1"/>', 'svg'],
     ['mermaid', 'graph TD; A-->B', 'mermaid'],
+    ['slides', '# One\n\n---\n\n# Two', 'markdown'],
+    ['design', '<div data-artboard="Home"></div>', 'html'],
+    ['motion', '<!doctype html><p>hi</p>', 'html'],
   ])('wraps %s exports in a fence tagged with the type', async (type, content, tag) => {
     const { alice } = await setup();
     const a = await create(alice.token, { title: 'Hello World', type, content });

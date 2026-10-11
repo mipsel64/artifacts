@@ -129,6 +129,14 @@ try {
 }
 `;
 
+// --- slides ---
+
+function slidesDocument(title: string, content: string, print: boolean): string {
+  return withPrintScript(page(title, '', '<article id="out"></article>\n' + moduleScript(MARKDOWN_SCRIPT), content), print);
+}
+
+// --- end slides ---
+
 const MERMAID_SCRIPT = `
 try {
   var source = ${READ_SOURCE};
@@ -161,6 +169,20 @@ try {
 }
 `;
 
+// --- design ---
+
+function designDocument(title: string, content: string, print: boolean): string {
+  return withPrintScript(
+    '<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n' +
+      '<meta name="viewport" content="width=device-width, initial-scale=1">\n' +
+      `<title>${escapeHtml(title)}</title>\n</head>\n<body>\n${content}\n</body>\n</html>\n`,
+    print,
+    true,
+  );
+}
+
+// --- end design ---
+
 function page(title: string, head: string, body: string, source: string): string {
   return (
     '<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n' +
@@ -191,6 +213,14 @@ function withPrintScript(document_: string, print: boolean, ready = false): stri
   if (!print) return document_;
   return document_ + (ready ? PRINT_READY_FLAG : '') + PRINT_SCRIPT;
 }
+
+// --- motion ---
+
+function motionDocument(content: string, print: boolean): string {
+  return withPrintScript(content, print, true);
+}
+
+// --- end motion ---
 
 export function renderDocument(
   meta: Pick<ArtifactMeta, 'type' | 'language' | 'title'>,
@@ -257,5 +287,11 @@ export function renderDocument(
         ),
         print,
       );
+    case 'slides':
+      return slidesDocument(meta.title, content, print);
+    case 'design':
+      return designDocument(meta.title, content, print);
+    case 'motion':
+      return motionDocument(content, print);
   }
 }

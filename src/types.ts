@@ -1,4 +1,4 @@
-export const ARTIFACT_TYPES = ['html', 'react', 'svg', 'mermaid', 'markdown', 'code'] as const;
+export const ARTIFACT_TYPES = ['html', 'react', 'svg', 'mermaid', 'markdown', 'code', 'slides', 'design', 'motion'] as const;
 export type ArtifactType = (typeof ARTIFACT_TYPES)[number];
 
 export interface SessionUser {

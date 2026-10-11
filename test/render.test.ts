@@ -10,6 +10,8 @@ import { ORIGIN, bearer, createTestUser, request } from './helpers';
 afterEach(() => reset());
 
 const meta = (type: ArtifactType, language: string | null = null, title = 'Demo') => ({ type, language, title });
+// Types whose content is placed in the document as markup instead of embedded JSON.
+const RAW_TYPES: readonly ArtifactType[] = ['html', 'svg', 'design', 'motion'];
 
 function sourceData(doc: string): string {
   const match = /<script type="application\/json" id="artifact-source">([\s\S]*?)<\/script>/.exec(doc);
@@ -78,7 +80,7 @@ describe('renderDocument', () => {
     expect(doc).toContain("addEventListener('unhandledrejection'");
   });
 
-  it.each(ARTIFACT_TYPES.filter((t) => t !== 'html' && t !== 'svg'))(
+  it.each(ARTIFACT_TYPES.filter((t) => !RAW_TYPES.includes(t)))(
     'embeds %s source as escaped JSON data that round-trips',
     (type) => {
       const content = 'a </script><script>alert(1)</script> & b\u2028c\u2029d <!-- "q" \\ é';
@@ -91,7 +93,7 @@ describe('renderDocument', () => {
     },
   );
 
-  it.each(ARTIFACT_TYPES.filter((t) => t !== 'html'))('has charset, viewport and an escaped title for %s', (type) => {
+  it.each(ARTIFACT_TYPES.filter((t) => t !== 'html' && t !== 'motion'))('has charset, viewport and an escaped title for %s', (type) => {
     const doc = renderDocument(meta(type, null, '<b>"A" & \'B\'</b>'), 'x');
     expect(doc).toContain('<meta charset="utf-8">');
     expect(doc).toContain('<meta name="viewport"');
@@ -99,7 +101,7 @@ describe('renderDocument', () => {
   });
 
   it('creates the error panel on demand, once, for every scripted type', () => {
-    for (const type of ['react', 'markdown', 'mermaid', 'code'] as const) {
+    for (const type of ['react', 'markdown', 'mermaid', 'code', 'slides'] as const) {
       const doc = renderDocument(meta(type), 'x');
       expect(doc.match(/artifact-error/g)).toHaveLength(3);
       expect(doc).not.toContain('<pre id="artifact-error"');
@@ -109,7 +111,7 @@ describe('renderDocument', () => {
   });
 
   it('pins an exact version in every CDN URL', () => {
-    for (const type of ['react', 'markdown', 'mermaid', 'code'] as const) {
+    for (const type of ['react', 'markdown', 'mermaid', 'code', 'slides'] as const) {
       const doc = renderDocument(meta(type), 'x');
       const urls = (doc.replace(sourceData(doc), '').match(/https:\/\/[^\s"'`<>)]+/g) ?? []).filter((u) => u !== 'https://esm.sh/');
       expect(urls.length).toBeGreaterThan(0);
@@ -123,7 +125,7 @@ describe('renderDocument', () => {
   describe('print mode', () => {
     const FLAG = '<script>window.__artifactReady = true</script>';
 
-    it.each(ARTIFACT_TYPES.filter((t) => t !== 'html' && t !== 'svg'))(
+    it.each(ARTIFACT_TYPES.filter((t) => !RAW_TYPES.includes(t)))(
       'appends the waiter to %s and lets its renderer signal readiness',
       (type) => {
         const doc = renderDocument(meta(type), 'x');

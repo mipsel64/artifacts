@@ -40,6 +40,14 @@ const ICONS = {
       <polyline points="12 6 12 12 16 14" />
     </>
   ),
+  clapperboard: (
+    <>
+      <path d="m12.296 3.464 3.02 3.956" />
+      <path d="M20.2 6 3 11l-.9-2.4c-.3-1.1.3-2.2 1.3-2.5l13.5-4c1.1-.3 2.2.3 2.5 1.3z" />
+      <path d="M3 11h18v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+      <path d="m6.18 5.276 3.1 3.899" />
+    </>
+  ),
   'code-xml': (
     <>
       <path d="m18 16 4-4-4-4" />
@@ -80,6 +88,14 @@ const ICONS = {
       <path d="M10 9H8" />
       <path d="M16 13H8" />
       <path d="M16 17H8" />
+    </>
+  ),
+  frame: (
+    <>
+      <line x1="22" x2="2" y1="6" y2="6" />
+      <line x1="22" x2="2" y1="18" y2="18" />
+      <line x1="6" x2="6" y1="2" y2="22" />
+      <line x1="18" x2="18" y1="2" y2="22" />
     </>
   ),
   'git-fork': (
@@ -168,6 +184,13 @@ const ICONS = {
     <>
       <path d="M5 12h14" />
       <path d="M12 5v14" />
+    </>
+  ),
+  presentation: (
+    <>
+      <path d="M2 3h20" />
+      <path d="M21 3v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V3" />
+      <path d="m7 21 5-5 5 5" />
     </>
   ),
   printer: (
@@ -284,6 +307,9 @@ const TYPE_ICONS: Record<ArtifactType, IconName> = {
   mermaid: 'workflow',
   markdown: 'file-text',
   code: 'terminal',
+  slides: 'presentation',
+  design: 'frame',
+  motion: 'clapperboard',
 };
 
 export function TypeIcon({ type, size }: { type: ArtifactType; size?: number }) {

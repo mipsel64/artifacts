@@ -449,6 +449,9 @@ const TYPE_EXTENSIONS: Record<Exclude<ArtifactType, 'code'>, string> = {
   svg: 'svg',
   mermaid: 'mmd',
   markdown: 'md',
+  slides: 'md',
+  design: 'html',
+  motion: 'html',
 };
 
 // Title slugged for file names; shared by fileName and the export routes.

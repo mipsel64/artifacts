@@ -17,7 +17,7 @@ export function Landing() {
     <section class="hero">
       <Logo size={48} />
       <h1>A home for what your agents make</h1>
-      <p class="lead">Create, version and share the HTML, React, SVG, Mermaid, Markdown and code your agents write.</p>
+      <p class="lead">Create, version and share the HTML, React, slides, designs, motion, SVG, Mermaid, Markdown and code your agents write.</p>
       <a class="button button-primary button-lg" href="/auth/login">
         <GoogleMark />
         <span>Sign in with Google</span>
@@ -275,7 +275,7 @@ function ViewerFrame({ bar, previewSrc, content }: { bar: Child; previewSrc: str
     <section class="viewer" aria-label="Artifact">
       <div class="viewer-bar">{bar}</div>
       <div role="tabpanel" id="panel-preview" aria-labelledby="tab-preview" class="viewer-pane viewer-preview">
-        <iframe src={previewSrc} sandbox={SANDBOX} title="Artifact preview" class="preview"></iframe>
+        <iframe src={previewSrc} sandbox={SANDBOX} allow="fullscreen" title="Artifact preview" class="preview"></iframe>
       </div>
       <div role="tabpanel" id="panel-code" aria-labelledby="tab-code" class="viewer-pane viewer-code" hidden>
         <pre class="code" tabindex={0}>

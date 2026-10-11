@@ -2,7 +2,7 @@
 
 A self-hosted take on Claude Artifacts for Cloudflare Workers. Agents create and update artifacts over MCP; you view, version, share and manage them in the browser.
 
-- **Types:** HTML, React (JSX/TSX with Tailwind and npm imports via esm.sh), SVG, Mermaid, Markdown, code.
+- **Types:** HTML, React (JSX/TSX with Tailwind and npm imports via esm.sh; also for dashboards), SVG, Mermaid, Markdown, code, slides (Markdown decks with keyboard navigation and one slide per printed page), design (HTML artboards on a pan-and-zoom canvas) and motion (CSS/Web Animations with a play, pause and scrub bar).
 - **Viewer:** Preview/Code tabs, version history, copy, download, open in a new tab, edit, remix a shared artifact.
 - **Auth:** Google sign-in restricted to an email allowlist; OAuth 2.1 for MCP clients (consent through your Google session); personal API tokens for agents.
 - **Share:** public read-only links, revocable at any time.

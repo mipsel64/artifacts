@@ -18,7 +18,7 @@ import { isAllowed } from '../auth';
 import { ARTIFACT_TYPES } from '../types';
 
 const INSTRUCTIONS =
-  'Store and share rendered artifacts (HTML pages, React components, SVG, Mermaid diagrams, Markdown, code). ' +
+  'Store and share rendered artifacts (HTML pages, React components and dashboards, slide decks, UI designs, motion graphics, SVG, Mermaid diagrams, Markdown docs, code). ' +
   'Create an artifact to get a URL the user can open; share_artifact makes a public link. ' +
   'Artifacts expire 30 days after their last change unless made permanent with set_artifact_retention. ' +
   'Every content update creates a new version; use update_artifact to revise an artifact instead of creating a new one.';
@@ -26,11 +26,14 @@ const INSTRUCTIONS =
 const TYPE_DESCRIPTION =
   'How the content is rendered. ' +
   'html: a full standalone HTML document (scripts allowed; runs in a sandbox with no access to the app). ' +
-  'react: one self-contained React component file (JSX/TSX) with a default export; Tailwind CSS classes are available and npm packages can be imported by name (loaded from esm.sh). ' +
+  'react: one self-contained React component file (JSX/TSX) with a default export; Tailwind CSS classes are available and npm packages can be imported by name (loaded from esm.sh). For a dashboard, import a chart library such as recharts and put the data in the file; update the artifact to refresh the data. ' +
   'svg: SVG markup. ' +
   'mermaid: Mermaid diagram source. ' +
-  'markdown: a Markdown document. ' +
-  'code: source code shown with syntax highlighting; set language.';
+  'markdown: a Markdown document (docs, reports, guides). ' +
+  'code: source code shown with syntax highlighting; set language. ' +
+  'slides: a slide deck in Markdown. Separate slides with a line that contains only --- and has a blank line before it. Each slide is a 16:9 frame (1280x720, scaled to fit); arrow keys and buttons move between slides, and printing gives one slide per page. Raw HTML and a <style> block are allowed for layout. ' +
+  'design: an HTML fragment for UI mockups and flows. Give each screen its own top-level element with data-artboard="Name" and a fixed size (for example style="width:390px;height:844px"); artboards are laid out side by side on a canvas that can be panned and zoomed. Tailwind CSS classes are available; scripts are allowed for clickable prototypes. ' +
+  'motion: a full standalone HTML document animated only with CSS animations, CSS transitions or Element.animate(). A player bar adds play/pause, restart and a timeline scrubber by controlling document.getAnimations(), so do not time anything with requestAnimationFrame, setTimeout or animation libraries. Use finite durations and fill-mode both or forwards; the longest animation sets the timeline length.';
 
 const id = z.string().describe('Artifact id, as returned by list_artifacts or create_artifact.');
 

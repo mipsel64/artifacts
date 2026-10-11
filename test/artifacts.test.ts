@@ -505,6 +505,9 @@ describe('toView and fileName', () => {
     expect(fileName({ ...base, type: 'svg' })).toBe('my-cool-chart.svg');
     expect(fileName({ ...base, type: 'mermaid' })).toBe('my-cool-chart.mmd');
     expect(fileName({ ...base, type: 'markdown' })).toBe('my-cool-chart.md');
+    expect(fileName({ ...base, type: 'slides' })).toBe('my-cool-chart.md');
+    expect(fileName({ ...base, type: 'design' })).toBe('my-cool-chart.html');
+    expect(fileName({ ...base, type: 'motion' })).toBe('my-cool-chart.html');
     expect(fileName({ ...base, type: 'code', language: 'Python' })).toBe('my-cool-chart.py');
     expect(fileName({ ...base, type: 'code', language: 'typescript' })).toBe('my-cool-chart.ts');
     expect(fileName({ ...base, type: 'code', language: 'js' })).toBe('my-cool-chart.js');

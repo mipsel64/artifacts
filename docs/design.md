@@ -6,7 +6,7 @@ A self-hosted clone of Claude Artifacts. Agents create and update artifacts over
 
 In scope:
 
-- Artifact types: `html`, `react`, `svg`, `mermaid`, `markdown`, `code`.
+- Artifact types: `html`, `react`, `svg`, `mermaid`, `markdown`, `code`, `slides`, `design`, `motion`.
 - Preview/Code view, version history, copy, download, open in a new tab, edit (new version), remix a shared artifact into your own account.
 - Google sign-in (OpenID Connect) restricted to an email allowlist, personal API tokens, and OAuth 2.1 for MCP clients (Claude.ai, Claude Desktop, Claude Code) using the Google session for consent.
 - Share links (public, revocable).
@@ -56,7 +56,7 @@ Each route module exports `default` a `new Hono<AppEnv>()` that declares full pa
 ## Shared types (`src/types.ts`)
 
 ```ts
-export type ArtifactType = 'html' | 'react' | 'svg' | 'mermaid' | 'markdown' | 'code';
+export type ArtifactType = 'html' | 'react' | 'svg' | 'mermaid' | 'markdown' | 'code' | 'slides' | 'design' | 'motion';
 export const ARTIFACT_TYPES: readonly ArtifactType[];
 
 export interface SessionUser { id: string; email: string }            // id = `google_<sub>`; email is lowercased

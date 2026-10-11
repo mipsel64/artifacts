@@ -72,6 +72,9 @@ const MD_FENCES: Record<Exclude<ArtifactType, 'markdown' | 'code'>, string> = {
   react: 'jsx',
   svg: 'svg',
   mermaid: 'mermaid',
+  slides: 'markdown',
+  design: 'html',
+  motion: 'html',
 };
 
 function asMarkdown(meta: { title: string; type: ArtifactType; language: string | null }, content: string): string {

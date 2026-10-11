@@ -304,7 +304,7 @@ describe('viewer', () => {
     const res = await request(`/a/${meta.id}?v=2`, init);
     expect(res.status).toBe(200);
     const body = await res.text();
-    expect(body).toContain(`<iframe src="/render/${meta.id}?v=2" sandbox="allow-scripts allow-forms allow-modals allow-popups allow-downloads" title="Artifact preview"`);
+    expect(body).toContain(`<iframe src="/render/${meta.id}?v=2" sandbox="allow-scripts allow-forms allow-modals allow-popups allow-downloads" allow="fullscreen" title="Artifact preview"`);
     expect(body).toContain('role="tablist"');
     expect(body).toMatch(/role="tab"[^>]*aria-selected="true"/);
     expect(body).toContain('&lt;p&gt;two&lt;/p&gt;');
@@ -550,7 +550,7 @@ describe('public share page', () => {
     const res = await request(`/s/${shareId}`);
     expect(res.status).toBe(200);
     const body = await res.text();
-    expect(body).toContain(`<iframe src="/s/${shareId}/render" sandbox="allow-scripts allow-forms allow-modals allow-popups allow-downloads" title="Artifact preview"`);
+    expect(body).toContain(`<iframe src="/s/${shareId}/render" sandbox="allow-scripts allow-forms allow-modals allow-popups allow-downloads" allow="fullscreen" title="Artifact preview"`);
     expect(body).toContain('Shared &lt;b&gt;');
     expect(body).toContain('&lt;h1&gt;hi&lt;/h1&gt;');
     expect(body).toContain(`href="/s/${shareId}/raw?download=1" aria-label="Download" title="Download"`);
