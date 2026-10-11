@@ -136,6 +136,156 @@ const TAILWIND_THEME =
 
 // --- end theme ---
 
+// --- diagram zoom ---
+
+const DIAGRAM_ZOOM_CSS =
+  'svg[data-artifact-zoom]{cursor:grab}svg[data-artifact-zoom].artifact-panning{cursor:grabbing;user-select:none}' +
+  'svg[data-artifact-zoom]:fullscreen{width:100vw!important;height:100vh!important;max-width:none!important;background:var(--bg,#fff)}';
+
+const DIAGRAM_ZOOM_BAR_CSS =
+  ':host{all:initial}@media print{:host{display:none!important}}' +
+  '.bar{display:flex;gap:2px;padding:3px;background:var(--surface,#fff);border:1px solid var(--border,#d4d4d8);border-radius:8px;' +
+  'box-shadow:var(--shadow,0 4px 12px rgb(0 0 0 / .12));font:13px system-ui,sans-serif}' +
+  'button{min-width:28px;height:28px;padding:0 6px;border:0;border-radius:6px;background:transparent;color:var(--fg,#18181b);font:inherit;cursor:pointer}' +
+  'button:hover{background:var(--surface-2,#f4f4f5)}button:focus-visible{outline:2px solid var(--accent,#2563eb);outline-offset:-2px}';
+
+// Mermaid diagrams that html and react artifacts draw themselves get pan and zoom through their viewBox, so the page layout never changes.
+export const DIAGRAM_ZOOM_SCRIPT = `
+(function () {
+  var SELECTOR = '.mermaid > svg, svg[aria-roledescription][role~="graphics-document"]';
+  var bases = new WeakMap(), current = null, drag = null, dragged = false, hideTimer = 0, pending = 0;
+  var style = document.createElement('style');
+  style.textContent = '${DIAGRAM_ZOOM_CSS}';
+  (document.head || document.documentElement).appendChild(style);
+  var host = document.createElement('div');
+  host.style.cssText = 'position:fixed;z-index:2147483646;display:none;transform:translateX(-100%)';
+  var root = host.attachShadow({ mode: 'open' });
+  root.innerHTML = '<style>${DIAGRAM_ZOOM_BAR_CSS}</style><div class="bar" role="toolbar" aria-label="Diagram zoom">' +
+    '<button type="button" data-act="out" aria-label="Zoom out">\u2212</button>' +
+    '<button type="button" data-act="in" aria-label="Zoom in">+</button>' +
+    '<button type="button" data-act="fit" aria-label="Reset zoom">Fit</button>' +
+    '<button type="button" data-act="full" aria-label="Full screen">\u26F6</button></div>';
+  if (!document.fullscreenEnabled) root.querySelector('[data-act=full]').remove();
+
+  function box(svg) { var b = svg.viewBox.baseVal; return { x: b.x, y: b.y, w: b.width, h: b.height }; }
+  function set(svg, v) { svg.setAttribute('viewBox', v.x + ' ' + v.y + ' ' + v.w + ' ' + v.h); }
+  function zoom(svg, factor, cx, cy) {
+    var v = box(svg), b = bases.get(svg), ctm = svg.getScreenCTM();
+    if (!ctm) return;
+    var w = Math.min(b.w * 5, Math.max(b.w / 20, v.w / factor));
+    if (cx === undefined) {
+      var r = svg.getBoundingClientRect();
+      cx = r.left + r.width / 2;
+      cy = r.top + r.height / 2;
+    }
+    var p = new DOMPoint(cx, cy).matrixTransform(ctm.inverse()), f = v.w / w;
+    set(svg, { x: p.x - (p.x - v.x) / f, y: p.y - (p.y - v.y) / f, w: w, h: v.h / f });
+  }
+  function act(name, svg) {
+    if (name === 'out') zoom(svg, 0.8);
+    else if (name === 'in') zoom(svg, 1.25);
+    else if (name === 'fit') set(svg, bases.get(svg));
+    else if (name === 'full') (document.fullscreenElement ? document.exitFullscreen() : svg.requestFullscreen()).catch(function () {});
+  }
+  function place() {
+    if (!current) return;
+    var r = current.getBoundingClientRect();
+    host.style.top = Math.max(4, r.top + 8) + 'px';
+    host.style.left = r.right - 8 + 'px';
+  }
+  function show(svg) {
+    clearTimeout(hideTimer);
+    current = svg;
+    if (!host.isConnected) document.body.appendChild(host);
+    host.style.display = 'block';
+    place();
+  }
+  function hide() {
+    clearTimeout(hideTimer);
+    hideTimer = setTimeout(function () { host.style.display = 'none'; current = null; }, 400);
+  }
+
+  function enhance(svg) {
+    if (bases.has(svg) || !svg.viewBox.baseVal || !svg.viewBox.baseVal.width) return;
+    bases.set(svg, box(svg));
+    svg.setAttribute('data-artifact-zoom', '');
+    if (!svg.hasAttribute('tabindex')) svg.setAttribute('tabindex', '0');
+    svg.addEventListener('pointerenter', function () { show(svg); });
+    svg.addEventListener('pointerleave', hide);
+    svg.addEventListener('focus', function () { show(svg); });
+    svg.addEventListener('blur', hide);
+    svg.addEventListener('dblclick', function () { act('fit', svg); });
+    // Plain wheel keeps scrolling the page; pinch and ctrl/cmd-wheel zoom.
+    svg.addEventListener('wheel', function (e) {
+      if (!e.ctrlKey && !e.metaKey) return;
+      e.preventDefault();
+      zoom(svg, Math.exp(-Math.max(-50, Math.min(50, e.deltaY * (e.deltaMode === 1 ? 16 : 1))) * 0.01), e.clientX, e.clientY);
+    }, { passive: false });
+    svg.addEventListener('pointerdown', function (e) {
+      var ctm = svg.getScreenCTM();
+      if (e.button !== 0 || !ctm || e.target.closest('a')) return;
+      // Stops text selection and mouse focus; click and dblclick still fire.
+      e.preventDefault();
+      drag = { svg: svg, id: e.pointerId, x: e.clientX, y: e.clientY, v: box(svg), k: ctm.a, moved: false };
+    });
+    // A pan must not also fire the diagram's own click handlers.
+    svg.addEventListener('click', function (e) {
+      if (!dragged) return;
+      dragged = false;
+      e.stopPropagation();
+      e.preventDefault();
+    }, true);
+    svg.addEventListener('keydown', function (e) {
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      var name = { '+': 'in', '=': 'in', '-': 'out', '0': 'fit', f: 'full' }[e.key];
+      if (!name) return;
+      e.preventDefault();
+      act(name, svg);
+    });
+  }
+  function scan() {
+    pending = 0;
+    document.querySelectorAll(SELECTOR).forEach(enhance);
+  }
+
+  document.addEventListener('pointermove', function (e) {
+    if (!drag || e.pointerId !== drag.id) return;
+    var dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+    if (!drag.moved) {
+      if (Math.abs(dx) + Math.abs(dy) < 4) return;
+      drag.moved = true;
+      drag.svg.setPointerCapture(e.pointerId);
+      drag.svg.classList.add('artifact-panning');
+    }
+    set(drag.svg, { x: drag.v.x - dx / drag.k, y: drag.v.y - dy / drag.k, w: drag.v.w, h: drag.v.h });
+  });
+  function endDrag() {
+    if (!drag) return;
+    dragged = drag.moved;
+    drag.svg.classList.remove('artifact-panning');
+    drag = null;
+    setTimeout(function () { dragged = false; }, 0);
+  }
+  document.addEventListener('pointerup', endDrag);
+  document.addEventListener('pointercancel', endDrag);
+  root.addEventListener('click', function (e) {
+    var button = e.target.closest('button');
+    if (button && current) act(button.getAttribute('data-act'), current);
+  });
+  host.addEventListener('pointerenter', function () { clearTimeout(hideTimer); });
+  host.addEventListener('pointerleave', hide);
+  host.addEventListener('focusin', function () { clearTimeout(hideTimer); });
+  host.addEventListener('focusout', hide);
+  window.addEventListener('scroll', place, true);
+  window.addEventListener('resize', place);
+  new MutationObserver(function () { if (!pending) pending = setTimeout(scan, 50); })
+    .observe(document.documentElement, { childList: true, subtree: true });
+  scan();
+})();
+`;
+
+// --- end diagram zoom ---
+
 const REACT_SCRIPT = `
 try {
   var source = ${READ_SOURCE};
@@ -782,7 +932,7 @@ export function renderDocument(
 ): string {
   switch (meta.type) {
     case 'html':
-      return withPrintScript(content + THEME_HEAD, print, true);
+      return withPrintScript(content + THEME_HEAD + `<script>${DIAGRAM_ZOOM_SCRIPT}</script>`, print, true);
     case 'svg':
       return withPrintScript(
         '<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n' +
@@ -837,7 +987,7 @@ export function renderDocument(
           meta.title,
           `<script type="importmap">${IMPORT_MAP}</script>\n` +
             `<script src="${BABEL_URL}"></script>\n${TAILWIND_THEME}\n<script src="${TAILWIND_URL}"></script>`,
-          '<div id="root"></div>\n' + moduleScript(REACT_SCRIPT),
+          '<div id="root"></div>\n' + moduleScript(REACT_SCRIPT) + `\n<script>${DIAGRAM_ZOOM_SCRIPT}</script>`,
           content,
         ),
         print,
