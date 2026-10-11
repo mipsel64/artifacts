@@ -42,6 +42,7 @@ describe('landing', () => {
     expect(body).not.toContain('id="account-menu"');
     expect(body).toContain('<a class="button button-compact" href="/auth/login">Sign in</a>');
     expect(body).toContain('href="/static/app.css"');
+    expect(body).toContain('<link rel="icon" href="/favicon.svg" type="image/svg+xml"/>');
     expect(body).toContain('<script type="module" src="/static/app.js">');
   });
 

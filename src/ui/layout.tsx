@@ -124,6 +124,9 @@ export function Layout({ title, me, settingsActive, signIn = true, fill, width, 
           <meta name="viewport" content="width=device-width, initial-scale=1" />
           <meta name="color-scheme" content="dark light" />
           <title>{title} · Artifacts</title>
+          <link rel="icon" href="/favicon.ico" sizes="32x32" />
+          <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+          <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
           <link rel="preload" href="/static/fonts/ibm-plex-sans-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin="anonymous" />
           <script src="/static/theme.js"></script>
           <link rel="stylesheet" href="/static/app.css" />

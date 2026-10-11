@@ -21,7 +21,8 @@ const INSTRUCTIONS =
   'Store and share rendered artifacts (HTML pages, React components and dashboards, slide decks, UI designs, motion graphics, SVG, Mermaid diagrams, Markdown docs, code). ' +
   'Create an artifact to get a URL the user can open; share_artifact makes a public link. ' +
   'Artifacts expire 30 days after their last change unless made permanent with set_artifact_retention. ' +
-  'Every content update creates a new version; use update_artifact to revise an artifact instead of creating a new one.';
+  'Every content update creates a new version; use update_artifact to revise an artifact instead of creating a new one. ' +
+  'Style artifacts with the shared light/dark theme variables described for the type field.';
 
 const TYPE_DESCRIPTION =
   'How the content is rendered. ' +
@@ -33,7 +34,8 @@ const TYPE_DESCRIPTION =
   'code: source code shown with syntax highlighting; set language. ' +
   'slides: a slide deck in Markdown. Separate slides with a line that contains only --- and has a blank line before it. Each slide is a 16:9 frame (1280x720, scaled to fit); arrow keys and buttons move between slides, and printing gives one slide per page. Raw HTML and a <style> block are allowed for layout. ' +
   'design: an HTML fragment for UI mockups and flows. Give each screen its own top-level element with data-artboard="Name" and a fixed size (for example style="width:390px;height:844px"); artboards are laid out side by side on a canvas that can be panned and zoomed. Tailwind CSS classes are available; scripts are allowed for clickable prototypes. ' +
-  'motion: a full standalone HTML document animated only with CSS animations, CSS transitions or Element.animate(). A player bar adds play/pause, restart and a timeline scrubber by controlling document.getAnimations(), so do not time anything with requestAnimationFrame, setTimeout or animation libraries. Use finite durations and fill-mode both or forwards; the longest animation sets the timeline length.';
+  'motion: a full standalone HTML document animated only with CSS animations, CSS transitions or Element.animate(). A player bar adds play/pause, restart and a timeline scrubber by controlling document.getAnimations(), so do not time anything with requestAnimationFrame, setTimeout or animation libraries. Use finite durations and fill-mode both or forwards; the longest animation sets the timeline length. ' +
+  'Theme: every document gets CSS variables that follow the viewer\'s light/dark theme: --bg --surface --surface-2 --border --fg --muted --accent --on-accent --danger --warning --success --info --chart-1..6 --font --mono --radius --shadow. In react and design they are also Tailwind colors (bg-bg, bg-surface, text-fg, text-muted, border-border, bg-accent, text-on-accent, chart-1..6) and dark: follows the viewer. Use them instead of fixed colors, set page background and text with var(--bg)/var(--fg) (or bg-bg text-fg), and use [data-theme=dark], not prefers-color-scheme, for other dark-only CSS. Design artboards are white unless you set bg-bg text-fg on them.';
 
 const id = z.string().describe('Artifact id, as returned by list_artifacts or create_artifact.');
 

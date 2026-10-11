@@ -230,6 +230,25 @@ function setTheme(choice) {
     localStorage.setItem('theme', choice);
   } catch {}
   syncThemeButtons();
+  for (const frame of document.querySelectorAll('iframe.preview')) sendTheme(frame);
+}
+
+// The sandboxed preview cannot read storage or this page, so it gets the choice by message.
+function sendTheme(frame) {
+  frame.contentWindow?.postMessage({ type: 'artifact-theme', theme: currentTheme() }, '*');
+}
+
+window.addEventListener('message', (event) => {
+  if (event.data?.type !== 'artifact-theme-request') return;
+  for (const frame of document.querySelectorAll('iframe.preview')) {
+    if (event.source === frame.contentWindow) sendTheme(frame);
+  }
+});
+
+// The preview may finish loading before this module runs, so it also gets the theme right away.
+for (const frame of document.querySelectorAll('iframe.preview')) {
+  frame.addEventListener('load', () => sendTheme(frame));
+  sendTheme(frame);
 }
 
 document.addEventListener('click', (event) => {

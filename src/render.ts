@@ -5,8 +5,8 @@ const MARKED_URL = `${JSDELIVR}/marked@18.1.0/lib/marked.esm.js`;
 const MARKDOWN_CSS_URL = `${JSDELIVR}/github-markdown-css@5.9.0/github-markdown.css`;
 const MERMAID_URL = `${JSDELIVR}/mermaid@12.1.0/dist/mermaid.esm.min.mjs`;
 const HLJS_URL = `${JSDELIVR}/@highlightjs/cdn-assets@11.12.0/es/highlight.min.js`;
-const HLJS_LIGHT_CSS_URL = `${JSDELIVR}/@highlightjs/cdn-assets@11.12.0/styles/github.min.css`;
-const HLJS_DARK_CSS_URL = `${JSDELIVR}/@highlightjs/cdn-assets@11.12.0/styles/github-dark.min.css`;
+const HLJS_LIGHT_CSS_URL = `${JSDELIVR}/@highlightjs/cdn-assets@11.12.0/styles/base16/gruvbox-light-medium.min.css`;
+const HLJS_DARK_CSS_URL = `${JSDELIVR}/@highlightjs/cdn-assets@11.12.0/styles/base16/gruvbox-dark-medium.min.css`;
 const BABEL_URL = `${JSDELIVR}/@babel/standalone@8.0.7/babel.min.js`;
 const TAILWIND_URL = `${JSDELIVR}/@tailwindcss/browser@4.3.3/dist/index.global.js`;
 const REACT_URL = 'https://esm.sh/react@19.3.0';
@@ -53,6 +53,88 @@ window.addEventListener('unhandledrejection', function (e) { showError(e.reason)
 `;
 
 const READ_SOURCE = `JSON.parse(document.getElementById('artifact-source').textContent)`;
+
+// --- theme ---
+
+const THEME_DARK_TOKENS =
+  '--bg:#282828;--surface:#3c3836;--surface-2:#504945;--border:#504945;--fg:#ebdbb2;--muted:#bdae93;--accent:#d79921;--on-accent:#282828;' +
+  '--danger:#fb4934;--warning:#fabd2f;--success:#b8bb26;--info:#83a598;' +
+  '--chart-1:#83a598;--chart-2:#fe8019;--chart-3:#b8bb26;--chart-4:#d3869b;--chart-5:#fabd2f;--chart-6:#8ec07c;' +
+  '--shadow:0 8px 24px rgb(0 0 0 / .5)';
+
+// Only custom properties, in a layer so unlayered artifact CSS (even its own --bg) always wins; no colors are applied here.
+export const THEME_CSS =
+  '@layer artifact-theme{' +
+  ':root{--bg:#fbf1c7;--surface:#f2e5bc;--surface-2:#ebdbb2;--border:#d5c4a1;--fg:#3c3836;--muted:#665c54;--accent:#af3a03;--on-accent:#fbf1c7;' +
+  '--danger:#9d0006;--warning:#b57614;--success:#79740e;--info:#076678;' +
+  '--chart-1:#076678;--chart-2:#af3a03;--chart-3:#79740e;--chart-4:#8f3f71;--chart-5:#b57614;--chart-6:#427b58;' +
+  "--font:system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;--mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;" +
+  '--radius:8px;--shadow:0 8px 24px rgb(60 56 54 / .16)}' +
+  `:root[data-theme=dark]{${THEME_DARK_TOKENS}}` +
+  `@media (prefers-color-scheme: dark){:root:not([data-theme]){${THEME_DARK_TOKENS}}}` +
+  '}';
+
+// The sandbox has no storage or parent access, so the viewer's theme choice arrives by postMessage; nothing in a message is evaluated.
+export const THEME_SCRIPT = `
+(function () {
+  var root = document.documentElement, media = matchMedia('(prefers-color-scheme: dark)'), choice = 'system', current = null, written = null;
+  // The print tab has no parent to ask, and paper is light.
+  var printing = parent === window && /[?&]print=1(&|$)/.test(location.search);
+  // Layer order follows first appearance, so the token layer must come first to rank below the artifact's own layers.
+  var style = document.currentScript && document.currentScript.previousElementSibling;
+  if (style && style.tagName === 'STYLE' && document.head) document.head.prepend(style);
+  function apply() {
+    var theme = printing ? 'light' : choice === 'system' ? (media.matches ? 'dark' : 'light') : choice;
+    // An artifact that sets its own data-theme (daisyUI, Pico, its own toggle) keeps it.
+    var attr = root.getAttribute('data-theme');
+    if (attr === null || attr === written) root.dataset.theme = written = theme;
+    document.querySelectorAll('link[data-theme-css]').forEach(function (link) {
+      link.media = link.getAttribute('data-theme-css') === theme ? 'all' : 'not all';
+    });
+    if (theme === current) return;
+    current = theme;
+    window.dispatchEvent(new CustomEvent('artifact-theme', { detail: theme }));
+  }
+  media.addEventListener('change', apply);
+  window.addEventListener('message', function (e) {
+    var data = e.data;
+    if (e.source !== parent || !data || data.type !== 'artifact-theme' || ['light', 'dark', 'system'].indexOf(data.theme) === -1) return;
+    choice = data.theme;
+    apply();
+  });
+  apply();
+  if (parent !== window) parent.postMessage({ type: 'artifact-theme-request' }, '*');
+})();
+`;
+
+const THEME_HEAD = `<style>${THEME_CSS}</style>\n<script>${THEME_SCRIPT}</script>`;
+
+// Renderer-owned shells only: agent documents (html, react, motion) keep their own color-scheme.
+const SHELL_COLOR_SCHEME_CSS = ':root{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}';
+
+// github-markdown-css switches on prefers-color-scheme; its variables are pointed at the tokens instead (same specificity, later in the cascade).
+const MARKDOWN_THEME_CSS =
+  '.markdown-body{color-scheme:inherit;--fontStack-sansSerif:var(--font);--fontStack-monospace:var(--mono);' +
+  '--fgColor-default:var(--fg);--fgColor-muted:var(--muted);--fgColor-accent:var(--accent);--fgColor-danger:var(--danger);' +
+  '--fgColor-attention:var(--warning);--fgColor-success:var(--success);--fgColor-done:var(--chart-4);' +
+  '--bgColor-default:var(--bg);--bgColor-muted:var(--surface);--bgColor-neutral-muted:var(--surface-2);' +
+  '--bgColor-attention-muted:color-mix(in srgb,var(--warning) 25%,transparent);' +
+  '--borderColor-default:var(--border);--borderColor-muted:var(--border);--borderColor-neutral-muted:var(--border);' +
+  '--borderColor-accent-emphasis:var(--accent);--borderColor-attention-emphasis:var(--warning);--borderColor-danger-emphasis:var(--danger);' +
+  '--borderColor-success-emphasis:var(--success);--borderColor-done-emphasis:var(--chart-4);--focus-outlineColor:var(--accent)}';
+
+// Tailwind colors and the dark: variant for react and design, resolved through the tokens at use time.
+const TAILWIND_THEME =
+  '<style type="text/tailwindcss">@theme inline{' +
+  '--color-bg:var(--bg);--color-surface:var(--surface);--color-surface-2:var(--surface-2);--color-border:var(--border);' +
+  '--color-fg:var(--fg);--color-muted:var(--muted);--color-accent:var(--accent);--color-on-accent:var(--on-accent);' +
+  '--color-danger:var(--danger);--color-warning:var(--warning);--color-success:var(--success);--color-info:var(--info);' +
+  '--color-chart-1:var(--chart-1);--color-chart-2:var(--chart-2);--color-chart-3:var(--chart-3);' +
+  '--color-chart-4:var(--chart-4);--color-chart-5:var(--chart-5);--color-chart-6:var(--chart-6);' +
+  '--font-sans:var(--font);--font-mono:var(--mono)}' +
+  '@custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *));</style>';
+
+// --- end theme ---
 
 const REACT_SCRIPT = `
 try {
@@ -133,10 +215,10 @@ try {
 
 const SLIDES_CSS = `
 html,body{margin:0;height:100%;overflow:hidden}
-#stage{position:fixed;inset:0;overflow:hidden;background:#18181b}
+#stage{position:fixed;inset:0;overflow:hidden;background:var(--surface-2)}
 .slide{position:absolute;left:50%;top:50%;width:1280px;height:720px;margin:-360px 0 0 -640px;transform:scale(var(--s,1));box-sizing:border-box;overflow:hidden}
 @media screen{.slide[hidden]{display:none}}
-:where(.slide){display:flex;flex-direction:column;justify-content:center;padding:64px 80px;background:#fff;color:#111827;font:28px/1.4 system-ui,sans-serif}
+:where(.slide){display:flex;flex-direction:column;justify-content:center;padding:64px 80px;background:var(--bg);color:var(--fg);font:28px/1.4 var(--font)}
 :where(.slide h1,.slide h2,.slide h3,.slide h4){line-height:1.15;margin:0 0 .5em}
 :where(.slide h1){font-size:64px}
 :where(.slide h2){font-size:44px}
@@ -144,19 +226,19 @@ html,body{margin:0;height:100%;overflow:hidden}
 :where(.slide p,.slide ul,.slide ol,.slide pre,.slide table,.slide blockquote){margin:0 0 .75em}
 :where(.slide ul,.slide ol){padding-left:1.2em}
 :where(.slide li){margin:.2em 0}
-:where(.slide a){color:#2563eb}
+:where(.slide a){color:var(--accent)}
 :where(.slide img){max-width:100%;max-height:100%;object-fit:contain}
-:where(.slide code){font:.85em ui-monospace,monospace;background:#f3f4f6;padding:.1em .3em;border-radius:4px}
-:where(.slide pre){background:#f3f4f6;padding:20px 24px;border-radius:8px;overflow:hidden;font-size:24px}
+:where(.slide code){font:.85em var(--mono);background:var(--surface-2);padding:.1em .3em;border-radius:4px}
+:where(.slide pre){background:var(--surface-2);padding:20px 24px;border-radius:var(--radius);overflow:hidden;font-size:24px}
 :where(.slide pre code){background:none;padding:0;font-size:inherit}
 :where(.slide table){border-collapse:collapse}
-:where(.slide th,.slide td){border:1px solid #d1d5db;padding:8px 16px;text-align:left}
-:where(.slide blockquote){border-left:6px solid #d1d5db;padding-left:24px;color:#4b5563}
-#controls{position:fixed;right:12px;bottom:12px;display:flex;align-items:center;gap:4px;padding:4px;border-radius:8px;background:rgba(24,24,27,.85);color:#fff;font:14px system-ui,sans-serif;opacity:.3;transition:opacity .15s}
+:where(.slide th,.slide td){border:1px solid var(--border);padding:8px 16px;text-align:left}
+:where(.slide blockquote){border-left:6px solid var(--border);padding-left:24px;color:var(--muted)}
+#controls{position:fixed;right:12px;bottom:12px;display:flex;align-items:center;gap:4px;padding:4px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--fg);font:14px var(--font);opacity:.3;transition:opacity .15s}
 #controls:hover,#controls:focus-within{opacity:1}
 #controls button{min-width:32px;height:32px;border:0;border-radius:6px;background:transparent;color:inherit;font:inherit;cursor:pointer}
-#controls button:hover:not(:disabled){background:rgba(255,255,255,.2)}
-#controls button:focus-visible{outline:2px solid #60a5fa;outline-offset:1px}
+#controls button:hover:not(:disabled){background:var(--surface-2)}
+#controls button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 #controls button:disabled{opacity:.4;cursor:default}
 #counter{min-width:4em;text-align:center}
 @page{size:1280px 720px;margin:0}
@@ -247,30 +329,74 @@ try {
 `;
 
 function slidesDocument(title: string, content: string, print: boolean): string {
-  return withPrintScript(page(title, `<style>${SLIDES_CSS}</style>`, SLIDES_BODY + '\n' + moduleScript(SLIDES_SCRIPT), content), print);
+  return withPrintScript(page(title, `<style>${SHELL_COLOR_SCHEME_CSS}${SLIDES_CSS}</style>`, SLIDES_BODY + '\n' + moduleScript(SLIDES_SCRIPT), content), print);
 }
 
 // --- end slides ---
 
 const MERMAID_SCRIPT = `
+var removeDiagram = function () {
+  document.querySelectorAll('#dartifact-diagram').forEach(function (el) { el.remove(); });
+};
 try {
   var source = ${READ_SOURCE};
   var mermaid = (await import('${MERMAID_URL}')).default;
-  var dark = matchMedia('(prefers-color-scheme: dark)').matches;
-  mermaid.initialize({ startOnLoad: false, theme: dark ? 'dark' : 'default', suppressErrorRendering: true });
-  var result = await mermaid.render('artifact-diagram', source);
   var canvas = document.getElementById('canvas');
-  canvas.innerHTML = result.svg;
-  // Mermaid emits width=100% with a max-width, which has no definite size inside the shrink-to-fit canvas.
-  var svg = canvas.querySelector('svg');
-  var box = svg && svg.viewBox.baseVal;
-  if (box && box.width) {
-    svg.setAttribute('width', box.width);
-    svg.setAttribute('height', box.height);
-    svg.style.maxWidth = 'none';
-  }
+  var draw = async function () {
+    // Mermaid derives shades from its theme variables, so it needs the resolved hex values, not var().
+    var css = getComputedStyle(document.documentElement);
+    var token = function (name) { return css.getPropertyValue('--' + name).trim(); };
+    mermaid.initialize({
+      startOnLoad: false,
+      suppressErrorRendering: true,
+      theme: 'base',
+      themeVariables: {
+        darkMode: document.documentElement.dataset.theme === 'dark',
+        background: token('bg'),
+        fontFamily: token('font'),
+        primaryColor: token('bg'),
+        primaryTextColor: token('fg'),
+        primaryBorderColor: token('muted'),
+        secondaryColor: token('surface-2'),
+        secondaryTextColor: token('fg'),
+        secondaryBorderColor: token('border'),
+        tertiaryColor: token('surface'),
+        tertiaryTextColor: token('fg'),
+        tertiaryBorderColor: token('border'),
+        mainBkg: token('bg'),
+        nodeBorder: token('muted'),
+        clusterBkg: token('surface-2'),
+        clusterBorder: token('border'),
+        lineColor: token('muted'),
+        textColor: token('fg'),
+        titleColor: token('fg'),
+        edgeLabelBackground: token('surface'),
+        noteBkgColor: token('surface-2'),
+        noteTextColor: token('fg'),
+        noteBorderColor: token('border'),
+      },
+    });
+    var result = await mermaid.render('artifact-diagram', source);
+    canvas.innerHTML = result.svg;
+    // Mermaid emits width=100% with a max-width, which has no definite size inside the shrink-to-fit canvas.
+    var svg = canvas.querySelector('svg');
+    var box = svg && svg.viewBox.baseVal;
+    if (box && box.width) {
+      svg.setAttribute('width', box.width);
+      svg.setAttribute('height', box.height);
+      svg.style.maxWidth = 'none';
+    }
+  };
+  // Only the SVG is replaced, so the canvas keeps its pan and zoom. Mermaid queues renders, so the last switch wins.
+  window.addEventListener('artifact-theme', function () {
+    draw().catch(function (err) {
+      removeDiagram();
+      showError(err);
+    });
+  });
+  await draw();
 } catch (err) {
-  document.querySelectorAll('#dartifact-diagram').forEach(function (el) { el.remove(); });
+  removeDiagram();
   showError(err);
 }
 `;
@@ -298,26 +424,19 @@ const DESIGN_CSS = `
 @layer artboard, theme, base, components, utilities;
 @layer artboard { [data-artboard] { background: #fff; box-shadow: 0 1px 3px rgb(0 0 0 / .12), 0 8px 30px rgb(0 0 0 / .14); } }
 html, body { margin: 0; height: 100%; }
-#viewport { position: fixed; inset: 0; overflow: hidden; touch-action: none; overscroll-behavior: none; background-color: #f4f4f5;
-  background-image: radial-gradient(circle, #c4c4cc 1px, transparent 1px); background-size: 24px 24px; }
+#viewport { position: fixed; inset: 0; overflow: hidden; touch-action: none; overscroll-behavior: none; background-color: var(--surface);
+  background-image: radial-gradient(circle, var(--border) 1px, transparent 1px); background-size: 24px 24px; }
 #viewport.grab { cursor: grab; }
 #viewport.panning { cursor: grabbing; user-select: none; }
 #canvas { position: absolute; top: 0; left: 0; transform-origin: 0 0; }
 #canvas.boards { display: flex; align-items: flex-start; gap: 80px; padding: 80px; width: max-content; }
 figure.artboard { margin: 0; flex: none; }
-figure.artboard > figcaption { margin: 0 0 12px; font: 500 13px/1.2 system-ui, sans-serif; color: #52525b; white-space: nowrap; }
+figure.artboard > figcaption { margin: 0 0 12px; font: 500 13px/1.2 var(--font); color: var(--muted); white-space: nowrap; }
 #toolbar { position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); z-index: 10; display: flex; gap: 2px; padding: 4px;
-  background: rgb(255 255 255 / .92); border: 1px solid #e4e4e7; border-radius: 10px; font: 13px system-ui, sans-serif; }
-#toolbar button { min-width: 32px; height: 32px; padding: 0 8px; border: 0; border-radius: 6px; background: transparent; color: #3f3f46; font: inherit; cursor: pointer; }
-#toolbar button:hover { background: #f4f4f5; }
-#toolbar button:focus-visible { outline: 2px solid #3b82f6; outline-offset: -2px; }
-@media (prefers-color-scheme: dark) {
-  #viewport { background-color: #18181b; background-image: radial-gradient(circle, #3f3f46 1px, transparent 1px); }
-  figure.artboard > figcaption { color: #a1a1aa; }
-  #toolbar { background: rgb(39 39 42 / .92); border-color: #3f3f46; }
-  #toolbar button { color: #e4e4e7; }
-  #toolbar button:hover { background: #3f3f46; }
-}
+  background: var(--bg); border: 1px solid var(--border); border-radius: 10px; font: 13px var(--font); }
+#toolbar button { min-width: 32px; height: 32px; padding: 0 8px; border: 0; border-radius: 6px; background: transparent; color: var(--fg); font: inherit; cursor: pointer; }
+#toolbar button:hover { background: var(--surface-2); }
+#toolbar button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 @media print {
   html, body { height: auto; }
   #viewport { position: static; overflow: visible; background: none; }
@@ -464,8 +583,8 @@ function designDocument(title: string, content: string, print: boolean): string 
     '<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n' +
       '<meta name="viewport" content="width=device-width, initial-scale=1">\n' +
       `<title>${escapeHtml(title)}</title>\n` +
-      `<style>${ERROR_PANEL_CSS}</style>\n<script>${ERROR_PANEL_SCRIPT}</script>\n` +
-      `<style>${DESIGN_CSS}</style>\n<script src="${TAILWIND_URL}"></script>\n</head>\n<body>\n` +
+      `<style>${ERROR_PANEL_CSS}</style>\n<script>${ERROR_PANEL_SCRIPT}</script>\n${THEME_HEAD}\n` +
+      `<style>${DESIGN_CSS}</style>\n${TAILWIND_THEME}\n<script src="${TAILWIND_URL}"></script>\n</head>\n<body>\n` +
       `<div id="viewport"><div id="canvas">${content}</div></div>\n${DESIGN_TOOLBAR}\n<script>${DESIGN_SCRIPT}</script>\n</body>\n</html>\n`,
     print,
   );
@@ -479,7 +598,7 @@ function page(title: string, head: string, body: string, source: string): string
     '<meta name="viewport" content="width=device-width, initial-scale=1">\n' +
     `<title>${escapeHtml(title)}</title>\n` +
     `<style>${ERROR_PANEL_CSS}</style>\n` +
-    `<script>${ERROR_PANEL_SCRIPT}</script>\n${head}\n</head>\n<body>\n${body}\n` +
+    `<script>${ERROR_PANEL_SCRIPT}</script>\n${head}\n${THEME_HEAD}\n</head>\n<body>\n${body}\n` +
     `<script type="application/json" id="artifact-source">${escapeJson(JSON.stringify(source))}</script>\n` +
     '</body>\n</html>\n'
   );
@@ -642,10 +761,11 @@ const MOTION_PLAYER_SCRIPT = `
 })();
 `;
 
-// Trailing markup after </html> still runs, so the player follows the artifact document unchanged.
+// Trailing markup after </html> still runs, so the theme and player follow the artifact document unchanged.
 function motionDocument(content: string, print: boolean): string {
   return withPrintScript(
     content +
+      THEME_HEAD +
       '<div id="artifact-motion-player" style="position:fixed;left:0;right:0;bottom:0;z-index:2147483646;pointer-events:none"></div>' +
       `<script>${MOTION_PLAYER_SCRIPT}</script>`,
     print,
@@ -662,14 +782,14 @@ export function renderDocument(
 ): string {
   switch (meta.type) {
     case 'html':
-      return withPrintScript(content, print, true);
+      return withPrintScript(content + THEME_HEAD, print, true);
     case 'svg':
       return withPrintScript(
         '<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n' +
           '<meta name="viewport" content="width=device-width, initial-scale=1">\n' +
           `<title>${escapeHtml(meta.title)}</title>\n` +
           '<style>html,body{margin:0;height:100%}body{display:grid;place-items:center;overflow:auto}' +
-          'body>svg{max-width:100vw;max-height:100vh;width:auto;height:auto}</style>\n</head>\n' +
+          `body>svg{max-width:100vw;max-height:100vh;width:auto;height:auto}</style>\n${THEME_HEAD}\n</head>\n` +
           `<body>\n${content}\n</body>\n</html>\n`,
         print,
         true,
@@ -679,7 +799,8 @@ export function renderDocument(
         page(
           meta.title,
           `<link rel="stylesheet" href="${MARKDOWN_CSS_URL}">\n` +
-            '<style>body{margin:0}.markdown-body{box-sizing:border-box;min-height:100vh;max-width:980px;margin:0 auto;padding:32px}' +
+            `<style>${SHELL_COLOR_SCHEME_CSS}${MARKDOWN_THEME_CSS}body{margin:0;background:var(--bg)}` +
+            '.markdown-body{box-sizing:border-box;min-height:100vh;max-width:980px;margin:0 auto;padding:32px}' +
             '@media(max-width:767px){.markdown-body{padding:16px}}</style>',
           '<article class="markdown-body" id="out"></article>\n' + moduleScript(MARKDOWN_SCRIPT),
           content,
@@ -701,9 +822,10 @@ export function renderDocument(
       return withPrintScript(
         page(
           meta.title,
-          `<link rel="stylesheet" href="${HLJS_LIGHT_CSS_URL}" media="(prefers-color-scheme: light)">\n` +
-            `<link rel="stylesheet" href="${HLJS_DARK_CSS_URL}" media="(prefers-color-scheme: dark)">\n` +
-            '<style>body{margin:0}pre{margin:0}pre code.hljs{min-height:100vh;box-sizing:border-box;padding:16px;font:13px/1.5 ui-monospace,monospace}</style>',
+          `<link rel="stylesheet" href="${HLJS_LIGHT_CSS_URL}" data-theme-css="light" media="(prefers-color-scheme: light)">\n` +
+            `<link rel="stylesheet" href="${HLJS_DARK_CSS_URL}" data-theme-css="dark" media="(prefers-color-scheme: dark)">\n` +
+            `<style>${SHELL_COLOR_SCHEME_CSS}body{margin:0;background:var(--bg)}pre{margin:0}` +
+            'pre code.hljs{min-height:100vh;box-sizing:border-box;padding:16px;background:var(--bg);font:13px/1.5 var(--mono)}</style>',
           `<pre><code id="out" data-language="${escapeHtml(meta.language ?? '')}"></code></pre>\n` + moduleScript(CODE_SCRIPT),
           content,
         ),
@@ -714,7 +836,7 @@ export function renderDocument(
         page(
           meta.title,
           `<script type="importmap">${IMPORT_MAP}</script>\n` +
-            `<script src="${BABEL_URL}"></script>\n<script src="${TAILWIND_URL}"></script>`,
+            `<script src="${BABEL_URL}"></script>\n${TAILWIND_THEME}\n<script src="${TAILWIND_URL}"></script>`,
           '<div id="root"></div>\n' + moduleScript(REACT_SCRIPT),
           content,
         ),
