@@ -138,6 +138,16 @@ const TAILWIND_THEME =
 
 // --- diagram zoom ---
 
+// Icon geometry from Lucide (ISC license, see src/ui/icons.tsx).
+const ZOOM_ICONS = {
+  out: '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3M8 11h6"/>',
+  in: '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3M11 8v6M8 11h6"/>',
+  fit: '<path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/>',
+  full: '<path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>',
+};
+const zoomIcon = (name: keyof typeof ZOOM_ICONS) =>
+  `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ZOOM_ICONS[name]}</svg>`;
+
 const DIAGRAM_ZOOM_CSS =
   'svg[data-artifact-zoom]{cursor:grab}svg[data-artifact-zoom].artifact-panning{cursor:grabbing;user-select:none}' +
   'svg[data-artifact-zoom]:fullscreen{width:100vw!important;height:100vh!important;max-width:none!important;background:var(--bg,#fff)}';
@@ -146,7 +156,8 @@ const DIAGRAM_ZOOM_BAR_CSS =
   ':host{all:initial}@media print{:host{display:none!important}}' +
   '.bar{display:flex;gap:2px;padding:3px;background:var(--surface,#fff);border:1px solid var(--border,#d4d4d8);border-radius:8px;' +
   'box-shadow:var(--shadow,0 4px 12px rgb(0 0 0 / .12));font:13px system-ui,sans-serif}' +
-  'button{min-width:28px;height:28px;padding:0 6px;border:0;border-radius:6px;background:transparent;color:var(--fg,#18181b);font:inherit;cursor:pointer}' +
+  'button{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;padding:0;border:0;border-radius:6px;' +
+  'background:transparent;color:var(--fg,#18181b);cursor:pointer}svg{display:block}' +
   'button:hover{background:var(--surface-2,#f4f4f5)}button:focus-visible{outline:2px solid var(--accent,#2563eb);outline-offset:-2px}';
 
 // Mermaid diagrams that html and react artifacts draw themselves get pan and zoom through their viewBox, so the page layout never changes.
@@ -161,10 +172,10 @@ export const DIAGRAM_ZOOM_SCRIPT = `
   host.style.cssText = 'position:fixed;z-index:2147483646;display:none;transform:translateX(-100%)';
   var root = host.attachShadow({ mode: 'open' });
   root.innerHTML = '<style>${DIAGRAM_ZOOM_BAR_CSS}</style><div class="bar" role="toolbar" aria-label="Diagram zoom">' +
-    '<button type="button" data-act="out" aria-label="Zoom out">\u2212</button>' +
-    '<button type="button" data-act="in" aria-label="Zoom in">+</button>' +
-    '<button type="button" data-act="fit" aria-label="Reset zoom">Fit</button>' +
-    '<button type="button" data-act="full" aria-label="Full screen">\u26F6</button></div>';
+    '<button type="button" data-act="out" aria-label="Zoom out" title="Zoom out">${zoomIcon('out')}</button>' +
+    '<button type="button" data-act="in" aria-label="Zoom in" title="Zoom in">${zoomIcon('in')}</button>' +
+    '<button type="button" data-act="fit" aria-label="Reset zoom" title="Reset zoom">${zoomIcon('fit')}</button>' +
+    '<button type="button" data-act="full" aria-label="Full screen" title="Full screen">${zoomIcon('full')}</button></div>';
   if (!document.fullscreenEnabled) root.querySelector('[data-act=full]').remove();
 
   function box(svg) { var b = svg.viewBox.baseVal; return { x: b.x, y: b.y, w: b.width, h: b.height }; }
@@ -584,7 +595,7 @@ figure.artboard { margin: 0; flex: none; }
 figure.artboard > figcaption { margin: 0 0 12px; font: 500 13px/1.2 var(--font); color: var(--muted); white-space: nowrap; }
 #toolbar { position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); z-index: 10; display: flex; gap: 2px; padding: 4px;
   background: var(--bg); border: 1px solid var(--border); border-radius: 10px; font: 13px var(--font); }
-#toolbar button { min-width: 32px; height: 32px; padding: 0 8px; border: 0; border-radius: 6px; background: transparent; color: var(--fg); font: inherit; cursor: pointer; }
+#toolbar button { display: inline-flex; align-items: center; justify-content: center; min-width: 32px; height: 32px; padding: 0 8px; border: 0; border-radius: 6px; background: transparent; color: var(--fg); font: inherit; cursor: pointer; }
 #toolbar button:hover { background: var(--surface-2); }
 #toolbar button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 @media print {
@@ -598,10 +609,10 @@ figure.artboard > figcaption { margin: 0 0 12px; font: 500 13px/1.2 var(--font);
 
 const DESIGN_TOOLBAR =
   '<div id="toolbar" role="toolbar" aria-label="Canvas zoom">' +
-  '<button type="button" id="zoom-out" aria-label="Zoom out">&#8722;</button>' +
-  '<button type="button" id="zoom-level" aria-label="Zoom 100%, reset to 100%">100%</button>' +
-  '<button type="button" id="zoom-in" aria-label="Zoom in">+</button>' +
-  '<button type="button" id="zoom-fit" aria-label="Fit all to screen">Fit</button></div>';
+  `<button type="button" id="zoom-out" aria-label="Zoom out" title="Zoom out">${zoomIcon('out')}</button>` +
+  '<button type="button" id="zoom-level" aria-label="Zoom 100%, reset to 100%" title="Reset to 100%">100%</button>' +
+  `<button type="button" id="zoom-in" aria-label="Zoom in" title="Zoom in">${zoomIcon('in')}</button>` +
+  `<button type="button" id="zoom-fit" aria-label="Fit all to screen" title="Fit all to screen">${zoomIcon('fit')}</button></div>`;
 
 const DESIGN_SCRIPT = `
 (function () {
