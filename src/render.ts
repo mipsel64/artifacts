@@ -5,8 +5,8 @@ const MARKED_URL = `${JSDELIVR}/marked@18.1.0/lib/marked.esm.js`;
 const MARKDOWN_CSS_URL = `${JSDELIVR}/github-markdown-css@5.9.0/github-markdown.css`;
 const MERMAID_URL = `${JSDELIVR}/mermaid@12.1.0/dist/mermaid.esm.min.mjs`;
 const HLJS_URL = `${JSDELIVR}/@highlightjs/cdn-assets@11.12.0/es/highlight.min.js`;
-const HLJS_LIGHT_CSS_URL = `${JSDELIVR}/@highlightjs/cdn-assets@11.12.0/styles/base16/gruvbox-light-medium.min.css`;
-const HLJS_DARK_CSS_URL = `${JSDELIVR}/@highlightjs/cdn-assets@11.12.0/styles/base16/gruvbox-dark-medium.min.css`;
+const HLJS_LIGHT_CSS_URL = `${JSDELIVR}/@highlightjs/cdn-assets@11.12.0/styles/github.min.css`;
+const HLJS_DARK_CSS_URL = `${JSDELIVR}/@highlightjs/cdn-assets@11.12.0/styles/github-dark.min.css`;
 const BABEL_URL = `${JSDELIVR}/@babel/standalone@8.0.7/babel.min.js`;
 const TAILWIND_URL = `${JSDELIVR}/@tailwindcss/browser@4.3.3/dist/index.global.js`;
 const REACT_URL = 'https://esm.sh/react@19.3.0';
@@ -57,19 +57,19 @@ const READ_SOURCE = `JSON.parse(document.getElementById('artifact-source').textC
 // --- theme ---
 
 const THEME_DARK_TOKENS =
-  '--bg:#282828;--surface:#3c3836;--surface-2:#504945;--border:#504945;--fg:#ebdbb2;--muted:#bdae93;--accent:#d79921;--on-accent:#282828;' +
-  '--danger:#fb4934;--warning:#fabd2f;--success:#b8bb26;--info:#83a598;' +
-  '--chart-1:#83a598;--chart-2:#fe8019;--chart-3:#b8bb26;--chart-4:#d3869b;--chart-5:#fabd2f;--chart-6:#8ec07c;' +
+  '--bg:#151515;--surface:#1c1c1c;--surface-2:#262626;--border:#2e2e2e;--fg:#f0efec;--muted:#a5a39b;--accent:#d97757;--on-accent:#151515;' +
+  '--danger:#e5736f;--warning:#d9a441;--success:#7fb08a;--info:#7ea6d9;' +
+  '--chart-1:#d97757;--chart-2:#7ea6d9;--chart-3:#6cc08f;--chart-4:#a98bd6;--chart-5:#d9a441;--chart-6:#5fc0c9;' +
   '--shadow:0 8px 24px rgb(0 0 0 / .5)';
 
 // Only custom properties, in a layer so unlayered artifact CSS (even its own --bg) always wins; no colors are applied here.
 export const THEME_CSS =
   '@layer artifact-theme{' +
-  ':root{--bg:#fbf1c7;--surface:#f2e5bc;--surface-2:#ebdbb2;--border:#d5c4a1;--fg:#3c3836;--muted:#665c54;--accent:#af3a03;--on-accent:#fbf1c7;' +
-  '--danger:#9d0006;--warning:#b57614;--success:#79740e;--info:#076678;' +
-  '--chart-1:#076678;--chart-2:#af3a03;--chart-3:#79740e;--chart-4:#8f3f71;--chart-5:#b57614;--chart-6:#427b58;' +
+  ':root{--bg:#faf9f5;--surface:#f5f4ed;--surface-2:#f0eee6;--border:#e3e1d9;--fg:#141413;--muted:#6b6a65;--accent:#a9502e;--on-accent:#faf9f5;' +
+  '--danger:#b3261e;--warning:#8f5d00;--success:#38734a;--info:#2f6aa3;' +
+  '--chart-1:#c6613f;--chart-2:#3d78b5;--chart-3:#3f8a65;--chart-4:#8660b5;--chart-5:#a67c00;--chart-6:#2f8a94;' +
   "--font:system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;--mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;" +
-  '--radius:8px;--shadow:0 8px 24px rgb(60 56 54 / .16)}' +
+  '--radius:8px;--shadow:0 8px 24px rgb(20 20 19 / .12)}' +
   `:root[data-theme=dark]{${THEME_DARK_TOKENS}}` +
   `@media (prefers-color-scheme: dark){:root:not([data-theme]){${THEME_DARK_TOKENS}}}` +
   '}';
@@ -122,6 +122,21 @@ const MARKDOWN_THEME_CSS =
   '--borderColor-default:var(--border);--borderColor-muted:var(--border);--borderColor-neutral-muted:var(--border);' +
   '--borderColor-accent-emphasis:var(--accent);--borderColor-attention-emphasis:var(--warning);--borderColor-danger-emphasis:var(--danger);' +
   '--borderColor-success-emphasis:var(--success);--borderColor-done-emphasis:var(--chart-4);--focus-outlineColor:var(--accent)}';
+
+// claude.ai-like reading style over github-markdown-css: serif body, quiet headings, hairline tables; same specificity, later in the cascade.
+const MARKDOWN_CLAUDE_CSS =
+  ".markdown-body{--md-code:#a63d38;font-family:ui-serif,'Iowan Old Style','Palatino Linotype',Palatino,Georgia,'Times New Roman',serif;line-height:1.7}" +
+  ':root[data-theme=dark] .markdown-body{--md-code:#db8480}' +
+  '.markdown-body h1,.markdown-body h2,.markdown-body h3,.markdown-body h4,.markdown-body h5,.markdown-body h6{margin-top:1.75em;margin-bottom:.6em;padding-bottom:0;border-bottom:0;line-height:1.3}' +
+  '.markdown-body h1{font-size:1.75em}.markdown-body h2{font-size:1.4em}.markdown-body h3{font-size:1.15em}.markdown-body h4,.markdown-body h5,.markdown-body h6{font-size:1em}' +
+  '.markdown-body li::marker{color:var(--muted)}' +
+  '.markdown-body code,.markdown-body tt{padding:.15em .4em;font-size:.875em;color:var(--md-code);background:var(--surface-2);border:1px solid var(--border);border-radius:6px}' +
+  '.markdown-body pre{padding:16px 20px;font-size:.875em;line-height:1.6;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius)}' +
+  '.markdown-body pre code{color:var(--fg)}' +
+  '.markdown-body table th,.markdown-body table td{padding:8px 14px;border:0;border-bottom:1px solid var(--border)}' +
+  '.markdown-body table tr,.markdown-body table tr:nth-child(2n){background:transparent;border-top:0}' +
+  '.markdown-body blockquote{border-left:3px solid color-mix(in srgb,var(--muted) 50%,transparent)}' +
+  '.markdown-body hr{height:0;background:none;border:0;border-top:1px solid var(--border)}';
 
 // Tailwind colors and the dark: variant for react and design, resolved through the tokens at use time.
 const TAILWIND_THEME =
@@ -960,8 +975,8 @@ export function renderDocument(
         page(
           meta.title,
           `<link rel="stylesheet" href="${MARKDOWN_CSS_URL}">\n` +
-            `<style>${SHELL_COLOR_SCHEME_CSS}${MARKDOWN_THEME_CSS}body{margin:0;background:var(--bg)}` +
-            '.markdown-body{box-sizing:border-box;min-height:100vh;max-width:980px;margin:0 auto;padding:32px}' +
+            `<style>${SHELL_COLOR_SCHEME_CSS}${MARKDOWN_THEME_CSS}${MARKDOWN_CLAUDE_CSS}body{margin:0;background:var(--bg)}` +
+            '.markdown-body{box-sizing:border-box;min-height:100vh;max-width:760px;margin:0 auto;padding:48px 32px}' +
             '@media(max-width:767px){.markdown-body{padding:16px}}</style>',
           '<article class="markdown-body" id="out"></article>\n' + moduleScript(MARKDOWN_SCRIPT),
           content,

@@ -1,5 +1,5 @@
 /* Artifacts UI. Semantic tokens are defined once per theme; components only use tokens.
-   Fonts are self-hosted (OFL, see fonts/OFL-*.txt). Gruvbox palette: light is the default,
+   Fonts are self-hosted (OFL, see fonts/OFL-*.txt). Claude-style palette: light is the default,
    dark follows prefers-color-scheme, and [data-theme] on <html> (set by theme.js from the
    header switcher) overrides the media query for explicit Light/Dark choices. */
 
@@ -46,34 +46,34 @@
 :root {
   color-scheme: light;
 
-  /* Gruvbox light */
-  --bg: #fbf1c7;
-  --surface: #f2e5bc;
-  --surface-2: #ebdbb2;
-  --border: #d5c4a1;
-  --border-strong: #bdae93;
-  --border-input: #7c6f64;
-  --text: #3c3836;
-  --text-muted: #665c54;
-  --accent: #af3a03;
-  --on-accent: #fbf1c7;
-  --danger: #9d0006;
-  --danger-text: #9d0006;
-  --warning: #b57614;
-  --ring: #af3a03;
-  --code-bg: #ebdbb2;
-  --hover: rgb(60 56 54 / 0.07);
-  --shadow: 0 8px 24px rgb(60 56 54 / 0.16);
+  /* Claude light */
+  --bg: #faf9f5;
+  --surface: #f5f4ed;
+  --surface-2: #f0eee6;
+  --border: #e3e1d9;
+  --border-strong: #cfcdc3;
+  --border-input: #8a8880;
+  --text: #141413;
+  --text-muted: #6b6a65;
+  --accent: #a9502e;
+  --on-accent: #faf9f5;
+  --danger: #b3261e;
+  --danger-text: #b3261e;
+  --warning: #8f5d00;
+  --ring: #a9502e;
+  --code-bg: #f0eee6;
+  --hover: rgb(20 20 19 / 0.06);
+  --shadow: 0 8px 24px rgb(20 20 19 / 0.12);
 
-  --type-html: #9d0006;
-  --type-react: #427b58;
-  --type-svg: #b57614;
-  --type-mermaid: #8f3f71;
-  --type-markdown: #076678;
-  --type-code: #79740e;
-  --type-slides: #af3a03;
-  --type-design: #458588;
-  --type-motion: #b16286;
+  --type-html: #c6613f;
+  --type-react: #3f8a65;
+  --type-svg: #a67c00;
+  --type-mermaid: #8660b5;
+  --type-markdown: #3d78b5;
+  --type-code: #6a7f2e;
+  --type-slides: #c04a5f;
+  --type-design: #2f8a94;
+  --type-motion: #b0589a;
 
   --font: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   --mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace;
@@ -105,34 +105,34 @@
   :root {
     color-scheme: dark;
 
-    /* Gruvbox dark */
-    --bg: #282828;
-    --surface: #3c3836;
-    --surface-2: #504945;
-    --border: #504945;
-    --border-strong: #665c54;
-    --border-input: #a89984;
-    --text: #ebdbb2;
-    --text-muted: #bdae93;
-    --accent: #d79921;
-    --on-accent: #282828;
-    --danger: #fb4934;
-    --danger-text: #f1a886;
-    --warning: #d79921;
-    --ring: #d79921;
-    --code-bg: #1d2021;
-    --hover: rgb(235 219 178 / 0.08);
+    /* Claude dark */
+    --bg: #151515;
+    --surface: #1c1c1c;
+    --surface-2: #262626;
+    --border: #2e2e2e;
+    --border-strong: #444443;
+    --border-input: #7a7872;
+    --text: #f0efec;
+    --text-muted: #a5a39b;
+    --accent: #d97757;
+    --on-accent: #151515;
+    --danger: #e5736f;
+    --danger-text: #f1a09b;
+    --warning: #d9a441;
+    --ring: #d97757;
+    --code-bg: #212121;
+    --hover: rgb(240 239 236 / 0.07);
     --shadow: 0 8px 24px rgb(0 0 0 / 0.5);
 
-    --type-html: #fb4934;
-    --type-react: #8ec07c;
-    --type-svg: #fabd2f;
-    --type-mermaid: #d3869b;
-    --type-markdown: #83a598;
-    --type-code: #b8bb26;
-    --type-slides: #fe8019;
-    --type-design: #458588;
-    --type-motion: #b16286;
+    --type-html: #d97757;
+    --type-react: #6cc08f;
+    --type-svg: #d9a441;
+    --type-mermaid: #a98bd6;
+    --type-markdown: #7ea6d9;
+    --type-code: #a3b85a;
+    --type-slides: #e07a8c;
+    --type-design: #5fc0c9;
+    --type-motion: #d98bc3;
   }
 }
 
@@ -141,65 +141,65 @@
 [data-theme='light'] {
   color-scheme: light;
 
-  --bg: #fbf1c7;
-  --surface: #f2e5bc;
-  --surface-2: #ebdbb2;
-  --border: #d5c4a1;
-  --border-strong: #bdae93;
-  --border-input: #7c6f64;
-  --text: #3c3836;
-  --text-muted: #665c54;
-  --accent: #af3a03;
-  --on-accent: #fbf1c7;
-  --danger: #9d0006;
-  --danger-text: #9d0006;
-  --warning: #b57614;
-  --ring: #af3a03;
-  --code-bg: #ebdbb2;
-  --hover: rgb(60 56 54 / 0.07);
-  --shadow: 0 8px 24px rgb(60 56 54 / 0.16);
+  --bg: #faf9f5;
+  --surface: #f5f4ed;
+  --surface-2: #f0eee6;
+  --border: #e3e1d9;
+  --border-strong: #cfcdc3;
+  --border-input: #8a8880;
+  --text: #141413;
+  --text-muted: #6b6a65;
+  --accent: #a9502e;
+  --on-accent: #faf9f5;
+  --danger: #b3261e;
+  --danger-text: #b3261e;
+  --warning: #8f5d00;
+  --ring: #a9502e;
+  --code-bg: #f0eee6;
+  --hover: rgb(20 20 19 / 0.06);
+  --shadow: 0 8px 24px rgb(20 20 19 / 0.12);
 
-  --type-html: #9d0006;
-  --type-react: #427b58;
-  --type-svg: #b57614;
-  --type-mermaid: #8f3f71;
-  --type-markdown: #076678;
-  --type-code: #79740e;
-  --type-slides: #af3a03;
-  --type-design: #458588;
-  --type-motion: #b16286;
+  --type-html: #c6613f;
+  --type-react: #3f8a65;
+  --type-svg: #a67c00;
+  --type-mermaid: #8660b5;
+  --type-markdown: #3d78b5;
+  --type-code: #6a7f2e;
+  --type-slides: #c04a5f;
+  --type-design: #2f8a94;
+  --type-motion: #b0589a;
 }
 
 [data-theme='dark'] {
   color-scheme: dark;
 
-  --bg: #282828;
-  --surface: #3c3836;
-  --surface-2: #504945;
-  --border: #504945;
-  --border-strong: #665c54;
-  --border-input: #a89984;
-  --text: #ebdbb2;
-  --text-muted: #bdae93;
-  --accent: #d79921;
-  --on-accent: #282828;
-  --danger: #fb4934;
-  --danger-text: #f1a886;
-  --warning: #d79921;
-  --ring: #d79921;
-  --code-bg: #1d2021;
-  --hover: rgb(235 219 178 / 0.08);
+  --bg: #151515;
+  --surface: #1c1c1c;
+  --surface-2: #262626;
+  --border: #2e2e2e;
+  --border-strong: #444443;
+  --border-input: #7a7872;
+  --text: #f0efec;
+  --text-muted: #a5a39b;
+  --accent: #d97757;
+  --on-accent: #151515;
+  --danger: #e5736f;
+  --danger-text: #f1a09b;
+  --warning: #d9a441;
+  --ring: #d97757;
+  --code-bg: #212121;
+  --hover: rgb(240 239 236 / 0.07);
   --shadow: 0 8px 24px rgb(0 0 0 / 0.5);
 
-  --type-html: #fb4934;
-  --type-react: #8ec07c;
-  --type-svg: #fabd2f;
-  --type-mermaid: #d3869b;
-  --type-markdown: #83a598;
-  --type-code: #b8bb26;
-  --type-slides: #fe8019;
-  --type-design: #458588;
-  --type-motion: #b16286;
+  --type-html: #d97757;
+  --type-react: #6cc08f;
+  --type-svg: #d9a441;
+  --type-mermaid: #a98bd6;
+  --type-markdown: #7ea6d9;
+  --type-code: #a3b85a;
+  --type-slides: #e07a8c;
+  --type-design: #5fc0c9;
+  --type-motion: #d98bc3;
 }
 
 @media (max-width: 720px) {
@@ -1021,7 +1021,7 @@ pre,
   color: var(--text-muted);
 }
 
-/* Type tiles sit on --bg with a hairline so every gruvbox type color keeps 3:1
+/* Type tiles sit on --bg with a hairline so every type color keeps 3:1
    against the tile in both themes (surface-2 would fail for red/yellow). */
 .type-tile {
   display: grid;

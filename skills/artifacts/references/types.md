@@ -164,5 +164,5 @@ flowchart LR
 
 - Send one `<svg>` element with `xmlns="http://www.w3.org/2000/svg"`, `width`, `height` and a `viewBox`. The renderer centers it and shrinks it to fit the window.
 - The raw download has no tokens. Give each token a fallback: `fill="var(--fg, #3c3836)"`.
-- Do not depend on a page background. Add a `<rect>` with `fill="var(--bg, #fbf1c7)"` when the image needs one.
+- Do not depend on a page background. Add a `<rect>` with `fill="var(--bg, #faf9f5)"` when the image needs one.
 - Give a meaningful image a `<title>` as the first child.

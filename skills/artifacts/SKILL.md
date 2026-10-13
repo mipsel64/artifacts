@@ -65,7 +65,7 @@ The renderer adds these CSS variables to `:root` in every document, in a low-pri
 | `--font`, `--mono` | UI text. Code and tabular numbers. |
 | `--radius`, `--shadow` | Corner radius. The one shadow for floating layers, such as menus. |
 
-The palette is Gruvbox. Light: `--bg` #fbf1c7, `--fg` #3c3836, `--accent` #af3a03. Dark: `--bg` #282828, `--fg` #ebdbb2, `--accent` #d79921.
+The palette is Claude-style. Light: `--bg` #faf9f5, `--fg` #141413, `--accent` #a9502e. Dark: `--bg` #151515, `--fg` #f0efec, `--accent` #d97757.
 
 - The tokens follow the System, Light or Dark choice of the viewer in the app. Outside the app (a new tab or an export), they follow the operating system. The print view is always light.
 - The renderer sets `data-theme="light"` or `data-theme="dark"` on `<html>`. For dark-only CSS, use `:root[data-theme=dark]`. Do not use `@media (prefers-color-scheme)`, because it follows only the operating system.

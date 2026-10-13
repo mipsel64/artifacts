@@ -11,9 +11,9 @@ describe('artifact theme', () => {
     expect(THEME_CSS.startsWith('@layer artifact-theme{')).toBe(true);
     expect(THEME_CSS.endsWith('}}}')).toBe(true);
     expect(THEME_CSS.match(/@layer/g)).toHaveLength(1);
-    expect(THEME_CSS).toContain(':root{--bg:#fbf1c7;');
-    expect(THEME_CSS).toContain(':root[data-theme=dark]{--bg:#282828;');
-    expect(THEME_CSS).toContain('@media (prefers-color-scheme: dark){:root:not([data-theme]){--bg:#282828;');
+    expect(THEME_CSS).toContain(':root{--bg:#faf9f5;');
+    expect(THEME_CSS).toContain(':root[data-theme=dark]{--bg:#151515;');
+    expect(THEME_CSS).toContain('@media (prefers-color-scheme: dark){:root:not([data-theme]){--bg:#151515;');
     for (const token of ['--surface-2', '--on-accent', '--info', '--chart-6', '--font', '--mono', '--radius', '--shadow']) expect(THEME_CSS).toContain(`${token}:`);
     // Agent documents must not inherit a color-scheme or base colors from the theme.
     expect(THEME_CSS).not.toMatch(/[{;]color-scheme:|body|html|[{;](color|background)/);
@@ -79,10 +79,10 @@ describe('artifact theme', () => {
       expect(render(type).replace(THEME_CSS, '').replace(THEME_SCRIPT, '')).not.toContain('prefers-color-scheme');
   });
 
-  it('switches gruvbox highlight.js styles by data-theme-css', () => {
+  it('switches highlight.js styles by data-theme-css', () => {
     const doc = render('code');
-    expect(doc).toContain('styles/base16/gruvbox-light-medium.min.css" data-theme-css="light"');
-    expect(doc).toContain('styles/base16/gruvbox-dark-medium.min.css" data-theme-css="dark"');
+    expect(doc).toContain('styles/github.min.css" data-theme-css="light"');
+    expect(doc).toContain('styles/github-dark.min.css" data-theme-css="dark"');
     expect(doc.indexOf('data-theme-css="dark"')).toBeLessThan(doc.indexOf(THEME_SCRIPT));
   });
 
