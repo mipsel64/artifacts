@@ -15,8 +15,9 @@ import {
   unshareArtifact,
   updateArtifact,
 } from '../artifacts';
+import { archifyContentIsJson } from '../archify';
 import { requireUser } from '../auth';
-import { renderDocument } from '../render';
+import { renderStoredDocument } from '../render';
 import type { AppEnv, ArtifactType } from '../types';
 
 const routes = new Hono<AppEnv>();
@@ -62,7 +63,7 @@ routes.get('/api/artifacts/:id/content', async (c) => {
     'X-Content-Type-Options': 'nosniff',
     'Cache-Control': 'private, no-store',
   };
-  if (c.req.query('download') === '1') headers['Content-Disposition'] = `attachment; filename="${fileName(meta)}"`;
+  if (c.req.query('download') === '1') headers['Content-Disposition'] = `attachment; filename="${fileName(meta, content)}"`;
   return c.body(content, 200, headers);
 });
 
@@ -75,12 +76,16 @@ const MD_FENCES: Record<Exclude<ArtifactType, 'markdown' | 'code'>, string> = {
   slides: 'markdown',
   design: 'html',
   motion: 'html',
+  archify: 'json',
 };
 
 function asMarkdown(meta: { title: string; type: ArtifactType; language: string | null }, content: string): string {
   const heading = `# ${meta.title}\n\n`;
   if (meta.type === 'markdown') return heading + content;
-  const tag = meta.type === 'code' ? (meta.language ?? '') : MD_FENCES[meta.type];
+  let tag: string;
+  if (meta.type === 'code') tag = meta.language ?? '';
+  else if (meta.type === 'archify' && !archifyContentIsJson(content)) tag = 'markdown';
+  else tag = MD_FENCES[meta.type];
   // The fence must outlast every backtick run in the content or the block breaks open.
   const longest = (content.match(/`+/g) ?? []).reduce((max, run) => Math.max(max, run.length), 0);
   const fence = '`'.repeat(Math.max(3, longest + 1));
@@ -96,7 +101,7 @@ routes.get('/api/artifacts/:id/export', async (c) => {
   }
   const meta = await getArtifact(c.env, c.var.user.id, c.req.param('id'));
   const content = await getContent(c.env, meta, versionParam === undefined ? undefined : Number(versionParam));
-  const body = format === 'md' ? asMarkdown(meta, content) : renderDocument(meta, content);
+  const body = format === 'md' ? asMarkdown(meta, content) : await renderStoredDocument(c.env, meta, content, false, versionParam === undefined ? undefined : Number(versionParam));
   return c.body(body, 200, {
     'Content-Type': format === 'md' ? 'text/markdown; charset=utf-8' : 'text/html; charset=utf-8',
     'X-Content-Type-Options': 'nosniff',

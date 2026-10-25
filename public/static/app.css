@@ -74,6 +74,7 @@
   --type-slides: #c04a5f;
   --type-design: #2f8a94;
   --type-motion: #b0589a;
+  --type-archify: #5778c7;
 
   --font: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   --mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace;
@@ -133,6 +134,7 @@
     --type-slides: #e07a8c;
     --type-design: #5fc0c9;
     --type-motion: #d98bc3;
+    --type-archify: #8ba7ed;
   }
 }
 
@@ -168,6 +170,7 @@
   --type-slides: #c04a5f;
   --type-design: #2f8a94;
   --type-motion: #b0589a;
+  --type-archify: #5778c7;
 }
 
 [data-theme='dark'] {
@@ -200,6 +203,7 @@
   --type-slides: #e07a8c;
   --type-design: #5fc0c9;
   --type-motion: #d98bc3;
+  --type-archify: #8ba7ed;
 }
 
 @media (max-width: 720px) {
@@ -1067,6 +1071,10 @@ pre,
 
 .type-motion {
   color: var(--type-motion);
+}
+
+.type-archify {
+  color: var(--type-archify);
 }
 
 @media (max-width: 720px) {

@@ -6,7 +6,7 @@ A self-hosted clone of Claude Artifacts. Agents create and update artifacts over
 
 In scope:
 
-- Artifact types: `html`, `react`, `svg`, `mermaid`, `markdown`, `code`, `slides`, `design`, `motion`.
+- Artifact types: `html`, `react`, `svg`, `mermaid`, `markdown`, `code`, `slides`, `design`, `motion`, `archify`.
 - Preview/Code view, version history, copy, download, open in a new tab, edit (new version), remix a shared artifact into your own account.
 - Google sign-in (OpenID Connect) restricted to an email allowlist, personal API tokens, and OAuth 2.1 for MCP clients (Claude.ai, Claude Desktop, Claude Code) using the Google session for consent.
 - Share links (public, revocable).
@@ -26,7 +26,7 @@ Out of scope: AI-powered artifacts (`window.claude`), artifact persistent storag
 
 | Name | Kind | Meaning |
 | --- | --- | --- |
-| `BUCKET` | R2 binding | Artifact `meta.json` and version content |
+| `BUCKET` | R2 binding | Artifact `meta.json`, version content and cached Archify HTML |
 | `KV` | KV binding | Owner index, shares, users, API tokens |
 | `OAUTH_KV` | KV binding | OAuth provider storage (clients, grants, hashed tokens); the name is fixed by the library |
 | `GOOGLE_CLIENT_ID` | var | Google OAuth client id (Web application) |
@@ -47,6 +47,9 @@ Out of scope: AI-powered artifacts (`window.claude`), artifact persistent storag
 | `src/routes/mcp.ts` | lane mcp | MCP tools and handler (called by the provider) |
 | `src/routes/oauth.tsx` | lane auth | `/authorize` consent page, `/api/grants/:id` |
 | `src/render.ts`, `src/routes/render.ts` | lane render | Sandboxed render documents and routes |
+| `src/archify/**` | lane render | Archify engine host, validation and generated engine declaration |
+| `scripts/archify-*.ts` | lane render | Deterministic engine build and pinned upstream sync |
+| `vendor/archify/**` | lane render | Vendored upstream renderers, runtime data and source pin |
 | `src/routes/ui.tsx`, `src/ui/**`, `public/**` | lane ui | SSR pages and client JS/CSS |
 | `test/helpers.ts` | foundation | Test helpers |
 | `test/<area>.test.ts` | each lane | Tests for its own area |
@@ -56,7 +59,7 @@ Each route module exports `default` a `new Hono<AppEnv>()` that declares full pa
 ## Shared types (`src/types.ts`)
 
 ```ts
-export type ArtifactType = 'html' | 'react' | 'svg' | 'mermaid' | 'markdown' | 'code' | 'slides' | 'design' | 'motion';
+export type ArtifactType = 'html' | 'react' | 'svg' | 'mermaid' | 'markdown' | 'code' | 'slides' | 'design' | 'motion' | 'archify';
 export const ARTIFACT_TYPES: readonly ArtifactType[];
 
 export interface SessionUser { id: string; email: string }            // id = `google_<sub>`; email is lowercased
@@ -88,6 +91,7 @@ R2 (`BUCKET`):
 | --- | --- | --- |
 | `artifacts/{id}/meta.json` | `ArtifactMeta` JSON | Source of truth |
 | `artifacts/{id}/v/{version}-{rand}` | content | Unique key per write; `VersionInfo.key` points to it |
+| `artifacts/{id}/v/{version}-{rand}.html` | rendered Archify HTML | Only for Archify; `customMetadata.ARCHIFY_VERSION` tags the renderer version; serve-time theme and print scripts are not stored |
 
 KV (`KV`):
 
@@ -125,17 +129,18 @@ unshareArtifact(env, ownerId, id, now?): Promise<ArtifactMeta>           // idem
 getSharedArtifact(env, shareId, now?): Promise<ArtifactMeta>             // 404: unknown, revoked, or expired
 sweepExpired(env, now?, limit = 100): Promise<number>                    // deletes up to `limit` expired artifacts
 toView(meta, origin): ArtifactView                                           // url = {origin}/a/{id}, shareUrl = {origin}/s/{shareId}
-fileName(meta): string                                                       // slug(title) + extension by type/language
+fileName(meta, content): string                                             // slug(title) + extension by type/language; Archify also uses JSON vs Markdown source
 ```
 
 Rules:
 
 - Validation (400): title trimmed, 1..200 chars; `type` in `ARTIFACT_TYPES`; content non-empty string; `language` optional, max 32 chars of `[A-Za-z0-9+#._-]`. Content over `MAX_CONTENT_BYTES` → 413.
 - Update: `content` and `oldStr`/`newStr` are mutually exclusive (400). `oldStr` must occur exactly once in the latest content (400 otherwise; message says 0 or N matches). Either form writes a new version. `title` alone renames without a new version. An update with nothing to change is 400.
+- Archify: create and every content update call `renderArchify` before any new content is stored. `ArchifyError` becomes a 400 with formatted diagnostics. A rejected content edit leaves the previous version latest. Title-only updates do not render. JSON candidates need no authored `meta.output`; the engine supplies virtual output names, including for inline explainer diagrams. The validated HTML is written to `{versionKey}.html` after the version object. An etag retry reuses the HTML when the candidate is unchanged and rolls back both objects after a failed meta write.
 - All functions take `env: Env` (they use `env.BUCKET` and `env.KV`).
 - Retention: create sets `expiresAt = now + 30d`. A new version resets `expiresAt = now + 30d` unless permanent. `setRetention(true)` sets `null`; `setRetention(false)` sets `now + 30d`. An artifact is expired when `expiresAt !== null && expiresAt <= now`; expired artifacts are 404 everywhere before the sweep deletes them.
 - Concurrency: write the version object first (unique key), then put `meta.json` with `onlyIf: { etagMatches }` from the read. On precondition failure, retry the whole read-modify-write up to 3 times, then 409. Update the KV index entry after meta (the index may lag; meta wins).
-- Delete removes every R2 key under `artifacts/{id}/`, the KV index entry and the KV share entry.
+- Delete removes every R2 key under `artifacts/{id}/`, including each Archify HTML cache object, the KV index entry and the KV share entry. The expiry sweep and orphan cleanup use the same prefix purge.
 - Sweep lists KV `index:` (all owners) with metadata, re-reads `meta.json` for each candidate, and deletes it only when meta is missing or expired.
 
 ## Auth (`src/auth.ts`)
@@ -213,7 +218,11 @@ Render (lane render):
 
 Render responses carry `Content-Security-Policy: sandbox allow-scripts allow-forms allow-modals allow-popups allow-downloads`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`, `Cache-Control: private, no-store, no-transform` (`no-transform` stops Cloudflare from injecting its Web Analytics beacon and bot-detection script, which fail inside the sandbox). The sandbox (no `allow-same-origin`) gives the document an opaque origin, so artifact code cannot read app cookies, call the API with credentials or touch the parent page. The viewer iframe also sets the same `sandbox` attribute.
 
-Theme: every render document gets `THEME_CSS` (Claude-style tokens such as `--bg`, `--fg`, `--surface`, `--accent`, `--chart-1`…`--chart-6`, `--font`, `--mono`, only custom properties, in `@layer artifact-theme`) and `THEME_SCRIPT`. The script moves the token `<style>` to the start of `<head>`, so the layer is declared first and every artifact style, layered or not, wins over it. It sets `data-theme="light|dark"` on `<html>` unless the artifact set its own value. Shells (markdown, code, mermaid, slides, design, svg) carry them in `<head>`; html and motion get them appended after the content. The opaque-origin document cannot read the app's choice, so it posts `{ type: 'artifact-theme-request' }` to its parent and accepts only `{ type: 'artifact-theme', theme: 'light'|'dark'|'system' }` whose `source` is the parent; `app.js` answers the request and resends on iframe load and on every theme switch. Without a parent it follows `prefers-color-scheme`, except the `?print=1` tab, which is always light. The markdown, code and slides shells style themselves from the tokens and set `color-scheme`; the design and mermaid canvas chrome uses the tokens, but design artboards stay white by default. html, react and motion get no colors or `color-scheme` from the theme. React and design map the tokens to Tailwind colors (`bg-surface`, `text-fg`, …) with a `dark:` variant on `[data-theme=dark]`. Mermaid uses theme `base` with variables read from the tokens and redraws the SVG on a theme change.
+Theme: every non-Archify render document gets `THEME_CSS` (Claude-style tokens such as `--bg`, `--fg`, `--surface`, `--accent`, `--chart-1`…`--chart-6`, `--font`, `--mono`, only custom properties, in `@layer artifact-theme`) and `THEME_SCRIPT`. The script moves the token `<style>` to the start of `<head>`, so the layer is declared first and every artifact style, layered or not, wins over it. It sets `data-theme="light|dark"` on `<html>` unless the artifact set its own value. Shells (markdown, code, mermaid, slides, design, svg) carry them in `<head>`; html and motion get them appended after the content. The opaque-origin document cannot read the app's choice, so it posts `{ type: 'artifact-theme-request' }` to its parent and accepts only `{ type: 'artifact-theme', theme: 'light'|'dark'|'system' }` whose `source` is the parent; `app.js` answers the request and resends on iframe load and on every theme switch. Without a parent it follows `prefers-color-scheme`, except the `?print=1` tab, which is always light. The markdown, code and slides shells style themselves from the tokens and set `color-scheme`; the design and mermaid canvas chrome uses the tokens, but design artboards stay white by default. html, react and motion get no colors or `color-scheme` from the theme. React and design map the tokens to Tailwind colors (`bg-surface`, `text-fg`, …) with a `dark:` variant on `[data-theme=dark]`. Mermaid uses theme `base` with variables read from the tokens and redraws the SVG on a theme change.
+
+Archify rendering is asynchronous (`renderDocument` returns `Promise<string>` for every type). Writes validate with the real upstream renderer, run the same `scripts/check-render-output.mjs <output.html>` strict check as upstream finalize (including the explainer page), and reject output over 10 MiB with `archify-output-too-large`. The quality profile is the authored one (`meta.quality_profile` in JSON, the last `@meta quality_profile` outside code fences in a Markdown draft), else `showcase`. It is passed as `ARCHIFY_QUALITY_PROFILE`, as upstream finalize passes the `--quality` that its skill tells the agent to match to the authored profile. Render routes and HTML export read `{versionKey}.html` for the exact requested version when its `ARCHIFY_VERSION` custom metadata matches. Otherwise they render, serve and best-effort store the raw upstream HTML. Cached HTML never contains the serve-time wrappers.
+
+The serve-time wrapper appends the theme bridge, then `THEME_SCRIPT`; it adds the ready flag and print waiter only for `?print=1`. It does not add `THEME_CSS` to a successful Archify document: Archify owns variables with the same names, including `--bg`. The bridge receives `artifact-theme` and clicks an explainer's matching `[data-theme-choice]` button, calls `Archify.theme.toggle()` for a native diagram, or sets `data-theme` as a fallback. After an OS theme change it re-asserts the viewer choice because Archify also follows the OS. Thus print mode ends light, the upstream toolbar toggle still works, and the next viewer theme change takes precedence. A render-time `ArchifyError` returns an escaped diagnostics document with `THEME_HEAD` and the renderer-shell `color-scheme` CSS, with status 200 inside the sandbox; other errors propagate. Raw Archify downloads use `.json` for JSON source and `.archify.md` for Markdown drafts; Markdown export fences use `json` or `markdown` by the same source rule.
 
 Diagram zoom: html and react documents also get `DIAGRAM_ZOOM_SCRIPT`. A `MutationObserver` finds Mermaid SVGs that the artifact draws itself (`.mermaid > svg`, `svg[aria-roledescription][role~="graphics-document"]`) and adds pan and zoom by changing their `viewBox`, so the page layout never changes: drag, pinch or ctrl/cmd-wheel (a plain wheel still scrolls the page), double-click or `0` to reset, `+`/`-`/`f` when focused, and a hover toolbar (−, +, Fit, full screen) in a shadow root.
 

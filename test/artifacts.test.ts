@@ -499,32 +499,34 @@ describe('toView and fileName', () => {
     expect(toView({ ...base, shareId: 's1' }, 'https://x.test').shareUrl).toBe('https://x.test/s/s1');
   });
 
-  it('slugs the title and picks the extension by type and language', () => {
-    expect(fileName(base)).toBe('my-cool-chart.html');
-    expect(fileName({ ...base, type: 'react' })).toBe('my-cool-chart.jsx');
-    expect(fileName({ ...base, type: 'svg' })).toBe('my-cool-chart.svg');
-    expect(fileName({ ...base, type: 'mermaid' })).toBe('my-cool-chart.mmd');
-    expect(fileName({ ...base, type: 'markdown' })).toBe('my-cool-chart.md');
-    expect(fileName({ ...base, type: 'slides' })).toBe('my-cool-chart.md');
-    expect(fileName({ ...base, type: 'design' })).toBe('my-cool-chart.html');
-    expect(fileName({ ...base, type: 'motion' })).toBe('my-cool-chart.html');
-    expect(fileName({ ...base, type: 'code', language: 'Python' })).toBe('my-cool-chart.py');
-    expect(fileName({ ...base, type: 'code', language: 'typescript' })).toBe('my-cool-chart.ts');
-    expect(fileName({ ...base, type: 'code', language: 'js' })).toBe('my-cool-chart.js');
-    expect(fileName({ ...base, type: 'code', language: 'brainfuck' })).toBe('my-cool-chart.txt');
-    expect(fileName({ ...base, type: 'code' })).toBe('my-cool-chart.txt');
+  it('slugs the title and picks the extension by type, content and language', () => {
+    expect(fileName(base, 'x')).toBe('my-cool-chart.html');
+    expect(fileName({ ...base, type: 'react' }, 'x')).toBe('my-cool-chart.jsx');
+    expect(fileName({ ...base, type: 'svg' }, 'x')).toBe('my-cool-chart.svg');
+    expect(fileName({ ...base, type: 'mermaid' }, 'x')).toBe('my-cool-chart.mmd');
+    expect(fileName({ ...base, type: 'markdown' }, 'x')).toBe('my-cool-chart.md');
+    expect(fileName({ ...base, type: 'slides' }, 'x')).toBe('my-cool-chart.md');
+    expect(fileName({ ...base, type: 'design' }, 'x')).toBe('my-cool-chart.html');
+    expect(fileName({ ...base, type: 'motion' }, 'x')).toBe('my-cool-chart.html');
+    expect(fileName({ ...base, type: 'archify' }, '  {"diagram_type":"tree"}')).toBe('my-cool-chart.json');
+    expect(fileName({ ...base, type: 'archify' }, '# Explainer')).toBe('my-cool-chart.archify.md');
+    expect(fileName({ ...base, type: 'code', language: 'Python' }, 'x')).toBe('my-cool-chart.py');
+    expect(fileName({ ...base, type: 'code', language: 'typescript' }, 'x')).toBe('my-cool-chart.ts');
+    expect(fileName({ ...base, type: 'code', language: 'js' }, 'x')).toBe('my-cool-chart.js');
+    expect(fileName({ ...base, type: 'code', language: 'brainfuck' }, 'x')).toBe('my-cool-chart.txt');
+    expect(fileName({ ...base, type: 'code' }, 'x')).toBe('my-cool-chart.txt');
   });
 
   it('ignores inherited object properties as languages', () => {
-    expect(fileName({ ...base, type: 'code', language: 'constructor' })).toBe('my-cool-chart.txt');
-    expect(fileName({ ...base, type: 'code', language: '__proto__' })).toBe('my-cool-chart.txt');
-    expect(fileName({ ...base, type: 'code', language: 'toString' })).toBe('my-cool-chart.txt');
+    expect(fileName({ ...base, type: 'code', language: 'constructor' }, 'x')).toBe('my-cool-chart.txt');
+    expect(fileName({ ...base, type: 'code', language: '__proto__' }, 'x')).toBe('my-cool-chart.txt');
+    expect(fileName({ ...base, type: 'code', language: 'toString' }, 'x')).toBe('my-cool-chart.txt');
   });
 
   it('falls back to "artifact" and caps the slug at 60 characters', () => {
-    expect(fileName({ ...base, title: '***' })).toBe('artifact.html');
-    const long = fileName({ ...base, title: 'a'.repeat(100) });
+    expect(fileName({ ...base, title: '***' }, 'x')).toBe('artifact.html');
+    const long = fileName({ ...base, title: 'a'.repeat(100) }, 'x');
     expect(long).toBe(`${'a'.repeat(60)}.html`);
-    expect(fileName({ ...base, title: `${'a'.repeat(59)} b` })).toBe(`${'a'.repeat(59)}.html`);
+    expect(fileName({ ...base, title: `${'a'.repeat(59)} b` }, 'x')).toBe(`${'a'.repeat(59)}.html`);
   });
 });

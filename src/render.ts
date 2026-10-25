@@ -1,3 +1,4 @@
+import { ARCHIFY_VERSION, ArchifyError, archifyCacheKey, formatArchifyDiagnostics, renderArchify } from './archify';
 import type { ArtifactMeta } from './types';
 
 const JSDELIVR = 'https://cdn.jsdelivr.net/npm';
@@ -951,11 +952,79 @@ function motionDocument(content: string, print: boolean): string {
 
 // --- end motion ---
 
-export function renderDocument(
+const ARCHIFY_THEME_BRIDGE = `
+(function () {
+  var root = document.documentElement, wanted = null;
+  function sync() {
+    if (!wanted || root.dataset.theme === wanted) return;
+    var choice = document.querySelector('[data-theme-choice="' + wanted + '"]');
+    if (choice) choice.click();
+    else if (window.Archify && window.Archify.theme && typeof window.Archify.theme.toggle === 'function') window.Archify.theme.toggle();
+    else root.dataset.theme = wanted;
+  }
+  window.addEventListener('artifact-theme', function (event) { wanted = event.detail; sync(); });
+  // Archify follows OS theme changes by itself; restore the viewer's choice after it has run.
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function () { setTimeout(sync); });
+})();
+`;
+
+async function archifyDocument(
+  title: string,
+  content: string,
+  print: boolean,
+  cachedHtml?: string,
+  cache?: { env: Env; key: string; metaKey: string },
+): Promise<string> {
+  try {
+    const html = cachedHtml ?? (await renderArchify(content)).html;
+    if (cache && cachedHtml === undefined) {
+      try {
+        await cache.env.BUCKET.put(cache.key, html, { customMetadata: { ARCHIFY_VERSION } });
+        // A delete can list the artifact prefix while a cache miss is rendering.
+        const current = await cache.env.BUCKET.get(cache.metaKey);
+        const currentMeta = current ? await current.json<ArtifactMeta>() : undefined;
+        if (!currentMeta || currentMeta.expiresAt === '1970-01-01T00:00:00.000Z') await cache.env.BUCKET.delete(cache.key);
+      } catch {}
+    }
+    return withPrintScript(html + `\n<script>${ARCHIFY_THEME_BRIDGE}</script>\n<script>${THEME_SCRIPT}</script>`, print, true);
+  } catch (error) {
+    if (!(error instanceof ArchifyError)) throw error;
+    const diagnostics = escapeHtml(formatArchifyDiagnostics(error.diagnostics));
+    return withPrintScript(
+      '<!doctype html>\n<html lang="en"><head><meta charset="utf-8">\n' +
+        '<meta name="viewport" content="width=device-width, initial-scale=1">\n' +
+        `<title>${escapeHtml(title)}</title>\n<style>${SHELL_COLOR_SCHEME_CSS}</style>\n${THEME_HEAD}</head><body>` +
+        '<h1>Archify could not render this candidate.</h1>' +
+        `<pre id="artifact-error">${diagnostics}</pre></body></html>`,
+      print,
+      true,
+    );
+  }
+}
+
+export async function renderStoredDocument(
+  env: Env,
+  meta: ArtifactMeta,
+  content: string,
+  print = false,
+  version?: number,
+): Promise<string> {
+  if (meta.type !== 'archify') return renderDocument(meta, content, print);
+  const info = meta.versions.find((entry) => entry.version === (version ?? meta.version))!;
+  const key = archifyCacheKey(info.key);
+  let cachedHtml: string | undefined;
+  try {
+    const cached = await env.BUCKET.get(key);
+    if (cached?.customMetadata?.ARCHIFY_VERSION === ARCHIFY_VERSION) cachedHtml = await cached.text();
+  } catch {}
+  return archifyDocument(meta.title, content, print, cachedHtml, { env, key, metaKey: `artifacts/${meta.id}/meta.json` });
+}
+
+export async function renderDocument(
   meta: Pick<ArtifactMeta, 'type' | 'language' | 'title'>,
   content: string,
   print = false,
-): string {
+): Promise<string> {
   switch (meta.type) {
     case 'html':
       return withPrintScript(content + THEME_HEAD + `<script>${DIAGRAM_ZOOM_SCRIPT}</script>`, print, true);
@@ -1024,5 +1093,7 @@ export function renderDocument(
       return designDocument(meta.title, content, print);
     case 'motion':
       return motionDocument(content, print);
+    case 'archify':
+      return archifyDocument(meta.title, content, print);
   }
 }
