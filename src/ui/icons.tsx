@@ -310,6 +310,7 @@ const TYPE_ICONS: Record<ArtifactType, IconName> = {
   slides: 'presentation',
   design: 'frame',
   motion: 'clapperboard',
+  archify: 'git-fork',
 };
 
 export function TypeIcon({ type, size }: { type: ArtifactType; size?: number }) {

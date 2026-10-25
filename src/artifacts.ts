@@ -1,3 +1,4 @@
+import { ARCHIFY_VERSION, ArchifyError, archifyCacheKey, archifyContentIsJson, formatArchifyDiagnostics, renderArchify } from './archify';
 import {
   ARTIFACT_TYPES,
   type ArtifactMeta,
@@ -78,6 +79,25 @@ function validateContent(content: unknown): string {
     throw new ArtifactError(413, `content exceeds ${MAX_CONTENT_BYTES} bytes`);
   }
   return content;
+}
+
+async function validateArchify(type: ArtifactType, content: string): Promise<string | undefined> {
+  if (type !== 'archify') return undefined;
+  try {
+    return (await renderArchify(content)).html;
+  } catch (error) {
+    if (error instanceof ArchifyError) {
+      throw new ArtifactError(400, `Archify candidate is invalid:\n${formatArchifyDiagnostics(error.diagnostics)}`);
+    }
+    throw error;
+  }
+}
+
+async function cacheArchifyHtml(env: Env, versionKey: string, html: string | undefined): Promise<void> {
+  if (html === undefined) return;
+  try {
+    await env.BUCKET.put(archifyCacheKey(versionKey), html, { customMetadata: { ARCHIFY_VERSION } });
+  } catch {}
 }
 
 function validateLanguage(language: unknown): string | null {
@@ -222,10 +242,12 @@ export async function createArtifact(
   const type = validateType(input.type);
   const content = validateContent(input.content);
   const language = validateLanguage(input.language);
+  const archifyHtml = await validateArchify(type, content);
   const id = randomId();
   const createdAt = now.toISOString();
   const key = newVersionKey(id, 1);
   await env.BUCKET.put(key, content);
+  await cacheArchifyHtml(env, key, archifyHtml);
   const meta: ArtifactMeta = {
     id,
     ownerId,
@@ -302,6 +324,8 @@ export async function updateArtifact(
   }
   if (newStr !== undefined && typeof newStr !== 'string') throw new ArtifactError(400, 'new_str must be a string');
 
+  let validatedContent: string | undefined;
+  let validatedHtml: string | undefined;
   return modify(env, ownerId, id, now, async (meta) => {
     let nextContent = content;
     if (oldStr !== undefined) {
@@ -315,9 +339,14 @@ export async function updateArtifact(
     }
     const at = now.toISOString();
     if (nextContent === undefined) return { next: { ...meta, title: title ?? meta.title, updatedAt: at } };
+    if (nextContent !== validatedContent) {
+      validatedHtml = await validateArchify(meta.type, nextContent);
+      validatedContent = nextContent;
+    }
     const version = meta.version + 1;
     const key = newVersionKey(id, version);
     await env.BUCKET.put(key, nextContent);
+    await cacheArchifyHtml(env, key, validatedHtml);
     const next: ArtifactMeta = {
       ...meta,
       title: title ?? meta.title,
@@ -326,7 +355,7 @@ export async function updateArtifact(
       updatedAt: at,
       expiresAt: meta.expiresAt === null ? null : retentionEnd(now),
     };
-    return { next, rollback: () => env.BUCKET.delete(key) };
+    return { next, rollback: () => env.BUCKET.delete([key, archifyCacheKey(key)]) };
   });
 }
 
@@ -452,6 +481,7 @@ const TYPE_EXTENSIONS: Record<Exclude<ArtifactType, 'code'>, string> = {
   slides: 'md',
   design: 'html',
   motion: 'html',
+  archify: 'json',
 };
 
 // Title slugged for file names; shared by fileName and the export routes.
@@ -465,8 +495,14 @@ export function fileSlug(meta: ArtifactMeta): string {
   return slug || 'artifact';
 }
 
-export function fileName(meta: ArtifactMeta): string {
-  const extension =
-    meta.type === 'code' ? (meta.language && Object.hasOwn(LANGUAGE_EXTENSIONS, meta.language.toLowerCase()) && LANGUAGE_EXTENSIONS[meta.language.toLowerCase()]) || 'txt' : TYPE_EXTENSIONS[meta.type];
+export function fileName(meta: ArtifactMeta, content: string): string {
+  let extension: string;
+  if (meta.type === 'archify' && !archifyContentIsJson(content)) {
+    extension = 'archify.md';
+  } else if (meta.type === 'code') {
+    extension = (meta.language && Object.hasOwn(LANGUAGE_EXTENSIONS, meta.language.toLowerCase()) && LANGUAGE_EXTENSIONS[meta.language.toLowerCase()]) || 'txt';
+  } else {
+    extension = TYPE_EXTENSIONS[meta.type];
+  }
   return `${fileSlug(meta)}.${extension}`;
 }

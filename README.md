@@ -2,8 +2,8 @@
 
 A self-hosted take on Claude Artifacts for Cloudflare Workers. Agents create and update artifacts over MCP; you view, version, share and manage them in the browser.
 
-- **Types:** HTML, React (JSX/TSX with Tailwind and npm imports via esm.sh; also for dashboards), SVG, Mermaid, Markdown, code, slides (Markdown decks with keyboard navigation and one slide per printed page), design (HTML artboards on a pan-and-zoom canvas) and motion (CSS/Web Animations with a play, pause and scrub bar).
-- **Theme:** artifacts follow the app's System/Light/Dark choice through shared Claude-style CSS variables (also Tailwind colors in React and design).
+- **Types:** HTML, React (JSX/TSX with Tailwind and npm imports via esm.sh; also for dashboards), SVG, Mermaid, Markdown, code, slides (Markdown decks with keyboard navigation and one slide per printed page), design (HTML artboards on a pan-and-zoom canvas), motion (CSS/Web Animations with a play, pause and scrub bar) and Archify (interactive architecture, workflow, sequence, data and other diagrams, plus explainers).
+- **Theme:** artifacts follow the app's System/Light/Dark choice. Non-Archify documents share Claude-style CSS variables (also Tailwind colors in React and design); Archify uses its own theme.
 - **Viewer:** Preview/Code tabs, version history, copy, download, open in a new tab, edit, remix a shared artifact.
 - **Auth:** Google sign-in restricted to an email allowlist; OAuth 2.1 for MCP clients (consent through your Google session); personal API tokens for agents.
 - **Share:** public read-only links, revocable at any time.
@@ -11,6 +11,12 @@ A self-hosted take on Claude Artifacts for Cloudflare Workers. Agents create and
 - **MCP:** a stateless Streamable HTTP endpoint at `/mcp` with tools to list, get, create, update, delete, share and set retention.
 
 Storage: R2 holds artifact metadata and every version; KV holds the per-user index, share links, users and API tokens; a second KV namespace (`OAUTH_KV`) holds OAuth clients, grants and tokens. See [docs/design.md](docs/design.md) for the full contract.
+
+### Archify
+
+Archify 3.2.0 is vendored in `vendor/archify/` at the commit recorded in `vendor/archify/SOURCE`. Run `bun run archify:sync [ref]` to update the vendored renderer and the Archify references in the artifacts skill (the recorded commit is the default). Run `bun run archify:build` to generate the Worker engine; tests, typecheck, dev and build run this step automatically.
+
+The Worker validates and renders Archify candidates on create and content update, and stores the HTML beside that version in R2. Views and HTML export reuse the cached HTML for the exact version and render again only after a cache miss or renderer-version change. Repository evidence verification, URL brand-mark capture and upstream browser/visual checks are not available server-side.
 
 ## Cost
 
@@ -29,6 +35,8 @@ CPU time per request over 24 hours (2026-10-09, 945 Worker invocations, 0 errors
 | Render iframe and REST API | 51 | ~3 ms | ~6 ms |
 
 Static files (`/static/*`) are served as [Workers static assets](https://developers.cloudflare.com/workers/static-assets/billing-and-limitations/): free and not counted as requests. About 300 of the 945 invocations were bots probing paths such as `/.env`; they used 0–1 ms each.
+
+Archify cache hits do not run the diagram renderer. Each Archify version uses extra R2 storage for its cached upstream HTML: the bundled architecture and workflow examples are **826–831 KB**, and the bundled explainer is **132 KB** (measured on 2026-10-25). Theme and print wrappers are added at serve time and do not add to this stored size.
 
 **Use Workers Paid, not Workers Free.** The Free plan stops each request at 10 ms of CPU time, and the server-rendered pages above use 13–20 ms on average. Paid allows 30 s per request by default (up to 5 min) and includes 10 million requests and 30 million CPU milliseconds per month. The $5 is per Cloudflare account and also covers your other Workers.
 

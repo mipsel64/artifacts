@@ -1,11 +1,14 @@
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { renderDocument } from '../src/render';
 
 const meta = { type: 'design', language: null, title: 'Flow <1>' } as const;
 const fragment = '<div data-artboard="Home" style="width:390px;height:844px"><script>window.x = "</div>"</script></div>';
 
 describe('renderDocument design', () => {
-  const doc = renderDocument(meta, fragment);
+  let doc: string;
+  beforeAll(async () => {
+    doc = await renderDocument(meta, fragment);
+  });
 
   it('inserts the fragment raw inside the canvas, before the toolbar and script', () => {
     expect(doc).toContain(`<div id="viewport"><div id="canvas">${fragment}</div></div>`);
@@ -66,8 +69,8 @@ describe('renderDocument design', () => {
     for (const url of urls) expect(url).toMatch(/\/\*?(@[\w-]+\/)?[\w.-]+@\d+\.\d+\.\d+/);
   });
 
-  it('waits for the script readiness flag in print mode', () => {
-    const printed = renderDocument(meta, fragment, true);
+  it('waits for the script readiness flag in print mode', async () => {
+    const printed = await renderDocument(meta, fragment, true);
     expect(printed).toContain('window.print()');
     expect(printed).not.toContain('<script>window.__artifactReady = true</script>');
   });

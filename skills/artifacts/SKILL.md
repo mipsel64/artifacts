@@ -1,6 +1,6 @@
 ---
 name: artifacts
-description: "Create, update and share rendered artifacts with the `artifacts` MCP server (https://artifacts.m64.sh/mcp). Use it when the output is a deliverable that the user will view, reuse or change outside the chat. Deliverables: HTML page or report, React app or dashboard, slide deck, UI mockup or prototype, motion graphic. Also: Mermaid or SVG diagram, long Markdown document, standalone code sample. Also use it to revise, share or keep an artifact. It gives the theme tokens, house style and checks that make all artifacts look the same in light and dark mode. Do not use it for short answers, explanations, snippets of about 15 lines or fewer, or files that belong in a repository."
+description: "Create, update and share rendered artifacts with the `artifacts` MCP server (https://artifacts.m64.sh/mcp). Use it when the output is a deliverable that the user will view, reuse or change outside the chat. Deliverables: HTML page or report, React app or dashboard, slide deck, UI mockup or prototype, motion graphic. Also: Archify architecture, workflow, sequence, data-flow, lifecycle, ERD, class, tree, timeline and waterfall diagrams and one-page explainers; Mermaid or SVG diagram, long Markdown document, standalone code sample. Also use it to revise, share or keep an artifact. For types other than Archify, it gives the theme tokens, house style and checks that make artifacts look the same in light and dark mode. Do not use it for short answers, explanations, snippets of about 15 lines or fewer, or files that belong in a repository."
 ---
 
 # Artifacts
@@ -43,10 +43,15 @@ mcp({ server: "artifacts", tool: "create_artifact", args: { title: "Q3 signups",
 | A presentation | `slides` |
 | UI screens, a mockup, a flow or a clickable prototype | `design` |
 | An animated explainer or a motion graphic | `motion` |
-| A flowchart, sequence, state, ER or Gantt diagram | `mermaid` |
+| A quick flowchart, sequence, state, ER or Gantt diagram | `mermaid` |
+| An explorable, validated system, flow, schema, history or timing diagram, or a one-page explainer | `archify` |
 | An icon, a logo or an illustration | `svg` |
 | A document, guide, spec or written report | `markdown` |
 | A standalone source file | `code` with `language` |
+
+`archify` content is Archify JSON with `diagram_type` for a diagram, or an Archify Markdown draft for a one-page explainer. Read `references/archify.md` for the authoring and publishing guide.
+
+The theme contract, house style, design rules and publish checklist below do not apply to `archify`. Archify follows the viewer theme and uses its own presets.
 
 ## Theme contract
 

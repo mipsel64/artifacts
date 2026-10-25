@@ -17,7 +17,7 @@ export function Landing() {
     <section class="hero">
       <Logo size={48} />
       <h1>A home for what your agents make</h1>
-      <p class="lead">Create, version and share the HTML, React, slides, designs, motion, SVG, Mermaid, Markdown and code your agents write.</p>
+      <p class="lead">Create, version and share the HTML, React, slides, designs, motion, SVG, Mermaid, Archify, Markdown and code your agents write.</p>
       <a class="button button-primary button-lg" href="/auth/login">
         <GoogleMark />
         <span>Sign in with Google</span>

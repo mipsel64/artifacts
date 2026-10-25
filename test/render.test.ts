@@ -12,8 +12,8 @@ afterEach(() => reset());
 const meta = (type: ArtifactType, language: string | null = null, title = 'Demo') => ({ type, language, title });
 // What html documents get appended after the artifact's own markup.
 const THEME_TAIL = `<style>${THEME_CSS}</style>\n<script>${THEME_SCRIPT}</script><script>${DIAGRAM_ZOOM_SCRIPT}</script>`;
-// Types whose content is placed in the document as markup instead of embedded JSON.
-const RAW_TYPES: readonly ArtifactType[] = ['html', 'svg', 'design', 'motion'];
+// Types that do not embed source in the standard renderer page.
+const RAW_TYPES: readonly ArtifactType[] = ['html', 'svg', 'design', 'motion', 'archify'];
 
 function sourceData(doc: string): string {
   const match = /<script type="application\/json" id="artifact-source">([\s\S]*?)<\/script>/.exec(doc);
@@ -22,37 +22,37 @@ function sourceData(doc: string): string {
 }
 
 describe('renderDocument', () => {
-  it('returns html content unchanged, followed by the theme', () => {
+  it('returns html content unchanged, followed by the theme', async () => {
     const html = '<!doctype html><title>x</title><h1>Hi</h1>';
-    expect(renderDocument(meta('html'), html)).toBe(html + THEME_TAIL);
+    expect(await renderDocument(meta('html'), html)).toBe(html + THEME_TAIL);
   });
 
-  it('inlines svg markup, centred and scaled to fit', () => {
+  it('inlines svg markup, centred and scaled to fit', async () => {
     const svg = '<svg viewBox="0 0 10 10"><circle r="4"/></svg>';
-    const doc = renderDocument(meta('svg'), svg);
+    const doc = await renderDocument(meta('svg'), svg);
     expect(doc).toContain(svg);
     expect(doc).toContain('place-items:center');
     expect(doc).toContain('max-width:100vw');
   });
 
-  it('loads marked and github-markdown-css for markdown', () => {
-    const doc = renderDocument(meta('markdown'), '# Hi');
+  it('loads marked and github-markdown-css for markdown', async () => {
+    const doc = await renderDocument(meta('markdown'), '# Hi');
     expect(doc).toContain('marked@');
     expect(doc).toContain('github-markdown-css@');
     expect(doc).toContain('class="markdown-body"');
     expect(doc).toContain('marked.parse(');
   });
 
-  it('renders mermaid without startOnLoad and shows syntax errors', () => {
-    const doc = renderDocument(meta('mermaid'), 'graph TD; A-->B');
+  it('renders mermaid without startOnLoad and shows syntax errors', async () => {
+    const doc = await renderDocument(meta('mermaid'), 'graph TD; A-->B');
     expect(doc).toContain('mermaid@');
     expect(doc).toContain('startOnLoad: false');
     expect(doc).toContain('mermaid.render(');
     expect(doc).toContain('showError(err)');
   });
 
-  it('puts the mermaid diagram on the pan/zoom canvas and fits it after insertion', () => {
-    const doc = renderDocument(meta('mermaid'), 'graph TD; A-->B');
+  it('puts the mermaid diagram on the pan/zoom canvas and fits it after insertion', async () => {
+    const doc = await renderDocument(meta('mermaid'), 'graph TD; A-->B');
     expect(doc).toContain('<div id="viewport"><div id="canvas"></div></div>');
     expect(doc).toContain('aria-label="Canvas zoom"');
     expect(doc).toContain("svg.setAttribute('width', box.width)");
@@ -60,17 +60,17 @@ describe('renderDocument', () => {
     expect(doc.match(/__artifactReady = true/g)).toHaveLength(2);
   });
 
-  it('highlights code with highlight.js and the requested language', () => {
-    const doc = renderDocument(meta('code', 'python'), 'print(1)');
+  it('highlights code with highlight.js and the requested language', async () => {
+    const doc = await renderDocument(meta('code', 'python'), 'print(1)');
     expect(doc).toContain('@highlightjs/cdn-assets@');
     expect(doc).toContain('data-language="python"');
     expect(doc).toContain('hljs.getLanguage(language)');
     expect(doc).toContain('highlightAuto');
-    expect(renderDocument(meta('code'), 'print(1)')).toContain('data-language=""');
+    expect(await renderDocument(meta('code'), 'print(1)')).toContain('data-language=""');
   });
 
-  it('loads babel, tailwind and a single react import map for react', () => {
-    const doc = renderDocument(meta('react'), 'export default () => <p/>;');
+  it('loads babel, tailwind and a single react import map for react', async () => {
+    const doc = await renderDocument(meta('react'), 'export default () => <p/>;');
     expect(doc).toContain('@babel/standalone@');
     expect(doc).toContain('@tailwindcss/browser@4');
     const importMap = JSON.parse(/<script type="importmap">([\s\S]*?)<\/script>/.exec(doc)![1]).imports;
@@ -93,9 +93,9 @@ describe('renderDocument', () => {
 
   it.each(ARTIFACT_TYPES.filter((t) => !RAW_TYPES.includes(t)))(
     'embeds %s source as escaped JSON data that round-trips',
-    (type) => {
+    async (type) => {
       const content = 'a </script><script>alert(1)</script> & b\u2028c\u2029d <!-- "q" \\ é';
-      const doc = renderDocument(meta(type), content);
+      const doc = await renderDocument(meta(type), content);
       const data = sourceData(doc);
       expect(data).not.toMatch(/[<>&\u2028\u2029]/);
       expect(data.toLowerCase()).not.toContain('</script');
@@ -104,16 +104,16 @@ describe('renderDocument', () => {
     },
   );
 
-  it.each(ARTIFACT_TYPES.filter((t) => t !== 'html' && t !== 'motion'))('has charset, viewport and an escaped title for %s', (type) => {
-    const doc = renderDocument(meta(type, null, '<b>"A" & \'B\'</b>'), 'x');
+  it.each(ARTIFACT_TYPES.filter((t) => t !== 'html' && t !== 'motion' && t !== 'archify'))('has charset, viewport and an escaped title for %s', async (type) => {
+    const doc = await renderDocument(meta(type, null, '<b>"A" & \'B\'</b>'), 'x');
     expect(doc).toContain('<meta charset="utf-8">');
     expect(doc).toContain('<meta name="viewport"');
     expect(doc).toContain('<title>&#60;b&#62;&#34;A&#34; &#38; &#39;B&#39;&#60;/b&#62;</title>');
   });
 
-  it('creates the error panel on demand, once, for every scripted type', () => {
+  it('creates the error panel on demand, once, for every scripted type', async () => {
     for (const type of ['react', 'markdown', 'mermaid', 'code', 'slides'] as const) {
-      const doc = renderDocument(meta(type), 'x');
+      const doc = await renderDocument(meta(type), 'x');
       expect(doc.match(/artifact-error/g)).toHaveLength(3);
       expect(doc).not.toContain('<pre id="artifact-error"');
       expect(doc).toContain("document.createElement('pre')");
@@ -121,9 +121,9 @@ describe('renderDocument', () => {
     }
   });
 
-  it('pins an exact version in every CDN URL', () => {
+  it('pins an exact version in every CDN URL', async () => {
     for (const type of ['react', 'markdown', 'mermaid', 'code', 'slides'] as const) {
-      const doc = renderDocument(meta(type), 'x');
+      const doc = await renderDocument(meta(type), 'x');
       const urls = (doc.replace(sourceData(doc), '').match(/https:\/\/[^\s"'`<>)]+/g) ?? []).filter((u) => u !== 'https://esm.sh/');
       expect(urls.length).toBeGreaterThan(0);
       for (const url of urls) {
@@ -138,11 +138,11 @@ describe('renderDocument', () => {
 
     it.each(ARTIFACT_TYPES.filter((t) => !RAW_TYPES.includes(t)))(
       'appends the waiter to %s and lets its renderer signal readiness',
-      (type) => {
-        const doc = renderDocument(meta(type), 'x');
+      async (type) => {
+        const doc = await renderDocument(meta(type), 'x');
         expect(doc).not.toContain('window.print()');
         expect(doc).toContain('window.__artifactReady = true');
-        const printed = renderDocument(meta(type), 'x', true);
+        const printed = await renderDocument(meta(type), 'x', true);
         expect(printed).toContain('window.print()');
         expect(printed).toContain('const start=Date.now()');
         expect(printed).not.toContain('var start');
@@ -151,17 +151,17 @@ describe('renderDocument', () => {
       },
     );
 
-    it('appends the ready flag and waiter after html documents, even past misleading </body> text', () => {
+    it('appends the ready flag and waiter after html documents, even past misleading </body> text', async () => {
       const content = '<!doctype html><html><body><h1>hi</h1><!-- </body> --></body></html>';
-      expect(renderDocument(meta('html'), content)).toBe(content + THEME_TAIL);
-      const printed = renderDocument(meta('html'), content, true);
+      expect(await renderDocument(meta('html'), content)).toBe(content + THEME_TAIL);
+      const printed = await renderDocument(meta('html'), content, true);
       expect(printed.startsWith(content)).toBe(true);
       expect(printed).toContain(FLAG);
       expect(printed.indexOf('window.print()')).toBeGreaterThan(printed.toLowerCase().lastIndexOf('</body>'));
     });
 
-    it('appends the scripts to html without a body tag too', () => {
-      const printed = renderDocument(meta('html'), '<p>no body</p>', true);
+    it('appends the scripts to html without a body tag too', async () => {
+      const printed = await renderDocument(meta('html'), '<p>no body</p>', true);
       expect(printed.startsWith('<p>no body</p>')).toBe(true);
       expect(printed).toContain(FLAG);
       expect(printed).toContain('window.print()');

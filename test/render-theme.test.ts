@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { DIAGRAM_ZOOM_SCRIPT, THEME_CSS, THEME_SCRIPT, renderDocument } from '../src/render';
 import { ARTIFACT_TYPES, type ArtifactType } from '../src/types';
+import architecture from '../skills/artifacts/references/archify/examples/web-app.architecture.json';
 
-const render = (type: ArtifactType) => renderDocument({ type, language: null, title: 'Demo' }, 'x');
+const render = (type: ArtifactType) => renderDocument({ type, language: null, title: 'Demo' }, type === 'archify' ? JSON.stringify(architecture) : 'x');
 const SHELL_COLOR_SCHEME = ':root{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}';
 const TAILWIND_MAPPING = '<style type="text/tailwindcss">@theme inline{';
 
@@ -19,15 +20,18 @@ describe('artifact theme', () => {
     expect(THEME_CSS).not.toMatch(/[{;]color-scheme:|body|html|[{;](color|background)/);
   });
 
-  it.each(ARTIFACT_TYPES)('puts the theme in the %s document', (type) => {
-    const doc = render(type);
-    expect(doc).toContain(`<style>${THEME_CSS}</style>\n<script>${THEME_SCRIPT}</script>`);
+  it.each(ARTIFACT_TYPES)('puts the theme in the %s document', async (type) => {
+    const doc = await render(type);
+    if (type === 'archify') {
+      expect(doc).toContain(`<script>${THEME_SCRIPT}</script>`);
+      expect(doc).not.toContain(THEME_CSS);
+    } else expect(doc).toContain(`<style>${THEME_CSS}</style>\n<script>${THEME_SCRIPT}</script>`);
     expect(doc.split(THEME_SCRIPT)).toHaveLength(2);
   });
 
-  it('sets the theme in the head of renderer shells, before the body', () => {
+  it('sets the theme in the head of renderer shells, before the body', async () => {
     for (const type of ['markdown', 'mermaid', 'code', 'react', 'slides', 'design', 'svg'] as const) {
-      const doc = render(type);
+      const doc = await render(type);
       expect(doc.indexOf(THEME_SCRIPT)).toBeLessThan(doc.indexOf('</head>'));
     }
   });
@@ -48,13 +52,13 @@ describe('artifact theme', () => {
     expect(THEME_SCRIPT).toContain("var theme = printing ? 'light' :");
   });
 
-  it('keeps design artboards white by default, as a blank screen', () => {
-    expect(render('design')).toContain('@layer artboard { [data-artboard] { background: #fff; box-shadow');
+  it('keeps design artboards white by default, as a blank screen', async () => {
+    expect(await render('design')).toContain('@layer artboard { [data-artboard] { background: #fff; box-shadow');
   });
 
-  it('maps the tokens to Tailwind only for react and design', () => {
+  it('maps the tokens to Tailwind only for react and design', async () => {
     for (const type of ARTIFACT_TYPES) {
-      const doc = render(type);
+      const doc = await render(type);
       if (type === 'react' || type === 'design') {
         expect(doc).toContain(TAILWIND_MAPPING);
         expect(doc).toContain('--color-on-accent:var(--on-accent)');
@@ -65,36 +69,36 @@ describe('artifact theme', () => {
     }
   });
 
-  it('sets color-scheme only in renderer-owned document shells, never where artifact content inherits it', () => {
-    for (const type of ['markdown', 'code', 'slides'] as const) expect(render(type)).toContain(SHELL_COLOR_SCHEME);
+  it('sets color-scheme only in renderer-owned document shells, never where artifact content inherits it', async () => {
+    for (const type of ['markdown', 'code', 'slides'] as const) expect(await render(type)).toContain(SHELL_COLOR_SCHEME);
     for (const type of ['html', 'react', 'motion', 'svg', 'design', 'mermaid'] as const) {
-      const doc = render(type);
+      const doc = await render(type);
       expect(doc).not.toMatch(/[{;]color-scheme:/);
       expect(doc.replace(THEME_CSS, '')).not.toMatch(/body\{[^}]*background/);
     }
   });
 
-  it('follows data-theme instead of prefers-color-scheme in renderer shells', () => {
+  it('follows data-theme instead of prefers-color-scheme in renderer shells', async () => {
     for (const type of ['markdown', 'mermaid', 'slides', 'design'] as const)
-      expect(render(type).replace(THEME_CSS, '').replace(THEME_SCRIPT, '')).not.toContain('prefers-color-scheme');
+      expect((await render(type)).replace(THEME_CSS, '').replace(THEME_SCRIPT, '')).not.toContain('prefers-color-scheme');
   });
 
-  it('switches highlight.js styles by data-theme-css', () => {
-    const doc = render('code');
+  it('switches highlight.js styles by data-theme-css', async () => {
+    const doc = await render('code');
     expect(doc).toContain('styles/github.min.css" data-theme-css="light"');
     expect(doc).toContain('styles/github-dark.min.css" data-theme-css="dark"');
     expect(doc.indexOf('data-theme-css="dark"')).toBeLessThan(doc.indexOf(THEME_SCRIPT));
   });
 
-  it('points github-markdown-css variables at the tokens', () => {
-    const doc = render('markdown');
+  it('points github-markdown-css variables at the tokens', async () => {
+    const doc = await render('markdown');
     for (const pair of ['--fgColor-default:var(--fg)', '--bgColor-default:var(--bg)', '--bgColor-muted:var(--surface)', '--borderColor-default:var(--border)'])
       expect(doc).toContain(pair);
     expect(doc.indexOf('--fgColor-default:var(--fg)')).toBeGreaterThan(doc.indexOf('github-markdown-css@'));
   });
 
-  it('themes mermaid from the tokens and redraws only the SVG on a theme change', () => {
-    const doc = render('mermaid');
+  it('themes mermaid from the tokens and redraws only the SVG on a theme change', async () => {
+    const doc = await render('mermaid');
     expect(doc).toContain("theme: 'base'");
     expect(doc).toContain("primaryTextColor: token('fg')");
     expect(doc).toContain("window.addEventListener('artifact-theme'");
@@ -103,8 +107,8 @@ describe('artifact theme', () => {
 });
 
 describe('diagram zoom', () => {
-  it('is added to html and react only', () => {
-    for (const type of ARTIFACT_TYPES) expect(render(type).includes(DIAGRAM_ZOOM_SCRIPT)).toBe(type === 'html' || type === 'react');
+  it('is added to html and react only', async () => {
+    for (const type of ARTIFACT_TYPES) expect((await render(type)).includes(DIAGRAM_ZOOM_SCRIPT)).toBe(type === 'html' || type === 'react');
   });
 
   it('finds Mermaid diagrams, keeps plain wheel scrolling and never changes layout', () => {

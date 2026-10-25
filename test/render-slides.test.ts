@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { renderDocument } from '../src/render';
 
-const doc = renderDocument({ type: 'slides', language: null, title: 'Deck' }, '# One\n\n---\n\n# Two');
+const doc = await renderDocument({ type: 'slides', language: null, title: 'Deck' }, '# One\n\n---\n\n# Two');
 
 describe('renderDocument slides', () => {
   it('embeds the source and splits marked tokens on hr', () => {

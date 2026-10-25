@@ -1,6 +1,6 @@
 # Artifact types: recipes and limits
 
-Each section gives the renderer behavior, the limits and a small example. All types run in the same sandbox and get the theme tokens from `SKILL.md`.
+Each section gives the renderer behavior, the limits and a small example. All types run in the same sandbox and receive theme support. Archify uses its own viewer styles; the other types use the theme tokens from `SKILL.md`.
 
 ## html
 
@@ -128,6 +128,14 @@ Platform team, October 2026
 </body>
 </html>
 ```
+
+## archify
+
+- Send Archify JSON with `schema_version`, `diagram_type` and `meta` for a native diagram. Send the Archify Markdown draft for an explainer. Omit `meta.output`.
+- The server validates the candidate and renders the real interactive Archify viewer.
+- An invalid candidate comes back as a tool error with diagnostics. A failed create stores nothing; a failed update leaves the existing version unchanged.
+- Archify follows the viewer's light/dark choice. Its own presets control its style.
+- Read `archify.md` before you author. It routes each diagram type to its schema and example.
 
 ## mermaid
 

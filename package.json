@@ -5,8 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "wrangler dev --local-upstream localhost:8787",
-    "test": "vitest run",
-    "typecheck": "tsc --noEmit",
+    "archify:sync": "bun scripts/archify-sync.ts",
+    "archify:build": "bun scripts/archify-build.ts",
+    "test": "bun run archify:build && vitest run",
+    "typecheck": "bun run archify:build && tsc --noEmit",
     "types": "wrangler types --strict-vars=false",
     "build": "wrangler deploy --dry-run --outdir dist"
   },
@@ -14,10 +16,13 @@
     "@cloudflare/workers-oauth-provider": "^1.2.3",
     "@modelcontextprotocol/sdk": "^1.32.1",
     "hono": "^4.13.13",
+    "memfs": "^4.80.0",
     "zod": "^4"
   },
   "devDependencies": {
     "@cloudflare/vitest-plugin": "^1.4.0",
+    "@types/node": "^26.6.5",
+    "esbuild": "^0.28.2",
     "typescript": "^7.0.2",
     "vitest": "^5.0.3",
     "wrangler": "^4.149.0"
