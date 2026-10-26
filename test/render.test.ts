@@ -306,7 +306,7 @@ describe('shared artifact routes', () => {
 
     const old = new Date('2020-01-01T00:00:00.000Z');
     const expired = await createArtifact(env, user.id, { title: 'Old', type: 'html', content: '<p>old</p>' }, old);
-    const { shareId: expiredShare } = await shareArtifact(env, user.id, expired.id, old);
+    const { shareId: expiredShare } = await shareArtifact(env, user.id, expired.id, {}, old);
     expect((await request(`/s/${expiredShare}/render`)).status).toBe(404);
     expect((await request(`/s/${expiredShare}/raw`)).status).toBe(404);
   });

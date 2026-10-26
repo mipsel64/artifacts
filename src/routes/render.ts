@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import type { MiddlewareHandler } from 'hono';
-import { ArtifactError, fileName, getArtifact, getContent, getSharedArtifact } from '../artifacts';
-import { requireUser } from '../auth';
+import { ArtifactError, canViewShare, fileName, getArtifact, getContent, getSharedArtifact } from '../artifacts';
+import { readSession, requireUser } from '../auth';
 import { renderStoredDocument } from '../render';
 import type { AppEnv } from '../types';
 
@@ -38,12 +38,16 @@ routes.get('/render/:id', requireUser, async (c) => {
 
 routes.get('/s/:shareId/render', async (c) => {
   const meta = await getSharedArtifact(c.env, c.req.param('shareId'));
+  const viewer = await readSession(c.env, c.req.header('Cookie'));
+  if (!canViewShare(meta, viewer)) throw new ArtifactError(403, 'Sign in with an account that has access to this link');
   const print = c.req.query('print') === '1';
   return c.body(await renderStoredDocument(c.env, meta, await getContent(c.env, meta), print), 200, { 'Content-Type': HTML });
 });
 
 routes.get('/s/:shareId/raw', async (c) => {
   const meta = await getSharedArtifact(c.env, c.req.param('shareId'));
+  const viewer = await readSession(c.env, c.req.header('Cookie'));
+  if (!canViewShare(meta, viewer)) throw new ArtifactError(403, 'Sign in with an account that has access to this link');
   const content = await getContent(c.env, meta);
   if (c.req.query('download') === '1') c.header('Content-Disposition', `attachment; filename="${fileName(meta, content)}"`);
   return c.body(content, 200, { 'Content-Type': 'text/plain; charset=utf-8' });

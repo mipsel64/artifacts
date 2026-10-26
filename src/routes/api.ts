@@ -24,8 +24,15 @@ const routes = new Hono<AppEnv>();
 
 routes.use('/api/artifacts/*', requireUser);
 
-async function readBody(c: Context<AppEnv>): Promise<Record<string, unknown>> {
-  const body: unknown = await c.req.json().catch(() => undefined);
+async function readBody(c: Context<AppEnv>, allowEmpty = false): Promise<Record<string, unknown>> {
+  const text = await c.req.text();
+  if (allowEmpty && text === '') return {};
+  let body: unknown;
+  try {
+    body = JSON.parse(text);
+  } catch {
+    throw new ArtifactError(400, 'body must be a JSON object');
+  }
   if (typeof body !== 'object' || body === null || Array.isArray(body)) {
     throw new ArtifactError(400, 'body must be a JSON object');
   }
@@ -132,9 +139,10 @@ routes.put('/api/artifacts/:id/retention', async (c) => {
   return c.json(toView(await setRetention(c.env, c.var.user.id, c.req.param('id'), permanent), origin(c)));
 });
 
-routes.post('/api/artifacts/:id/share', async (c) =>
-  c.json(toView(await shareArtifact(c.env, c.var.user.id, c.req.param('id')), origin(c))),
-);
+routes.post('/api/artifacts/:id/share', async (c) => {
+  const body = await readBody(c, true);
+  return c.json(toView(await shareArtifact(c.env, c.var.user.id, c.req.param('id'), body), origin(c)));
+});
 
 routes.delete('/api/artifacts/:id/share', async (c) =>
   c.json(toView(await unshareArtifact(c.env, c.var.user.id, c.req.param('id')), origin(c))),

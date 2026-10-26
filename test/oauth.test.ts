@@ -3,7 +3,7 @@ import { env } from 'cloudflare:workers';
 import { createExecutionContext, createScheduledController, reset, waitOnExecutionContext } from 'cloudflare:test';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createArtifact, listArtifacts } from '../src/artifacts';
-import { toBase64Url } from '../src/auth';
+import { SESSION_COOKIE, createSessionCookie, toBase64Url } from '../src/auth';
 import main from '../src/index';
 import authRoutes from '../src/routes/auth';
 import { ORIGIN, bearer, createTestUser, request } from './helpers';
@@ -15,6 +15,7 @@ afterEach(() => {
 
 const MCP = `${ORIGIN}/mcp`;
 const REDIRECT = 'https://client.example.com/cb';
+const STATE_COOKIE = '__Host-oauth_state';
 const LOOPBACK_REDIRECT = 'http://localhost:8976/callback';
 const XSS_NAME = '<img src=x onerror=alert(1)>';
 const MCP_HEADERS = { 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream' };
@@ -189,6 +190,17 @@ describe('GET /authorize sign-in redirect', () => {
     expect(new URL(res.headers.get('Location')!, ORIGIN).pathname).toBe('/auth/login');
   });
 
+  it('sends a non-allowlisted viewer session back to sign-in', async () => {
+    const cookie = (await createSessionCookie(env, { id: 'google_v1', email: 'carol@acme.dev', hostedDomain: 'acme.dev' })).split(';')[0];
+    const { challenge } = await pkce();
+    const path = authorizePath(await registerClient(), challenge);
+    const res = await request(path, { headers: { Cookie: cookie }, redirect: 'manual' });
+    expect(res.status).toBe(302);
+    const location = new URL(res.headers.get('Location')!, ORIGIN);
+    expect(location.pathname).toBe('/auth/login');
+    expect(location.searchParams.get('next')).toBe(path);
+  });
+
   it('renders an error page, without redirecting, for an unknown client or an unregistered redirect URI', async () => {
     const { cookie } = await createTestUser();
     const { challenge } = await pkce();
@@ -227,8 +239,9 @@ describe('sign-in next round trip', () => {
       return Response.json({ id_token: idToken });
     });
     const state = location.searchParams.get('state');
+    const stateCookie = login.headers.getSetCookie().find((cookie) => cookie.startsWith(`${STATE_COOKIE}=`))!;
     return authRoutes.fetch(
-      new Request(`${ORIGIN}/auth/callback?code=c0de&state=${state}`, { headers: { Cookie: login.headers.getSetCookie()[0].split(';')[0] } }),
+      new Request(`${ORIGIN}/auth/callback?code=c0de&state=${state}`, { headers: { Cookie: stateCookie.split(';')[0] } }),
       env,
     );
   }
@@ -239,7 +252,7 @@ describe('sign-in next round trip', () => {
     const res = await signInWithNext(path);
     expect(res.status).toBe(302);
     expect(res.headers.get('Location')).toBe(path);
-    expect(res.headers.getSetCookie().some((c) => c.startsWith('session='))).toBe(true);
+    expect(res.headers.getSetCookie().some((c) => c.startsWith(`${SESSION_COOKIE}=`))).toBe(true);
   });
 
   it.each([

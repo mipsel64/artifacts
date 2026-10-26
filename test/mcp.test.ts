@@ -107,6 +107,16 @@ describe('MCP tools', () => {
     expect(gone).toMatchObject({ isError: true, text: 'Artifact not found' });
   });
 
+  it('sets a share audience and keeps it when omitted', async () => {
+    const { token } = await createTestUser();
+    const { value: created } = await callTool(token, 'create_artifact', { title: 'Page', type: 'html', content: '<p>x</p>' });
+    const shared = await callTool(token, 'share_artifact', { id: created.id, audience: ['Carol@ACME.DEV', 'carol@acme.dev'] });
+    expect(shared.value.shareAudience).toEqual(['carol@acme.dev']);
+    const again = await callTool(token, 'share_artifact', { id: created.id });
+    expect(again.value.shareAudience).toEqual(['carol@acme.dev']);
+    expect(again.value.shareId).toBe(shared.value.shareId);
+  });
+
   it('returns domain errors as isError results', async () => {
     const { token } = await createTestUser();
     const { value } = await callTool(token, 'create_artifact', { title: 'Page', type: 'html', content: '<p>x</p>' });

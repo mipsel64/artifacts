@@ -5,8 +5,8 @@ A self-hosted take on Claude Artifacts for Cloudflare Workers. Agents create and
 - **Types:** HTML, React (JSX/TSX with Tailwind and npm imports via esm.sh; also for dashboards), SVG, Mermaid, Markdown, code, slides (Markdown decks with keyboard navigation and one slide per printed page), design (HTML artboards on a pan-and-zoom canvas), motion (CSS/Web Animations with a play, pause and scrub bar) and Archify (interactive architecture, workflow, sequence, data and other diagrams, plus explainers).
 - **Theme:** artifacts follow the app's System/Light/Dark choice. Non-Archify documents share Claude-style CSS variables (also Tailwind colors in React and design); Archify uses its own theme.
 - **Viewer:** Preview/Code tabs, version history, copy, download, open in a new tab, edit, remix a shared artifact.
-- **Auth:** Google sign-in restricted to an email allowlist; OAuth 2.1 for MCP clients (consent through your Google session); personal API tokens for agents.
-- **Share:** public read-only links, revocable at any time.
+- **Auth:** Google sign-in for allowlisted users and restricted share viewers; OAuth 2.1 for MCP clients (consent through your Google session); personal API tokens for agents.
+- **Share:** read-only links for anyone or for listed emails and Google Workspace domains, revocable at any time.
 - **Retention:** artifacts expire 30 days after their last content change. Make one permanent, set it back to expiring, or delete it. A daily cron (03:00 UTC) removes expired artifacts.
 - **MCP:** a stateless Streamable HTTP endpoint at `/mcp` with tools to list, get, create, update, delete, share and set retention.
 
@@ -104,6 +104,8 @@ openssl rand -base64 48 | bunx wrangler secret put SESSION_SECRET
 bunx wrangler deploy
 ```
 
+Deploy only from merged `main`. A rollback to a version before restricted share links serves restricted links to anyone with the link. Unshare or delete restricted links before such a rollback.
+
 All four values are Worker secrets, so the committed config holds no personal data.
 
 ## Connect an agent
@@ -139,14 +141,14 @@ Other MCP clients:
   "headers": { "Authorization": "Bearer <YOUR_TOKEN>" } } } }
 ```
 
-Tools: `list_artifacts`, `get_artifact`, `create_artifact`, `update_artifact` (full rewrite or `old_str`/`new_str` edit), `delete_artifact`, `set_artifact_retention`, `share_artifact`, `unshare_artifact`.
+Tools: `list_artifacts`, `get_artifact`, `create_artifact`, `update_artifact` (full rewrite or `old_str`/`new_str` edit), `delete_artifact`, `set_artifact_retention`, `share_artifact` (optional `audience` list of emails and `@domain` entries), `unshare_artifact`.
 
 The same token works with the REST API under `/api/artifacts` (see [docs/design.md](docs/design.md#http-surface)).
 
 ## Security model
 
 - Artifact code runs in a sandboxed document (`Content-Security-Policy: sandbox` without `allow-same-origin`). It gets an opaque origin, so it cannot read your cookies, call the API as you or touch the app page.
-- Sign-in is Google OpenID Connect (authorization code flow with PKCE, `state` and `nonce`; the ID token must have a verified email). Only addresses listed in `ALLOWED_EMAILS` can sign in: an exact match, no wildcards or domains. The allowlist is re-checked on every request. Your identity is bound to the Google account id (`sub`), not the email address. Sessions are HMAC-signed cookies (`HttpOnly`, `Secure`, `SameSite=Lax`) and cookie-authenticated writes require a same-origin `Origin` header.
+- Sign-in is Google OpenID Connect (authorization code flow with PKCE, `state` and `nonce`; the ID token must have a verified email). `ALLOWED_EMAILS` contains exact emails only, with case-insensitive matching and no wildcards or domains. People outside `ALLOWED_EMAILS` can sign in only from a share page to view a link shared with them. Their viewer sessions cannot open the library, API, Settings, MCP or OAuth consent page. The allowlist is re-checked on every request for those areas. Your identity is bound to the Google account id (`sub`), not the email address. Sessions are HMAC-signed cookies (`HttpOnly`, `Secure`, `SameSite=Lax`) and carry the Google hosted domain (`hd`). A domain share entry needs a Google Workspace account on that domain and does not match subdomains. Cookie-authenticated writes require a same-origin `Origin` header.
 - API tokens are stored only as SHA-256 hashes and are shown once.
 - MCP OAuth (`@cloudflare/workers-oauth-provider`): PKCE S256, dynamic client registration, consent on every authorization behind your Google session, a browser-bound single-use consent handle, no framing. Self-registered client names are not verified, so the consent page shows where access goes and warns about localhost redirects. Tokens are stored hashed. The allowlist is re-checked on every `/mcp` request, and revoking an app in Settings stops it (within about a minute in other locations, as with API tokens).
 - KV is eventually consistent: the artifact list can lag for up to about a minute in other locations, and a revoked token can keep working there for about a minute. Share revocation is immediate.

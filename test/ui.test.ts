@@ -5,7 +5,7 @@ import { createArtifact, setRetention, shareArtifact, unshareArtifact, updateArt
 import { upsertUser } from '../src/auth';
 import { ARTIFACT_TYPES } from '../src/types';
 import { formatDateTime, retentionLabel } from '../src/ui/format';
-import { createTestUser, request } from './helpers';
+import { createTestUser, ORIGIN, request } from './helpers';
 
 afterEach(() => reset());
 
@@ -442,7 +442,7 @@ describe('viewer', () => {
     expect(body).toContain('<div role="tablist" aria-label="Share" class="tabs">');
     expect(body).toContain('>Link</span>');
     expect(body).toContain('>Export</span>');
-    expect(body).toContain('data-share-new="true"><p class="popover-text">Share a read-only public link.</p>');
+    expect(body).toContain('data-share-new="true">');
     expect(body).toContain('>Create link</button>');
     expect(body).toContain('data-share-active="true" hidden=""');
     expect(body).toContain('>Markdown</span><span class="export-ext">.md</span>');
@@ -540,6 +540,52 @@ describe('edit page', () => {
     const bob = await createTestUser('bob@example.com', '2');
     const bobs = await createArtifact(env, bob.user.id, { title: 'Bobs', type: 'html', content: 'x' });
     expect((await request(`/a/${bobs.id}/edit`, init)).status).toBe(404);
+  });
+});
+
+describe('restricted sharing', () => {
+  it('renders the saved restricted audience for the owner', async () => {
+    const { user, cookie } = await createTestUser();
+    const meta = await createArtifact(env, user.id, { title: 'Doc', type: 'html', content: 'x' });
+    const shared = await request(`/api/artifacts/${meta.id}/share`, {
+      method: 'POST',
+      headers: { Cookie: cookie, Origin: ORIGIN, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ audience: ['Carol@Acme.dev', '@acme.dev'] }),
+    });
+    expect(shared.status).toBe(200);
+
+    const body = await (await request(`/a/${meta.id}`, asUser(cookie))).text();
+    expect(body).toMatch(/name="share-access" value="restricted" checked/);
+    expect(body).toContain('>carol@acme.dev\n@acme.dev</textarea>');
+  });
+
+  it('renders the anyone option for a public share', async () => {
+    const { user, cookie } = await createTestUser();
+    const meta = await createArtifact(env, user.id, { title: 'Doc', type: 'html', content: 'x' });
+    const shared = await request(`/api/artifacts/${meta.id}/share`, {
+      method: 'POST',
+      headers: { Cookie: cookie, Origin: ORIGIN, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ audience: null }),
+    });
+    expect(shared.status).toBe(200);
+
+    const body = await (await request(`/a/${meta.id}`, asUser(cookie))).text();
+    expect(body).toMatch(/name="share-access" value="anyone" checked/);
+  });
+
+  it('offers Google sign-in on a restricted link when signed out', async () => {
+    const { user, cookie } = await createTestUser();
+    const meta = await createArtifact(env, user.id, { title: 'Doc', type: 'html', content: 'x' });
+    const shared = await request(`/api/artifacts/${meta.id}/share`, {
+      method: 'POST',
+      headers: { Cookie: cookie, Origin: ORIGIN, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ audience: ['carol@acme.dev'] }),
+    });
+    const { shareId } = (await shared.json()) as { shareId: string };
+
+    const res = await request(`/s/${shareId}`);
+    expect(res.status).toBe(403);
+    expect(await res.text()).toContain(`href="/auth/login?next=%2Fs%2F${shareId}"`);
   });
 });
 

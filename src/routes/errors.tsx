@@ -6,7 +6,7 @@ import { Icon, type IconName } from '../ui/icons';
 import { identify } from '../ui/identify';
 import { Layout, type Identity } from '../ui/layout';
 
-type Status = 400 | 404 | 409 | 413 | 500;
+type Status = 400 | 403 | 404 | 409 | 413 | 500;
 
 interface ErrorCopy {
   heading: string;

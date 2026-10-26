@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { deleteCookie, getSignedCookie, setSignedCookie } from 'hono/cookie';
 import { ArtifactError, randomId } from '../artifacts';
 import {
+  VIEWER_SESSION_TTL_SECONDS,
   clearSessionCookie,
   createApiToken,
   createSessionCookie,
@@ -15,15 +16,17 @@ import {
 } from '../auth';
 import type { AppEnv } from '../types';
 
-const STATE_COOKIE = 'oauth_state';
-const STATE_COOKIE_PATH = '/auth';
+const STATE_COOKIE = '__Host-oauth_state';
 const SIGN_IN_FAILED = 'Google sign-in failed';
 export const MAX_NEXT_LENGTH = 2000;
 const GOOGLE_ISSUERS = ['https://accounts.google.com', 'accounts.google.com'];
+const SHARE_PATH_PATTERN = /^\/s\/[A-Za-z0-9_-]{1,64}$/;
 
-// Only /authorize?... on this origin: the sign-in redirect must never leave the app (no open redirect).
+// Only local authorize or share paths: the sign-in redirect must never leave the app (no open redirect).
 function safeNext(raw: string | undefined | null, origin: string): string | null {
-  if (!raw?.startsWith('/authorize?') || raw.length > MAX_NEXT_LENGTH) return null;
+  if (!raw || raw.length > MAX_NEXT_LENGTH) return null;
+  if (SHARE_PATH_PATTERN.test(raw)) return raw;
+  if (!raw.startsWith('/authorize?')) return null;
   const url = new URL(raw, origin);
   return url.origin === origin && url.pathname === '/authorize' ? url.pathname + url.search : null;
 }
@@ -42,7 +45,7 @@ routes.get('/auth/login', async (c) => {
     httpOnly: true,
     secure: true,
     sameSite: 'Lax',
-    path: STATE_COOKIE_PATH,
+    path: '/',
     maxAge: 600,
   });
   const params = new URLSearchParams({
@@ -61,7 +64,7 @@ routes.get('/auth/login', async (c) => {
 
 routes.get('/auth/callback', async (c) => {
   const saved = await getSignedCookie(c, c.env.SESSION_SECRET, STATE_COOKIE);
-  deleteCookie(c, STATE_COOKIE, { path: STATE_COOKIE_PATH, httpOnly: true, secure: true, sameSite: 'Lax' });
+  deleteCookie(c, STATE_COOKIE, { path: '/', httpOnly: true, secure: true, sameSite: 'Lax' });
   if (c.req.query('error') !== undefined) return c.text('Google sign-in was cancelled', 400);
   const code = c.req.query('code');
   const state = c.req.query('state');
@@ -106,15 +109,24 @@ routes.get('/auth/callback', async (c) => {
     return c.text(SIGN_IN_FAILED, 502);
   }
   if (email_verified !== true) return c.text('Email address is not verified', 403);
-  if (!isAllowed(c.env, email)) return c.text(`${email} is not allowed to sign in`, 403);
+  if (!/^[\x21-\x7e]+$/.test(email)) return c.text(`${email} is not allowed to sign in`, 403);
+  const origin = new URL(c.req.url).origin;
+  const next = safeNext(nextParts.join('.'), origin);
+  const hostedDomain = typeof claims.hd === 'string' && claims.hd ? claims.hd.toLowerCase() : null;
+  if (!isAllowed(c.env, email)) {
+    if (!next || !SHARE_PATH_PATTERN.test(next)) return c.text(`${email} is not allowed to sign in`, 403);
+    const viewer = { id: `google_${sub}`, email: email.toLowerCase(), hostedDomain };
+    c.header('Set-Cookie', await createSessionCookie(c.env, viewer, undefined, VIEWER_SESSION_TTL_SECONDS), { append: true });
+    return c.redirect(next, 302);
+  }
   const user = await upsertUser(c.env, {
     sub,
     email,
     name: typeof name === 'string' ? name : null,
     avatarUrl: typeof picture === 'string' ? picture : null,
   });
-  c.header('Set-Cookie', await createSessionCookie(c.env, user), { append: true });
-  return c.redirect(safeNext(nextParts.join('.'), new URL(c.req.url).origin) ?? '/', 302);
+  c.header('Set-Cookie', await createSessionCookie(c.env, { ...user, hostedDomain }), { append: true });
+  return c.redirect(next ?? '/', 302);
 });
 
 routes.post('/auth/logout', (c) => {

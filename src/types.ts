@@ -6,6 +6,10 @@ export interface SessionUser {
   email: string;
 }
 
+export interface Session extends SessionUser {
+  hostedDomain: string | null;
+}
+
 export interface User extends SessionUser {
   name: string | null;
   avatarUrl: string | null;
@@ -31,6 +35,7 @@ export interface ArtifactMeta {
   updatedAt: string;
   expiresAt: string | null;
   shareId: string | null;
+  shareAudience: string[] | null;
 }
 
 export interface ArtifactSummary {

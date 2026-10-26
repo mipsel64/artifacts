@@ -5,20 +5,24 @@ import {
   type ArtifactSummary,
   type ArtifactType,
   type ArtifactView,
+  type Session,
 } from './types';
 
 export const RETENTION_DAYS = 30;
 export const MAX_CONTENT_BYTES = 1024 * 1024;
 export const MAX_TITLE_LENGTH = 200;
+export const MAX_SHARE_AUDIENCE = 50;
 
 const DAY_MS = 24 * 3600 * 1000;
 const MAX_ATTEMPTS = 3;
 const MAX_LANGUAGE_LENGTH = 32;
 const LANGUAGE_PATTERN = /^[A-Za-z0-9+#._-]+$/;
+const DOMAIN_PATTERN = /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
+const EMAIL_LOCAL_PATTERN = /^[^\s@,;<>()"]{1,64}$/;
 
 export class ArtifactError extends Error {
   constructor(
-    public status: 400 | 404 | 409 | 413,
+    public status: 400 | 403 | 404 | 409 | 413,
     message: string,
   ) {
     super(message);
@@ -116,7 +120,36 @@ function validateLanguage(language: unknown): string | null {
 async function readMeta(env: Env, id: string): Promise<{ meta: ArtifactMeta; etag: string } | null> {
   const object = await env.BUCKET.get(metaKey(id));
   if (!object) return null;
-  return { meta: await object.json<ArtifactMeta>(), etag: object.etag };
+  const stored = await object.json<Omit<ArtifactMeta, 'shareAudience'> & { shareAudience?: string[] | null }>();
+  return { meta: { ...stored, shareAudience: stored.shareAudience ?? null }, etag: object.etag };
+}
+
+function validateShareAudience(audience: unknown): string[] | null {
+  if (audience === null) return null;
+  if (!Array.isArray(audience) || audience.some((entry) => typeof entry !== 'string')) {
+    throw new ArtifactError(400, 'audience must be null or a list of emails and @domains');
+  }
+  if (audience.length === 0) {
+    throw new ArtifactError(400, 'audience must list at least one email or @domain; use null to let anyone with the link view');
+  }
+  const trimmed = audience.map((entry) => entry.trim());
+  const nonAscii = trimmed.find((entry) => !/^[\x21-\x7e]+$/.test(entry));
+  if (nonAscii !== undefined) {
+    throw new ArtifactError(400, `audience entries must be emails (alice@example.com) or domains (@example.com): ${nonAscii.slice(0, 100)}`);
+  }
+  const entries = [...new Set(trimmed.map((entry) => entry.toLowerCase()))];
+  if (entries.length > MAX_SHARE_AUDIENCE) throw new ArtifactError(400, 'audience can list at most 50 entries');
+  for (const entry of entries) {
+    const parts = entry.split('@');
+    const domainEntry = entry.startsWith('@');
+    const domain = domainEntry ? entry.slice(1) : parts[1];
+    const validDomain = domain !== undefined && domain.length <= 253 && DOMAIN_PATTERN.test(domain);
+    const validLocal = parts[0].length <= 64 && EMAIL_LOCAL_PATTERN.test(parts[0]) && !parts[0].includes('*');
+    if (entry.length > 254 || (domainEntry ? !validDomain : parts.length !== 2 || !validLocal || !validDomain)) {
+      throw new ArtifactError(400, `audience entries must be emails (alice@example.com) or domains (@example.com): ${entry.slice(0, 100)}`);
+    }
+  }
+  return entries;
 }
 
 // KV allows one write per second per key and may throw after the R2 commit; the index must never fail a committed mutation.
@@ -260,6 +293,7 @@ export async function createArtifact(
     updatedAt: createdAt,
     expiresAt: retentionEnd(now),
     shareId: null,
+    shareAudience: null,
   };
   await env.BUCKET.put(metaKey(id), JSON.stringify(meta), { httpMetadata: { contentType: 'application/json' } });
   await putIndex(env, meta);
@@ -380,12 +414,36 @@ export async function deleteArtifact(env: Env, ownerId: string, id: string): Pro
   throw new ArtifactError(409, 'Artifact was modified concurrently, retry');
 }
 
-export function shareArtifact(env: Env, ownerId: string, id: string, now: Date = new Date()): Promise<ArtifactMeta> {
+export function canViewShare(meta: ArtifactMeta, viewer: Session | null): boolean {
+  if (meta.shareAudience === null) return true;
+  if (viewer === null) return false;
+  if (viewer.id === meta.ownerId) return true;
+  const email = viewer.email.toLowerCase();
+  return meta.shareAudience.some((entry) =>
+    entry.startsWith('@') ? email.endsWith(entry) && viewer.hostedDomain === entry.slice(1) : email === entry,
+  );
+}
+
+export async function shareArtifact(
+  env: Env,
+  ownerId: string,
+  id: string,
+  options: { audience?: unknown } = {},
+  now: Date = new Date(),
+): Promise<ArtifactMeta> {
+  const audience = options.audience === undefined ? undefined : validateShareAudience(options.audience);
   return modify(env, ownerId, id, now, async (meta) => {
-    if (meta.shareId) return { next: meta };
-    const shareId = randomId();
-    await env.KV.put(shareKey(shareId), JSON.stringify({ artifactId: id, ownerId }));
-    return { next: { ...meta, shareId }, rollback: () => env.KV.delete(shareKey(shareId)) };
+    const sameAudience = audience === undefined || meta.shareAudience === audience ||
+      (meta.shareAudience !== null && audience !== null && meta.shareAudience.length === audience.length &&
+        meta.shareAudience.every((entry, index) => entry === audience[index]));
+    if (meta.shareId && sameAudience) return { next: meta };
+    const shareId = meta.shareId ?? randomId();
+    if (!meta.shareId) await env.KV.put(shareKey(shareId), JSON.stringify({ artifactId: id, ownerId }));
+    const shareAudience = meta.shareId && audience === undefined ? meta.shareAudience : audience ?? null;
+    return {
+      next: { ...meta, shareId, shareAudience },
+      rollback: meta.shareId ? undefined : () => env.KV.delete(shareKey(shareId)),
+    };
   });
 }
 
@@ -393,7 +451,7 @@ export async function unshareArtifact(env: Env, ownerId: string, id: string, now
   let revoked: string | null = null;
   const next = await modify(env, ownerId, id, now, async (meta) => {
     revoked = meta.shareId;
-    return { next: meta.shareId ? { ...meta, shareId: null } : meta };
+    return { next: meta.shareId || meta.shareAudience !== null ? { ...meta, shareId: null, shareAudience: null } : meta };
   });
   const revokedShareId = revoked as string | null;
   if (revokedShareId) await bestEffort(() => env.KV.delete(shareKey(revokedShareId)));
