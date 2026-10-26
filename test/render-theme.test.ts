@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DIAGRAM_ZOOM_SCRIPT, THEME_CSS, THEME_SCRIPT, renderDocument } from '../src/render';
+import { DIAGRAM_ZOOM_SCRIPT, LIGHTBOX_SCRIPT, THEME_CSS, THEME_SCRIPT, renderDocument } from '../src/render';
 import { ARTIFACT_TYPES, type ArtifactType } from '../src/types';
 import architecture from '../skills/artifacts/references/archify/examples/web-app.architecture.json';
 
@@ -117,5 +117,19 @@ describe('diagram zoom', () => {
     expect(DIAGRAM_ZOOM_SCRIPT).toContain("svg.setAttribute('viewBox'");
     expect(DIAGRAM_ZOOM_SCRIPT).toContain("host.attachShadow({ mode: 'open' })");
     expect(DIAGRAM_ZOOM_SCRIPT).not.toMatch(/eval|Function\(/);
+    expect(DIAGRAM_ZOOM_SCRIPT).not.toContain("addEventListener('dblclick'");
+  });
+});
+
+describe('lightbox', () => {
+  it('is added to html, react, markdown and slides only', async () => {
+    for (const type of ARTIFACT_TYPES) {
+      const expected = type === 'html' || type === 'react' || type === 'markdown' || type === 'slides';
+      expect((await render(type)).includes(LIGHTBOX_SCRIPT)).toBe(expected);
+    }
+  });
+
+  it('never evaluates artifact content', () => {
+    expect(LIGHTBOX_SCRIPT).not.toMatch(/eval|Function\(/);
   });
 });
