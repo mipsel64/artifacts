@@ -18,8 +18,9 @@ Read `references/types.md` for the recipe and the limits of the type that you us
 6. After a create or an update, give the `url` as a Markdown link and a one-line summary. Do not paste the content again.
 7. Never put secrets, credentials, tokens or private data in an artifact.
 8. Do not call `share_artifact` or `set_artifact_retention` unless the user asks. An artifact expires 30 days after its last content change.
-9. A subagent does not publish artifacts. It returns the content, and the parent publishes it.
-10. If the server is not available, write the file locally, open it, and give the user the path.
+9. When the user asks to share with specific people or a company domain, pass `audience` as a list of emails and `@domain` entries. Tell the user that viewers must sign in with Google and that domain entries need Google Workspace.
+10. A subagent does not publish artifacts. It returns the content, and the parent publishes it.
+11. If the server is not available, write the file locally, open it, and give the user the path.
 
 In pi, call the server through `mcp`. If your client exposes the tools directly (for example `artifacts_create_artifact`), call them directly.
 

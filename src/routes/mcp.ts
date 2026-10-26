@@ -19,7 +19,7 @@ import { ARTIFACT_TYPES } from '../types';
 
 const INSTRUCTIONS =
   'Store and share rendered artifacts (HTML pages, React components and dashboards, slide decks, UI designs, motion graphics, SVG, Mermaid and Archify diagrams, Markdown docs, code). ' +
-  'Create an artifact to get a URL the user can open; share_artifact makes a public link. ' +
+  'Create an artifact to get a URL the user can open; share_artifact makes a share link, open to anyone or limited to listed emails and @domains. ' +
   'Artifacts expire 30 days after their last change unless made permanent with set_artifact_retention. ' +
   'Every content update creates a new version; use update_artifact to revise an artifact instead of creating a new one. ' +
   'Use the theme contract described for the type field.';
@@ -157,17 +157,20 @@ function buildServer(env: Env, ownerId: string, origin: string): McpServer {
     {
       title: 'Share artifact',
       description:
-        'Create a public read-only link (shareUrl) that anyone can open without signing in. Idempotent: an already shared artifact keeps its link.',
-      inputSchema: { id },
+        'Create or update the read-only share link (shareUrl). By default anyone with the link can view it without signing in; pass audience to limit it to listed people. Idempotent: an already shared artifact keeps its link.',
+      inputSchema: {
+        id,
+        audience: z.array(z.string()).nullable().optional().describe('Who can open the link. A list of emails (alice@example.com) and Google Workspace domains (@example.com): viewers must sign in with Google, and a domain entry needs a Workspace account on that domain. null lets anyone with the link view. Omit to keep the current setting (a new link is open to anyone).'),
+      },
     },
-    ({ id }) => run(async () => toView(await shareArtifact(env, ownerId, id), origin)),
+    ({ id, audience }) => run(async () => toView(await shareArtifact(env, ownerId, id, { audience }), origin)),
   );
 
   server.registerTool(
     'unshare_artifact',
     {
       title: 'Unshare artifact',
-      description: 'Revoke the public share link of an artifact. The old link stops working immediately.',
+      description: 'Revoke the share link of an artifact. The old link stops working immediately.',
       inputSchema: { id },
     },
     ({ id }) => run(async () => toView(await unshareArtifact(env, ownerId, id), origin)),

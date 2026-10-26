@@ -295,13 +295,62 @@ describe('share', () => {
     const view = (await shared.json()) as ArtifactView;
     expect(view.shareId).toEqual(expect.any(String));
     expect(view.shareUrl).toBe(`${ORIGIN}/s/${view.shareId}`);
+    expect(view.shareAudience).toBeNull();
 
     const again = (await (await send(alice.token, 'POST', `/api/artifacts/${a.id}/share`)).json()) as ArtifactView;
     expect(again.shareUrl).toBe(view.shareUrl);
 
     const unshared = await send(alice.token, 'DELETE', `/api/artifacts/${a.id}/share`);
     expect(unshared.status).toBe(200);
-    expect(await unshared.json()).toMatchObject({ shareId: null, shareUrl: null });
+    expect(await unshared.json()).toMatchObject({ shareId: null, shareAudience: null, shareUrl: null });
+  });
+
+  it('sets and normalizes an audience without changing the share link', async () => {
+    const { alice } = await setup();
+    const a = await create(alice.token);
+    const res = await send(alice.token, 'POST', `/api/artifacts/${a.id}/share`, {
+      audience: [' Carol@ACME.DEV ', 'carol@acme.dev', '@ACME.DEV'],
+    });
+    expect(res.status).toBe(200);
+    const restricted = (await res.json()) as ArtifactView;
+    expect(restricted.shareAudience).toEqual(['carol@acme.dev', '@acme.dev']);
+    expect(restricted.shareId).toEqual(expect.any(String));
+
+    const unchanged = (await (await send(alice.token, 'POST', `/api/artifacts/${a.id}/share`)).json()) as ArtifactView;
+    expect(unchanged.shareAudience).toEqual(restricted.shareAudience);
+    expect(unchanged.shareId).toBe(restricted.shareId);
+
+    const opened = await send(alice.token, 'POST', `/api/artifacts/${a.id}/share`, { audience: null });
+    expect(await opened.json()).toMatchObject({ shareId: restricted.shareId, shareAudience: null });
+  });
+
+  it('clears a restricted audience when sharing is revoked', async () => {
+    const { alice } = await setup();
+    const a = await create(alice.token);
+    await send(alice.token, 'POST', `/api/artifacts/${a.id}/share`, { audience: ['carol@acme.dev'] });
+    const res = await send(alice.token, 'DELETE', `/api/artifacts/${a.id}/share`);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ shareId: null, shareAudience: null, shareUrl: null });
+  });
+
+  it('returns the validation message for an invalid audience entry', async () => {
+    const { alice } = await setup();
+    const a = await create(alice.token);
+    const res = await send(alice.token, 'POST', `/api/artifacts/${a.id}/share`, { audience: ['acme.dev'] });
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({
+      error: 'audience entries must be emails (alice@example.com) or domains (@example.com): acme.dev',
+    });
+  });
+
+  it('rejects a non-empty non-object share body', async () => {
+    const { alice } = await setup();
+    const a = await create(alice.token);
+    for (const body of [null, [], 'x']) {
+      const res = await send(alice.token, 'POST', `/api/artifacts/${a.id}/share`, body);
+      expect(res.status).toBe(400);
+      expect(await res.json()).toEqual({ error: 'body must be a JSON object' });
+    }
   });
 });
 

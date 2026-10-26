@@ -1,12 +1,12 @@
 import { Hono } from 'hono';
-import { ArtifactError, getArtifact, getContent, getSharedArtifact, listArtifacts, toView } from '../artifacts';
-import { listApiTokens } from '../auth';
+import { ArtifactError, canViewShare, getArtifact, getContent, getSharedArtifact, listArtifacts, toView } from '../artifacts';
+import { listApiTokens, readSession } from '../auth';
 import { listGrants, oauthHelpers } from './oauth';
 import type { AppEnv } from '../types';
 import { pageHeaders } from '../ui/headers';
 import { identify } from '../ui/identify';
 import { Layout } from '../ui/layout';
-import { ArtifactList, EditArtifact, Landing, NewArtifact, Settings, SharedViewer, Viewer } from '../ui/pages';
+import { ArtifactList, EditArtifact, Landing, NewArtifact, RestrictedShare, Settings, SharedViewer, Viewer } from '../ui/pages';
 
 function parseVersion(raw: string | undefined): number | undefined {
   if (raw === undefined) return undefined;
@@ -71,10 +71,19 @@ routes.get('/a/:id/edit', pageHeaders, async (c) => {
 routes.get('/s/:shareId', pageHeaders, async (c) => {
   const shareId = c.req.param('shareId');
   const meta = await getSharedArtifact(c.env, shareId);
-  const content = await getContent(c.env, meta);
+  const viewer = await readSession(c.env, c.req.header('Cookie'));
   const me = await identify(c);
+  if (!canViewShare(meta, viewer)) {
+    return c.html(
+      <Layout title="Restricted link" me={me} viewerEmail={viewer?.email ?? null} signIn={false} width="narrow">
+        <RestrictedShare shareId={shareId} viewerEmail={viewer?.email ?? null} />
+      </Layout>,
+      403,
+    );
+  }
+  const content = await getContent(c.env, meta);
   return c.html(
-    <Layout title={meta.title} me={me} fill>
+    <Layout title={meta.title} me={me} viewerEmail={me ? null : viewer?.email ?? null} fill>
       <SharedViewer shareId={shareId} meta={toView(meta, new URL(c.req.url).origin)} content={content} signedIn={me !== null} />
     </Layout>,
   );

@@ -1,7 +1,7 @@
 import { env } from 'cloudflare:workers';
 import { reset } from 'cloudflare:test';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { getUser, readSession, toBase64Url, verifyApiToken } from '../src/auth';
+import { SESSION_COOKIE, getUser, readSession, toBase64Url, verifyApiToken } from '../src/auth';
 import routes from '../src/routes/auth';
 import { ORIGIN, bearer, createTestUser, request } from './helpers';
 
@@ -11,9 +11,10 @@ afterEach(() => {
 });
 
 const TOKEN_URL = 'https://oauth2.googleapis.com/token';
+const STATE_COOKIE = '__Host-oauth_state';
 const setCookies = (res: Response) => res.headers.getSetCookie();
 const cookieNamed = (res: Response, name: string) => setCookies(res).find((c) => c.startsWith(`${name}=`));
-const cleared = (res: Response) => expect(cookieNamed(res, 'oauth_state')).toMatch(/Max-Age=0|Expires=/);
+const cleared = (res: Response) => expect(cookieNamed(res, STATE_COOKIE)).toMatch(/Max-Age=0|Expires=/);
 const json = (body: unknown, status = 200) => Response.json(body, { status });
 const sha256Base64Url = async (value: string) =>
   toBase64Url(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value))));
@@ -42,11 +43,11 @@ function mockToken(response: Response | (() => Promise<Response>)) {
   });
 }
 
-// Starts a real login so the signed oauth_state cookie is valid; returns what the callback needs.
-async function startLogin() {
-  const res = await request('/auth/login', { redirect: 'manual' });
+// Starts a real login so the signed state cookie is valid; returns what the callback needs.
+async function startLogin(next?: string) {
+  const res = await request(`/auth/login${next ? `?next=${encodeURIComponent(next)}` : ''}`, { redirect: 'manual' });
   const location = new URL(res.headers.get('Location')!);
-  const setCookie = cookieNamed(res, 'oauth_state')!;
+  const setCookie = cookieNamed(res, STATE_COOKIE)!;
   return {
     res,
     location,
@@ -61,8 +62,8 @@ async function startLogin() {
 const callback = (query: string, cookie?: string) =>
   routes.fetch(new Request(`${ORIGIN}/auth/callback?${query}`, { headers: cookie ? { Cookie: cookie } : {} }), env);
 
-async function signIn(overrides: Record<string, unknown> = {}) {
-  const login = await startLogin();
+async function signIn(overrides: Record<string, unknown> = {}, next?: string) {
+  const login = await startLogin(next);
   const fetchMock = mockToken(json({ id_token: idToken(claims(overrides, login.nonce)) }));
   const res = await callback(`code=c0de&state=${login.state}`, login.cookie);
   return { res, login, fetchMock };
@@ -84,14 +85,16 @@ describe('GET /auth/login', () => {
     expect(nonce).toHaveLength(22);
     expect(state).not.toBe(nonce);
 
-    const value = decodeURIComponent(setCookie.split(';')[0].slice('oauth_state='.length));
+    expect(setCookie.startsWith(`${STATE_COOKIE}=`)).toBe(true);
+    const value = decodeURIComponent(setCookie.split(';')[0].slice(`${STATE_COOKIE}=`.length));
     const [cookieState, cookieNonce, verifier] = value.split('.');
     expect([cookieState, cookieNonce]).toEqual([state, nonce]);
     expect(verifier).toHaveLength(43);
     expect(params.get('code_challenge')).toBe(await sha256Base64Url(verifier));
-    for (const attribute of ['HttpOnly', 'Secure', 'SameSite=Lax', 'Path=/auth', 'Max-Age=600']) {
+    for (const attribute of ['HttpOnly', 'Secure', 'SameSite=Lax', 'Path=/', 'Max-Age=600']) {
       expect(setCookie).toContain(attribute);
     }
+    expect(setCookie).not.toMatch(/(?:^|;\s*)Domain=/i);
   });
 
   it('uses fresh values on every login', async () => {
@@ -106,7 +109,7 @@ describe('GET /auth/login', () => {
     const res = await routes.fetch(new Request(`${ORIGIN}/auth/login`), { ...env, GOOGLE_CLIENT_ID: '' } as Env);
     expect(res.status).toBe(500);
     expect(await res.text()).toBe('Google sign-in is not configured');
-    expect(cookieNamed(res, 'oauth_state')).toBeUndefined();
+    expect(cookieNamed(res, STATE_COOKIE)).toBeUndefined();
   });
 });
 
@@ -116,16 +119,17 @@ describe('GET /auth/callback', () => {
     expect(res.status).toBe(302);
     expect(res.headers.get('Location')).toBe('/');
 
-    const session = cookieNamed(res, 'session')!;
+    const session = cookieNamed(res, SESSION_COOKIE)!;
     expect(session).toContain('HttpOnly');
-    expect(await readSession(env, session.split(';')[0])).toEqual({ id: 'google_1', email: 'alice@example.com' });
+    expect(session).toContain('Max-Age=604800');
+    expect(await readSession(env, session.split(';')[0])).toEqual({ id: 'google_1', email: 'alice@example.com', hostedDomain: null });
     expect(await getUser(env, 'google_1')).toMatchObject({
       email: 'alice@example.com',
       name: 'Alice',
       avatarUrl: 'https://lh3.googleusercontent.com/a/alice',
     });
     cleared(res);
-    expect(cookieNamed(res, 'oauth_state')).toContain('Path=/auth');
+    expect(cookieNamed(res, STATE_COOKIE)).toContain('Path=/');
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [url, init] = fetchMock.mock.calls[0];
@@ -133,7 +137,7 @@ describe('GET /auth/callback', () => {
     expect(init?.method).toBe('POST');
     expect(new Headers(init?.headers).get('Content-Type')).toBe('application/x-www-form-urlencoded');
     const body = new URLSearchParams(init?.body as string);
-    const verifier = decodeURIComponent(login.cookie.slice('oauth_state='.length)).split('.')[2];
+    const verifier = decodeURIComponent(login.cookie.slice(`${STATE_COOKIE}=`.length)).split('.')[2];
     expect(Object.fromEntries(body)).toEqual({
       code: 'c0de',
       client_id: 'test-client',
@@ -154,10 +158,46 @@ describe('GET /auth/callback', () => {
   it('lowercases the email and matches the allowlist case-insensitively', async () => {
     const { res } = await signIn({ email: 'Alice@Example.com' });
     expect(res.status).toBe(302);
-    expect(await readSession(env, cookieNamed(res, 'session')!.split(';')[0])).toEqual({
+    expect(await readSession(env, cookieNamed(res, SESSION_COOKIE)!.split(';')[0])).toEqual({
       id: 'google_1',
       email: 'alice@example.com',
+      hostedDomain: null,
     });
+  });
+
+  it('creates a viewer session for a restricted share without storing a user', async () => {
+    const { res } = await signIn({ sub: 'v1', email: 'Carol@ACME.DEV', hd: 'ACME.DEV' }, '/s/share_123');
+    expect(res.status).toBe(302);
+    expect(res.headers.get('Location')).toBe('/s/share_123');
+    const session = cookieNamed(res, SESSION_COOKIE)!;
+    expect(session).toContain('Max-Age=3600');
+    expect(await readSession(env, session.split(';')[0])).toEqual({
+      id: 'google_v1',
+      email: 'carol@acme.dev',
+      hostedDomain: 'acme.dev',
+    });
+    expect(await readSession(env, session.split(';')[0], new Date(Date.now() + 3601 * 1000))).toBeNull();
+    expect(await env.KV.get('user:google_v1')).toBeNull();
+  });
+
+  it('rejects a non-ASCII email before creating a viewer session', async () => {
+    const email = '\u212Aate@acme.dev';
+    const { res } = await signIn({ sub: 'v1', email }, '/s/share_123');
+    expect(res.status).toBe(403);
+    expect(await res.text()).toBe(`${email} is not allowed to sign in`);
+    expect(cookieNamed(res, SESSION_COOKIE)).toBeUndefined();
+    expect(await env.KV.get('user:google_v1')).toBeNull();
+  });
+
+  it('does not create viewer sessions for authorize or unsafe share next paths', async () => {
+    for (const next of [undefined, '/authorize?client_id=x', '/s/abc/raw', '/s/abc?x=1', '//evil.example/s/abc']) {
+      const { res } = await signIn({ sub: 'v1', email: 'carol@acme.dev' }, next);
+      expect(res.status, next).toBe(403);
+      expect(await res.text()).toBe('carol@acme.dev is not allowed to sign in');
+      expect(cookieNamed(res, SESSION_COOKIE)).toBeUndefined();
+      vi.restoreAllMocks();
+    }
+    expect(await env.KV.get('user:google_v1')).toBeNull();
   });
 
   it('keeps one user record across sign-ins and an email change', async () => {
@@ -173,7 +213,7 @@ describe('GET /auth/callback', () => {
     const res = await callback(`error=access_denied&state=${login.state}`, login.cookie);
     expect(res.status).toBe(400);
     expect(await res.text()).toBe('Google sign-in was cancelled');
-    expect(cookieNamed(res, 'session')).toBeUndefined();
+    expect(cookieNamed(res, SESSION_COOKIE)).toBeUndefined();
     cleared(res);
     expect(fetchMock).not.toHaveBeenCalled();
   });
@@ -181,9 +221,9 @@ describe('GET /auth/callback', () => {
   it('is 400 for a state mismatch, missing or tampered cookie, missing code or missing state, without calling Google', async () => {
     const login = await startLogin();
     const other = await startLogin();
-    const value = login.cookie.slice('oauth_state='.length);
-    const tampered = `oauth_state=${value.slice(0, 3)}${value[3] === 'A' ? 'B' : 'A'}${value.slice(4)}`;
-    const unsigned = `oauth_state=${encodeURIComponent(decodeURIComponent(value).split('.').slice(0, 3).join('.'))}`;
+    const value = login.cookie.slice(`${STATE_COOKIE}=`.length);
+    const tampered = `${STATE_COOKIE}=${value.slice(0, 3)}${value[3] === 'A' ? 'B' : 'A'}${value.slice(4)}`;
+    const unsigned = `${STATE_COOKIE}=${encodeURIComponent(decodeURIComponent(value).split('.').slice(0, 3).join('.'))}`;
     const fetchMock = mockToken(json({ id_token: idToken(claims({}, login.nonce)) }));
     const responses = [
       await callback('code=c0de&state=other', login.cookie),
@@ -196,7 +236,7 @@ describe('GET /auth/callback', () => {
     ];
     for (const res of responses) {
       expect(res.status).toBe(400);
-      expect(cookieNamed(res, 'session')).toBeUndefined();
+      expect(cookieNamed(res, SESSION_COOKIE)).toBeUndefined();
       cleared(res);
     }
     expect(fetchMock).not.toHaveBeenCalled();
@@ -218,7 +258,7 @@ describe('GET /auth/callback', () => {
       const res = await callback(`code=c0de&state=${login.state}`, login.cookie);
       expect(res.status).toBe(502);
       expect(await res.text()).toBe('Google sign-in failed');
-      expect(cookieNamed(res, 'session')).toBeUndefined();
+      expect(cookieNamed(res, SESSION_COOKIE)).toBeUndefined();
       cleared(res);
       vi.restoreAllMocks();
     }
@@ -245,7 +285,7 @@ describe('GET /auth/callback', () => {
       const { res } = await signIn(overrides);
       expect(res.status, JSON.stringify(overrides)).toBe(502);
       expect(await res.text()).toBe('Google sign-in failed');
-      expect(cookieNamed(res, 'session')).toBeUndefined();
+      expect(cookieNamed(res, SESSION_COOKIE)).toBeUndefined();
       vi.restoreAllMocks();
     }
     expect(await getUser(env, 'google_1')).toBeNull();
@@ -256,7 +296,7 @@ describe('GET /auth/callback', () => {
       const { res } = await signIn({ email_verified });
       expect(res.status).toBe(403);
       expect(await res.text()).toBe('Email address is not verified');
-      expect(cookieNamed(res, 'session')).toBeUndefined();
+      expect(cookieNamed(res, SESSION_COOKIE)).toBeUndefined();
       vi.restoreAllMocks();
     }
     expect(await getUser(env, 'google_1')).toBeNull();
@@ -267,7 +307,7 @@ describe('GET /auth/callback', () => {
       const { res } = await signIn({ sub: '3', email });
       expect(res.status).toBe(403);
       expect(await res.text()).toBe(`${email} is not allowed to sign in`);
-      expect(cookieNamed(res, 'session')).toBeUndefined();
+      expect(cookieNamed(res, SESSION_COOKIE)).toBeUndefined();
       cleared(res);
       vi.restoreAllMocks();
     }
@@ -288,7 +328,7 @@ describe('POST /auth/logout', () => {
     const res = await request('/auth/logout', { method: 'POST', headers: { Cookie: cookie, Origin: ORIGIN }, redirect: 'manual' });
     expect(res.status).toBe(303);
     expect(res.headers.get('Location')).toBe('/');
-    expect(cookieNamed(res, 'session')).toContain('Max-Age=0');
+    expect(cookieNamed(res, SESSION_COOKIE)).toContain('Max-Age=0');
   });
 
   it('accepts a request without an Origin header', async () => {
@@ -298,7 +338,7 @@ describe('POST /auth/logout', () => {
   it('is 403 for a foreign Origin', async () => {
     const res = await request('/auth/logout', { method: 'POST', headers: { Origin: 'https://evil.test' } });
     expect(res.status).toBe(403);
-    expect(cookieNamed(res, 'session')).toBeUndefined();
+    expect(cookieNamed(res, SESSION_COOKIE)).toBeUndefined();
   });
 });
 

@@ -14,6 +14,7 @@ interface LayoutProps {
   me: Identity | null;
   settingsActive?: boolean;
   signIn?: boolean;
+  viewerEmail?: string | null;
   fill?: boolean;
   width?: 'medium' | 'narrow';
   children?: Child;
@@ -112,7 +113,7 @@ function ThemeCycle() {
   );
 }
 
-export function Layout({ title, me, settingsActive, signIn = true, fill, width, children }: LayoutProps) {
+export function Layout({ title, me, viewerEmail, settingsActive, signIn = true, fill, width, children }: LayoutProps) {
   let mainClass = width ? `main main-${width}` : 'main';
   if (fill) mainClass = 'main main-fill';
   return (
@@ -153,10 +154,24 @@ export function Layout({ title, me, settingsActive, signIn = true, fill, width, 
               ) : (
                 <>
                   <ThemeCycle />
-                  {signIn && (
-                    <a class="button button-compact" href="/auth/login">
-                      Sign in
-                    </a>
+                  {viewerEmail ? (
+                    <>
+                      <span class="menu-head-email" title={viewerEmail}>
+                        {viewerEmail}
+                      </span>
+                      <form method="post" action="/auth/logout">
+                        <button type="submit" class="button button-compact">
+                          <Icon name="log-out" />
+                          <span>Sign out</span>
+                        </button>
+                      </form>
+                    </>
+                  ) : (
+                    signIn && (
+                      <a class="button button-compact" href="/auth/login">
+                        Sign in
+                      </a>
+                    )
                   )}
                 </>
               )}

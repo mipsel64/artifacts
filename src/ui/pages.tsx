@@ -37,6 +37,30 @@ export function Landing() {
   );
 }
 
+export function RestrictedShare({ shareId, viewerEmail }: { shareId: string; viewerEmail: string | null }) {
+  const signInUrl = `/auth/login?next=${encodeURIComponent(`/s/${shareId}`)}`;
+  return (
+    <div class="card auth-card error-card">
+      <span class="auth-icon">
+        <Icon name="shield-check" size={24} />
+      </span>
+      <h1>{viewerEmail === null ? 'Sign in to view' : 'You do not have access'}</h1>
+      <p class="muted">
+        {viewerEmail === null
+          ? 'This link is shared with specific people. Sign in with Google to check your access.'
+          : `You are signed in as ${viewerEmail}. Ask the owner for access, or sign in with an account that has access.`}
+      </p>
+      <div class="actions actions-center">
+        <a class="button button-primary" href={signInUrl}>
+          <GoogleMark />
+          <span>{viewerEmail === null ? 'Sign in with Google' : 'Switch account'}</span>
+        </a>
+      </div>
+      {viewerEmail !== null && <p class="muted">Access for a whole domain needs a Google Workspace account on that domain.</p>}
+    </div>
+  );
+}
+
 function TypeTile({ type }: { type: ArtifactType }) {
   return (
     <span class="type-tile" title={type}>
@@ -447,6 +471,7 @@ function TitleMenu({ meta, version, now }: { meta: ArtifactView; version: number
 function SharePopover({ meta, version }: { meta: ArtifactView; version: number }) {
   const api = `/api/artifacts/${meta.id}`;
   const shared = meta.shareUrl !== null;
+  const restricted = meta.shareAudience !== null;
   return (
     <div class="menu-anchor menu-anchor-end">
       <button
@@ -467,8 +492,26 @@ function SharePopover({ meta, version }: { meta: ArtifactView; version: number }
       <div class="menu-panel popover" id="share-popover" hidden>
         <Tabs label="Share" tabs={[{ id: 'share-link', label: 'Link' }, { id: 'share-export', label: 'Export' }]} />
         <div role="tabpanel" id="panel-share-link" aria-labelledby="tab-share-link" class="popover-body">
+          <fieldset class="share-access">
+            <legend>Who can view</legend>
+            <label class="share-access-option">
+              <input type="radio" name="share-access" value="anyone" checked={!restricted} />
+              <span>Anyone with the link</span>
+            </label>
+            <label class="share-access-option">
+              <input type="radio" name="share-access" value="restricted" checked={restricted} />
+              <span>Only people you list</span>
+            </label>
+            <div class="share-audience" data-share-audience hidden={!restricted}>
+              <label for="share-audience">Emails or @domains</label>
+              <textarea id="share-audience" rows={4} placeholder="alice@example.com, @example.com">
+                {meta.shareAudience?.join('\n') ?? ''}
+              </textarea>
+              <p class="popover-note">One per line or comma separated.</p>
+            </div>
+          </fieldset>
           <div class="actions actions-stack" data-share-new hidden={shared}>
-            <p class="popover-text">Share a read-only public link.</p>
+            <p class="popover-text">Share a read-only link.</p>
             <button type="button" class="button button-primary" data-action="share" data-url={`${api}/share`}>
               Create link
             </button>
@@ -481,10 +524,17 @@ function SharePopover({ meta, version }: { meta: ArtifactView; version: number }
               <input id="share-url" readonly value={meta.shareUrl ?? ''} />
               <CopyButton target="#share-url" class="button button-sm" iconOnly />
             </div>
+            <button type="button" class="button button-primary" data-action="share" data-url={`${api}/share`}>
+              Save access
+            </button>
             <button type="button" class="button button-danger button-quiet" data-action="unshare" data-url={`${api}/share`}>
               Stop sharing
             </button>
-            <p class="popover-note">Anyone with the link can view the latest version.</p>
+            <p class="popover-note" data-share-note>
+              {restricted
+                ? 'Only listed people can view, after Google sign-in. A @domain entry needs a Google Workspace account on that domain.'
+                : 'Anyone with the link can view the latest version.'}
+            </p>
           </div>
         </div>
         <div role="tabpanel" id="panel-share-export" aria-labelledby="tab-share-export" class="popover-body" hidden>

@@ -4,6 +4,7 @@ import { Hono } from 'hono';
 import { afterEach, describe, expect, it } from 'vitest';
 import { ArtifactError } from '../src/artifacts';
 import {
+  SESSION_COOKIE,
   SESSION_TTL_SECONDS,
   clearSessionCookie,
   createApiToken,
@@ -18,7 +19,7 @@ import {
   upsertUser,
   verifyApiToken,
 } from '../src/auth';
-import type { AppEnv } from '../src/types';
+import type { AppEnv, SessionUser } from '../src/types';
 import { ORIGIN, bearer, createTestUser } from './helpers';
 
 afterEach(() => reset());
@@ -80,31 +81,48 @@ describe('users', () => {
 describe('sessions', () => {
   it('creates a hardened cookie and reads it back', async () => {
     const setCookie = await createSessionCookie(env, alice, T0);
-    expect(setCookie).toMatch(/^session=[\w-]+\.[\w-]+; HttpOnly; Secure; SameSite=Lax; Path=\/; Max-Age=604800$/);
+    expect(setCookie).toMatch(new RegExp(`^${SESSION_COOKIE}=[\\w-]+\\.[\\w-]+; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=604800$`));
     expect(SESSION_TTL_SECONDS).toBe(604800);
-    expect(await readSession(env, `other=1; ${cookieValue(setCookie)}`, T0)).toEqual(alice);
+    expect(await readSession(env, `other=1; ${cookieValue(setCookie)}`, T0)).toEqual({ ...alice, hostedDomain: null });
+  });
+
+  it('round-trips a Google Workspace hosted domain', async () => {
+    const value = cookieValue(await createSessionCookie(env, { ...alice, hostedDomain: 'acme.dev' }, T0));
+    expect(await readSession(env, value, T0)).toEqual({ ...alice, hostedDomain: 'acme.dev' });
+  });
+
+  it('rejects a hosted domain that is not a string or null', async () => {
+    const user = { ...alice, hostedDomain: 42 } as unknown as SessionUser;
+    const value = cookieValue(await createSessionCookie(env, user, T0));
+    expect(await readSession(env, value, T0)).toBeNull();
   });
 
   it('rejects missing, malformed and tampered cookies', async () => {
     const value = cookieValue(await createSessionCookie(env, alice, T0));
-    const [payload, signature] = value.slice('session='.length).split('.');
+    const [payload, signature] = value.slice(`${SESSION_COOKIE}=`.length).split('.');
     const forged = btoa(JSON.stringify({ uid: 'google_2', email: 'bob@example.com', exp: 9999999999 })).replace(/=+$/, '');
     expect(await readSession(env, undefined, T0)).toBeNull();
     expect(await readSession(env, 'other=1', T0)).toBeNull();
-    expect(await readSession(env, 'session=', T0)).toBeNull();
-    expect(await readSession(env, 'session=garbage', T0)).toBeNull();
-    expect(await readSession(env, `session=${payload}`, T0)).toBeNull();
-    expect(await readSession(env, `session=${payload}.${signature}.x`, T0)).toBeNull();
-    expect(await readSession(env, `session=${payload}.!!!`, T0)).toBeNull();
-    expect(await readSession(env, `session=${forged}.${signature}`, T0)).toBeNull();
-    expect(await readSession(env, `session=${payload}.${signature.slice(0, -2)}AA`, T0)).toBeNull();
+    expect(await readSession(env, `${SESSION_COOKIE}=`, T0)).toBeNull();
+    expect(await readSession(env, `${SESSION_COOKIE}=garbage`, T0)).toBeNull();
+    expect(await readSession(env, `${SESSION_COOKIE}=${payload}`, T0)).toBeNull();
+    expect(await readSession(env, `${SESSION_COOKIE}=${payload}.${signature}.x`, T0)).toBeNull();
+    expect(await readSession(env, `${SESSION_COOKIE}=${payload}.!!!`, T0)).toBeNull();
+    expect(await readSession(env, `${SESSION_COOKIE}=${forged}.${signature}`, T0)).toBeNull();
+    expect(await readSession(env, `${SESSION_COOKIE}=${payload}.${signature.slice(0, -2)}AA`, T0)).toBeNull();
+  });
+
+  it('rejects duplicate session cookies and ignores the old cookie name', async () => {
+    const value = cookieValue(await createSessionCookie(env, alice, T0));
+    expect(await readSession(env, `${value}; ${value}`, T0)).toBeNull();
+    expect(await readSession(env, value.replace(`${SESSION_COOKIE}=`, 'session='), T0)).toBeNull();
   });
 
   it('rejects an expired cookie', async () => {
     const value = cookieValue(await createSessionCookie(env, alice, T0));
     const justBefore = new Date(T0.getTime() + SESSION_TTL_SECONDS * 1000 - 1000);
     const atExpiry = new Date(T0.getTime() + SESSION_TTL_SECONDS * 1000);
-    expect(await readSession(env, value, justBefore)).toEqual(alice);
+    expect(await readSession(env, value, justBefore)).toEqual({ ...alice, hostedDomain: null });
     expect(await readSession(env, value, atExpiry)).toBeNull();
   });
 
@@ -112,11 +130,11 @@ describe('sessions', () => {
     const other = { ...env, SESSION_SECRET: 'a-completely-different-secret-0123456789' } as Env;
     const value = cookieValue(await createSessionCookie(other, alice, T0));
     expect(await readSession(env, value, T0)).toBeNull();
-    expect(await readSession(other, value, T0)).toEqual(alice);
+    expect(await readSession(other, value, T0)).toEqual({ ...alice, hostedDomain: null });
   });
 
   it('builds a clearing cookie', () => {
-    expect(clearSessionCookie()).toBe('session=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0');
+    expect(clearSessionCookie()).toBe(`${SESSION_COOKIE}=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0`);
   });
 });
 
@@ -200,7 +218,7 @@ describe('middleware', () => {
     const { cookie } = await createTestUser();
     const res = await call('/user', { headers: { Cookie: cookie } });
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ user: alice, method: 'session' });
+    expect(await res.json()).toEqual({ user: { ...alice, hostedDomain: null }, method: 'session' });
   });
 
   it('is 401 JSON without credentials', async () => {

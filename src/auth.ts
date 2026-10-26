@@ -1,9 +1,10 @@
 import type { Context, MiddlewareHandler } from 'hono';
 import { ArtifactError, randomId } from './artifacts';
-import type { AppEnv, SessionUser, User } from './types';
+import type { AppEnv, Session, SessionUser, User } from './types';
 
-export const SESSION_COOKIE = 'session';
+export const SESSION_COOKIE = '__Host-session';
 export const SESSION_TTL_SECONDS = 7 * 24 * 3600;
+export const VIEWER_SESSION_TTL_SECONDS = 3600;
 
 const MAX_TOKEN_NAME_LENGTH = 100;
 const COOKIE_ATTRIBUTES = 'HttpOnly; Secure; SameSite=Lax; Path=/';
@@ -61,11 +62,16 @@ export function getUser(env: Env, userId: string): Promise<User | null> {
   return env.KV.get<User>(userKey(userId), 'json');
 }
 
-export async function createSessionCookie(env: Env, user: SessionUser, now: Date = new Date()): Promise<string> {
-  const exp = Math.floor(now.getTime() / 1000) + SESSION_TTL_SECONDS;
-  const payload = toBase64Url(encoder.encode(JSON.stringify({ uid: user.id, email: user.email, exp })));
+export async function createSessionCookie(
+  env: Env,
+  user: SessionUser & { hostedDomain?: string | null },
+  now: Date = new Date(),
+  ttlSeconds: number = SESSION_TTL_SECONDS,
+): Promise<string> {
+  const exp = Math.floor(now.getTime() / 1000) + ttlSeconds;
+  const payload = toBase64Url(encoder.encode(JSON.stringify({ uid: user.id, email: user.email, hd: user.hostedDomain ?? null, exp })));
   const signature = new Uint8Array(await crypto.subtle.sign('HMAC', await hmacKey(env, 'sign'), encoder.encode(payload)));
-  return `${SESSION_COOKIE}=${payload}.${toBase64Url(signature)}; ${COOKIE_ATTRIBUTES}; Max-Age=${SESSION_TTL_SECONDS}`;
+  return `${SESSION_COOKIE}=${payload}.${toBase64Url(signature)}; ${COOKIE_ATTRIBUTES}; Max-Age=${ttlSeconds}`;
 }
 
 export function clearSessionCookie(): string {
@@ -76,14 +82,14 @@ export async function readSession(
   env: Env,
   cookieHeader: string | undefined,
   now: Date = new Date(),
-): Promise<SessionUser | null> {
-  const value = cookieHeader
+): Promise<Session | null> {
+  const sessions = cookieHeader
     ?.split(';')
     .map((part) => part.trim())
-    .find((part) => part.startsWith(`${SESSION_COOKIE}=`))
-    ?.slice(SESSION_COOKIE.length + 1);
-  const parts = value?.split('.');
-  if (!parts || parts.length !== 2) return null;
+    .filter((part) => part.startsWith(`${SESSION_COOKIE}=`));
+  if (sessions?.length !== 1) return null;
+  const parts = sessions[0].slice(SESSION_COOKIE.length + 1).split('.');
+  if (parts.length !== 2) return null;
   try {
     const [payload, signature] = parts;
     const valid = await crypto.subtle.verify(
@@ -95,8 +101,9 @@ export async function readSession(
     if (!valid) return null;
     const data = JSON.parse(new TextDecoder().decode(fromBase64Url(payload)));
     if (typeof data.uid !== 'string' || typeof data.email !== 'string' || typeof data.exp !== 'number') return null;
+    if (data.hd !== undefined && data.hd !== null && typeof data.hd !== 'string') return null;
     if (data.exp <= Math.floor(now.getTime() / 1000)) return null;
-    return { id: data.uid, email: data.email };
+    return { id: data.uid, email: data.email, hostedDomain: data.hd ?? null };
   } catch {
     return null;
   }

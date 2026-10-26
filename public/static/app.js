@@ -311,8 +311,22 @@ document.addEventListener('click', (event) => {
   const item = event.target.closest('[data-action]');
   if (item && item.dataset.action === 'rename') return openRenameDialog();
   if (item && (item.dataset.action === 'share' || item.dataset.action === 'unshare')) {
-    const verb = item.dataset.action === 'share' ? 'POST' : 'DELETE';
-    return guarded(item, async () => applyShareState(await api(verb, item.dataset.url)));
+    const sharing = item.dataset.action === 'share';
+    return guarded(item, async () => {
+      let body;
+      if (sharing) {
+        const popover = item.closest('#share-popover');
+        const restricted = $('input[name="share-access"]:checked', popover)?.value === 'restricted';
+        if (restricted) {
+          const audience = $('#share-audience', popover).value.split(/[\s,;]+/).filter(Boolean);
+          if (!audience.length) return showError('Add at least one email or @domain');
+          body = { audience };
+        } else {
+          body = { audience: null };
+        }
+      }
+      applyShareState(await api(sharing ? 'POST' : 'DELETE', item.dataset.url, body));
+    });
   }
   const printLink = event.target.closest('[data-print]');
   if (printLink) window.open(printLink.dataset.print, '_blank', 'noopener');
@@ -376,10 +390,18 @@ function applyShareState(view) {
   const popover = document.getElementById('share-popover');
   if (!popover) return;
   const shared = view.shareUrl !== null;
+  const restricted = view.shareAudience !== null;
   popover.querySelector('[data-share-new]').hidden = shared;
   popover.querySelector('[data-share-active]').hidden = !shared;
   const input = popover.querySelector('#share-url');
   if (input) input.value = view.shareUrl ?? '';
+  popover.querySelector('input[name="share-access"][value="anyone"]').checked = !restricted;
+  popover.querySelector('input[name="share-access"][value="restricted"]').checked = restricted;
+  popover.querySelector('[data-share-audience]').hidden = !restricted;
+  popover.querySelector('#share-audience').value = (view.shareAudience ?? []).join('\n');
+  popover.querySelector('[data-share-note]').textContent = restricted
+    ? 'Only listed people can view, after Google sign-in. A @domain entry needs a Google Workspace account on that domain.'
+    : 'Anyone with the link can view the latest version.';
   const opener = document.querySelector('[data-menu-button][aria-controls="share-popover"]');
   if (opener) {
     opener.classList.toggle('button-shared', shared);
@@ -389,6 +411,13 @@ function applyShareState(view) {
     opener.setAttribute('title', shared ? 'Shared' : 'Share');
   }
 }
+
+document.addEventListener('change', (event) => {
+  const radio = event.target.closest('input[name="share-access"]');
+  if (!radio) return;
+  const audience = $('[data-share-audience]', radio.closest('#share-popover'));
+  audience.hidden = radio.value !== 'restricted';
+});
 
 /* Rename dialog ------------------------------------------------------------ */
 

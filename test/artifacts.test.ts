@@ -78,6 +78,7 @@ describe('create and read', () => {
     expect(meta.versions).toHaveLength(1);
     expect(meta.expiresAt).toBe(days(30).toISOString());
     expect(meta.shareId).toBeNull();
+    expect(meta.shareAudience).toBeNull();
     expect(meta.id).toHaveLength(22);
     expect(await getArtifact(env, 'u1', meta.id, T0)).toEqual(meta);
     expect(await getContent(env, meta)).toBe('<p>hi</p>');
@@ -242,7 +243,7 @@ describe('listArtifacts', () => {
 
   it('shows the shared flag and follows KV list cursors', async () => {
     const first = await createArtifact(env, 'u1', input, T0);
-    await shareArtifact(env, 'u1', first.id, T0);
+    await shareArtifact(env, 'u1', first.id, {}, T0);
     for (let i = 0; i < 1001; i++) await env.KV.put(`index:u1:fill${i}`, '', { metadata: { title: 't', type: 'html', version: 1, updatedAt: T0.toISOString(), expiresAt: null, shared: false } });
     const items = await listArtifacts(env, 'u1', T0);
     expect(items).toHaveLength(1002);
@@ -253,7 +254,7 @@ describe('listArtifacts', () => {
 describe('retention', () => {
   it('treats an artifact as 404 once expired, everywhere', async () => {
     const meta = await createArtifact(env, 'u1', input, T0);
-    const shared = await shareArtifact(env, 'u1', meta.id, T0);
+    const shared = await shareArtifact(env, 'u1', meta.id, {}, T0);
     const before = days(30);
     before.setTime(before.getTime() - 1);
     expect(await getArtifact(env, 'u1', meta.id, before)).toBeTruthy();
@@ -264,7 +265,7 @@ describe('retention', () => {
     expect(await status(getSharedArtifact(env, shared.shareId!, after))).toBe(404);
     expect(await status(updateArtifact(env, 'u1', meta.id, { title: 'x' }, after))).toBe(404);
     expect(await status(setRetention(env, 'u1', meta.id, true, after))).toBe(404);
-    expect(await status(shareArtifact(env, 'u1', meta.id, after))).toBe(404);
+    expect(await status(shareArtifact(env, 'u1', meta.id, {}, after))).toBe(404);
   });
 
   it('resets expiry on a new version but not on a rename', async () => {
@@ -298,9 +299,9 @@ describe('retention', () => {
 describe('sharing', () => {
   it('is idempotent, readable by share id, and updates with the artifact', async () => {
     const meta = await createArtifact(env, 'u1', input, T0);
-    const shared = await shareArtifact(env, 'u1', meta.id, T0);
+    const shared = await shareArtifact(env, 'u1', meta.id, {}, T0);
     expect(shared.shareId).toHaveLength(22);
-    expect((await shareArtifact(env, 'u1', meta.id, T0)).shareId).toBe(shared.shareId);
+    expect((await shareArtifact(env, 'u1', meta.id, {}, T0)).shareId).toBe(shared.shareId);
     await updateArtifact(env, 'u1', meta.id, { content: 'new' }, days(1));
     const viaShare = await getSharedArtifact(env, shared.shareId!, days(1));
     expect(viaShare.id).toBe(meta.id);
@@ -309,7 +310,7 @@ describe('sharing', () => {
 
   it('unshare is idempotent and revokes the link immediately', async () => {
     const meta = await createArtifact(env, 'u1', input, T0);
-    const shared = await shareArtifact(env, 'u1', meta.id, T0);
+    const shared = await shareArtifact(env, 'u1', meta.id, {}, T0);
     expect((await unshareArtifact(env, 'u1', meta.id, T0)).shareId).toBeNull();
     expect((await unshareArtifact(env, 'u1', meta.id, T0)).shareId).toBeNull();
     expect(await status(getSharedArtifact(env, shared.shareId!, T0))).toBe(404);
@@ -319,9 +320,9 @@ describe('sharing', () => {
 
   it('gets a new share id when reshared', async () => {
     const meta = await createArtifact(env, 'u1', input, T0);
-    const first = await shareArtifact(env, 'u1', meta.id, T0);
+    const first = await shareArtifact(env, 'u1', meta.id, {}, T0);
     await unshareArtifact(env, 'u1', meta.id, T0);
-    const second = await shareArtifact(env, 'u1', meta.id, T0);
+    const second = await shareArtifact(env, 'u1', meta.id, {}, T0);
     expect(second.shareId).not.toBe(first.shareId);
     expect(await status(getSharedArtifact(env, first.shareId!, T0))).toBe(404);
     expect((await getSharedArtifact(env, second.shareId!, T0)).id).toBe(meta.id);
@@ -336,7 +337,7 @@ describe('sharing', () => {
 
   it('is 404 for another owner', async () => {
     const meta = await createArtifact(env, 'u1', input, T0);
-    expect(await status(shareArtifact(env, 'u2', meta.id, T0))).toBe(404);
+    expect(await status(shareArtifact(env, 'u2', meta.id, {}, T0))).toBe(404);
     expect(await status(unshareArtifact(env, 'u2', meta.id, T0))).toBe(404);
   });
 });
@@ -360,7 +361,7 @@ describe('deleteArtifact', () => {
 describe('sweepExpired', () => {
   it('deletes only expired artifacts, with all their keys', async () => {
     const old = await createArtifact(env, 'u1', input, T0);
-    await shareArtifact(env, 'u1', old.id, T0);
+    await shareArtifact(env, 'u1', old.id, {}, T0);
     const fresh = await createArtifact(env, 'u2', input, days(20));
     const permanent = await createArtifact(env, 'u1', input, T0);
     await setRetention(env, 'u1', permanent.id, true, T0);
@@ -492,6 +493,7 @@ describe('toView and fileName', () => {
     updatedAt: '',
     expiresAt: null,
     shareId: null,
+    shareAudience: null,
   };
 
   it('builds urls', () => {
