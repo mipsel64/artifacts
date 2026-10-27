@@ -46,6 +46,7 @@ describe('renderDocument slides', () => {
     expect(doc).toContain('aria-label="Toggle fullscreen"');
     expect(doc).toContain('id="counter" aria-live="polite"');
     expect(doc).toContain('#controls:hover,#controls:focus-within{opacity:1}');
+    expect(doc).toContain('font:14px var(--sans)');
   });
 
   it('prints one 1280x720 slide per page without controls', () => {

@@ -1,0 +1,9 @@
+{
+  "ignorePatterns": [
+    "vendor/**",
+    "src/archify/engine.gen.js",
+    "worker-configuration.d.ts",
+    "dist/**",
+    ".wrangler/**"
+  ]
+}

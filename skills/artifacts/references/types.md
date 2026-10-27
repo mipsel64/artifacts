@@ -2,6 +2,8 @@
 
 Each section gives the renderer behavior, the limits and a small example. All types run in the same sandbox and receive theme support. Archify uses its own viewer styles; the other types use the theme tokens from `SKILL.md`.
 
+Reading text uses `var(--font)` (serif). Interface text, diagrams and dashboards use `var(--sans)`. Code uses `var(--mono)`. In `react` and `design`, the Tailwind utilities `font-serif`, `font-sans` and `font-mono` map to those tokens. React text defaults to serif; design artboards default to sans.
+
 ## html
 
 - Send a full standalone document with `<!doctype html>`, `<meta name="viewport">` and a `<title>`. The renderer adds theme and viewer enhancements after your document.
@@ -82,7 +84,7 @@ Platform team, October 2026
 - Give each screen its own `data-artboard="Name"` element with a fixed size. An artboard inside another artboard is not a separate screen.
 - Common sizes are 390x844 (phone), 834x1194 (tablet) and 1440x900 (desktop).
 - Artboards show side by side with an 80px gap. Each one gets a caption with its name. For a flow, use names such as `1 Sign in` and `2 Verify code`.
-- Tailwind and the token colors are available. An artboard is white by default. Set `bg-bg text-fg font-sans` on each artboard to use the theme.
+- Tailwind and the token colors are available. An artboard is white and uses sans by default. Set `bg-bg text-fg` on each artboard to use the theme colors.
 - Scripts run, so clickable prototypes work. All artboards share one document, so use unique `id` values.
 - The mouse wheel pans the canvas and Ctrl or Cmd with the wheel zooms. Scrolling inside an artboard does not work, so make a long page a tall artboard.
 - When focus is not on a form field, button or link, the keys `+`, `-`, `0` and Space control the canvas. Do not use them in a prototype.
@@ -116,7 +118,7 @@ Platform team, October 2026
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Request flow</title>
 <style>
-  body { margin: 0; min-height: 100dvh; display: grid; place-items: center; background: var(--bg); color: var(--fg); font: 15px var(--font); }
+  body { margin: 0; min-height: 100dvh; display: grid; place-items: center; background: var(--bg); color: var(--fg); font: 15px var(--sans); }
   .step { padding: 12px 16px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface);
           animation: enter 600ms ease-out both; }
   .step:nth-child(2) { animation-delay: 800ms; }

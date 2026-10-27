@@ -68,7 +68,7 @@ The renderer adds these CSS variables to `:root` in every document, in a low-pri
 | `--accent`, `--on-accent` | The primary action, links, focus rings, one highlight. `--on-accent` is text on `--accent`. |
 | `--danger`, `--warning`, `--success`, `--info` | Status. Always add text or an icon. |
 | `--chart-1` ... `--chart-6` | Data series, in this order |
-| `--font`, `--mono` | UI text. Code and tabular numbers. |
+| `--font`, `--sans`, `--mono` | Serif reading text. Interface text, diagrams and UI mockups. Code and tabular numbers. |
 | `--radius`, `--shadow` | Corner radius. The one shadow for floating layers, such as menus. |
 
 The palette is Claude-style. Light: `--bg` #faf9f5, `--fg` #141413, `--accent` #a9502e. Dark: `--bg` #151515, `--fg` #f0efec, `--accent` #d97757.
@@ -77,10 +77,10 @@ The palette is Claude-style. Light: `--bg` #faf9f5, `--fg` #141413, `--accent` #
 - The renderer sets `data-theme="light"` or `data-theme="dark"` on `<html>`. For dark-only CSS, use `:root[data-theme=dark]`. Do not use `@media (prefers-color-scheme)`, because it follows only the operating system.
 - If you set `data-theme` on `<html>` yourself (for example for daisyUI), the renderer keeps your value. Then the tokens follow your value, not the viewer.
 - When the theme changes, `window` gets an `artifact-theme` event. Its `detail` is `'light'` or `'dark'`. Use it to redraw canvas and chart code that reads colors once.
-- In `react` and `design`, Tailwind has these colors: `bg-bg`, `bg-surface`, `bg-surface-2`, `border-border`, `text-fg`, `text-muted`, `bg-accent`, `text-on-accent`, `text-danger`, `text-warning`, `text-success`, `text-info`, `chart-1` to `chart-6` (for example `fill-chart-1`, `stroke-chart-2`). `font-sans` and `font-mono` use the font tokens. The `dark:` variant follows `data-theme`.
+- In `react` and `design`, Tailwind has these colors: `bg-bg`, `bg-surface`, `bg-surface-2`, `border-border`, `text-fg`, `text-muted`, `bg-accent`, `text-on-accent`, `text-danger`, `text-warning`, `text-success`, `text-info`, `chart-1` to `chart-6` (for example `fill-chart-1`, `stroke-chart-2`). `font-serif`, `font-sans` and `font-mono` map to `--font`, `--sans` and `--mono`. React text defaults to the serif reading font. The `dark:` variant follows `data-theme`.
 - The renderer themes `markdown`, `code`, `mermaid`, `slides` and the canvas around `design` and `mermaid`.
 - For `html`, `react` and `motion`, the renderer does not set the background, the text color or `color-scheme`. Set `background: var(--bg)` and `color: var(--fg)` yourself. You can also set `color-scheme`.
-- A `design` artboard is white by default, as a blank screen. Put `bg-bg text-fg` on each artboard to use the theme.
+- A `design` artboard is white and uses sans by default, as a blank screen. Put `bg-bg text-fg` on each artboard to use the theme colors.
 - SVG presentation attributes accept tokens: `fill="var(--chart-1)"`. This also works in Recharts props.
 
 Minimal `html`:
@@ -162,6 +162,7 @@ Sandbox limits: the document has an opaque origin and no access to the app. `loc
 Make every artifact minimal and calm, in the style of Claude's own UI.
 
 - Use slim header rows (40-48px high), 14-15px UI text and 13px metadata.
+- Use `var(--font)` for serif reading text. Use `var(--sans)` for interface text, diagrams and dashboards; keep code in `var(--mono)`.
 - Use generous whitespace on a 4px or 8px scale.
 - Use the accent color sparingly: the one primary action, links, focus and one highlight.
 - Put secondary actions in one menu, not in a row of buttons.

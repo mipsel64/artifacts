@@ -15,7 +15,7 @@ describe('artifact theme', () => {
     expect(THEME_CSS).toContain(':root{--bg:#faf9f5;');
     expect(THEME_CSS).toContain(':root[data-theme=dark]{--bg:#151515;');
     expect(THEME_CSS).toContain('@media (prefers-color-scheme: dark){:root:not([data-theme]){--bg:#151515;');
-    for (const token of ['--surface-2', '--on-accent', '--info', '--chart-6', '--font', '--mono', '--radius', '--shadow']) expect(THEME_CSS).toContain(`${token}:`);
+    for (const token of ['--surface-2', '--on-accent', '--info', '--chart-6', '--font', '--sans', '--mono', '--radius', '--shadow']) expect(THEME_CSS).toContain(`${token}:`);
     // Agent documents must not inherit a color-scheme or base colors from the theme.
     expect(THEME_CSS).not.toMatch(/[{;]color-scheme:|body|html|[{;](color|background)/);
   });
@@ -52,8 +52,8 @@ describe('artifact theme', () => {
     expect(THEME_SCRIPT).toContain("var theme = printing ? 'light' :");
   });
 
-  it('keeps design artboards white by default, as a blank screen', async () => {
-    expect(await render('design')).toContain('@layer artboard { [data-artboard] { background: #fff; box-shadow');
+  it('keeps design artboards white and sans by default, as a blank screen', async () => {
+    expect(await render('design')).toContain('[data-artboard] { background: #fff; box-shadow: 0 1px 3px rgb(0 0 0 / .12), 0 8px 30px rgb(0 0 0 / .14); font-family: var(--sans); }');
   });
 
   it('maps the tokens to Tailwind only for react and design', async () => {
@@ -64,6 +64,7 @@ describe('artifact theme', () => {
         expect(doc).toContain('--color-on-accent:var(--on-accent)');
         expect(doc).toContain('--color-chart-6:var(--chart-6)');
         expect(doc).toContain('@custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *));');
+        expect(doc).toContain('--font-sans:var(--sans);--font-serif:var(--font);--font-mono:var(--mono);--default-font-family:var(--font)');
         expect(doc.indexOf(TAILWIND_MAPPING)).toBeLessThan(doc.indexOf('@tailwindcss/browser@'));
       } else expect(doc).not.toContain('text/tailwindcss');
     }
@@ -95,11 +96,14 @@ describe('artifact theme', () => {
     for (const pair of ['--fgColor-default:var(--fg)', '--bgColor-default:var(--bg)', '--bgColor-muted:var(--surface)', '--borderColor-default:var(--border)'])
       expect(doc).toContain(pair);
     expect(doc.indexOf('--fgColor-default:var(--fg)')).toBeGreaterThan(doc.indexOf('github-markdown-css@'));
+    expect(doc).toContain('--fontStack-sansSerif:var(--font)');
+    expect(doc).toContain('font-family:var(--font)');
   });
 
   it('themes mermaid from the tokens and redraws only the SVG on a theme change', async () => {
     const doc = await render('mermaid');
     expect(doc).toContain("theme: 'base'");
+    expect(doc).toContain("fontFamily: token('sans')");
     expect(doc).toContain("primaryTextColor: token('fg')");
     expect(doc).toContain("window.addEventListener('artifact-theme'");
     expect(doc).toMatch(/draw\(\)\.catch\(function \(err\) \{\s+removeDiagram\(\);\s+showError\(err\);/);

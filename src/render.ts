@@ -69,7 +69,7 @@ export const THEME_CSS =
   ':root{--bg:#faf9f5;--surface:#f5f4ed;--surface-2:#f0eee6;--border:#e3e1d9;--fg:#141413;--muted:#6b6a65;--accent:#a9502e;--on-accent:#faf9f5;' +
   '--danger:#b3261e;--warning:#8f5d00;--success:#38734a;--info:#2f6aa3;' +
   '--chart-1:#c6613f;--chart-2:#3d78b5;--chart-3:#3f8a65;--chart-4:#8660b5;--chart-5:#a67c00;--chart-6:#2f8a94;' +
-  "--font:system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;--mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;" +
+  "--font:ui-serif,'Iowan Old Style','Palatino Linotype',Palatino,Georgia,'Times New Roman',serif;--sans:system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;--mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;" +
   '--radius:8px;--shadow:0 8px 24px rgb(20 20 19 / .12)}' +
   `:root[data-theme=dark]{${THEME_DARK_TOKENS}}` +
   `@media (prefers-color-scheme: dark){:root:not([data-theme]){${THEME_DARK_TOKENS}}}` +
@@ -126,7 +126,7 @@ const MARKDOWN_THEME_CSS =
 
 // claude.ai-like reading style over github-markdown-css: serif body, quiet headings, hairline tables; same specificity, later in the cascade.
 const MARKDOWN_CLAUDE_CSS =
-  ".markdown-body{--md-code:#a63d38;font-family:ui-serif,'Iowan Old Style','Palatino Linotype',Palatino,Georgia,'Times New Roman',serif;line-height:1.7}" +
+  '.markdown-body{--md-code:#a63d38;font-family:var(--font);line-height:1.7}' +
   ':root[data-theme=dark] .markdown-body{--md-code:#db8480}' +
   '.markdown-body h1,.markdown-body h2,.markdown-body h3,.markdown-body h4,.markdown-body h5,.markdown-body h6{margin-top:1.75em;margin-bottom:.6em;padding-bottom:0;border-bottom:0;line-height:1.3}' +
   '.markdown-body h1{font-size:1.75em}.markdown-body h2{font-size:1.4em}.markdown-body h3{font-size:1.15em}.markdown-body h4,.markdown-body h5,.markdown-body h6{font-size:1em}' +
@@ -147,7 +147,7 @@ const TAILWIND_THEME =
   '--color-danger:var(--danger);--color-warning:var(--warning);--color-success:var(--success);--color-info:var(--info);' +
   '--color-chart-1:var(--chart-1);--color-chart-2:var(--chart-2);--color-chart-3:var(--chart-3);' +
   '--color-chart-4:var(--chart-4);--color-chart-5:var(--chart-5);--color-chart-6:var(--chart-6);' +
-  '--font-sans:var(--font);--font-mono:var(--mono)}' +
+  '--font-sans:var(--sans);--font-serif:var(--font);--font-mono:var(--mono);--default-font-family:var(--font)}' +
   '@custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *));</style>';
 
 // --- end theme ---
@@ -650,7 +650,7 @@ export const LIGHTBOX_SCRIPT = `
         var color = getComputedStyle(current).backgroundColor, alpha = 1;
         if (color === 'transparent') alpha = 0;
         else {
-          var match = color.match(/^rgba?\((.*)\)$/);
+          var match = color.match(/^rgba?\\((.*)\\)$/);
           if (!match) { current = current.parentElement; continue; }
           var parts = match[1].split('/');
           if (parts.length === 2) alpha = parseFloat(parts[1]);
@@ -857,7 +857,7 @@ html,body{margin:0;height:100%;overflow:hidden}
 :where(.slide table){border-collapse:collapse}
 :where(.slide th,.slide td){border:1px solid var(--border);padding:8px 16px;text-align:left}
 :where(.slide blockquote){border-left:6px solid var(--border);padding-left:24px;color:var(--muted)}
-#controls{position:fixed;right:12px;bottom:12px;display:flex;align-items:center;gap:4px;padding:4px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--fg);font:14px var(--font);opacity:.3;transition:opacity .15s}
+#controls{position:fixed;right:12px;bottom:12px;display:flex;align-items:center;gap:4px;padding:4px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--fg);font:14px var(--sans);opacity:.3;transition:opacity .15s}
 #controls:hover,#controls:focus-within{opacity:1}
 #controls button{min-width:32px;height:32px;border:0;border-radius:6px;background:transparent;color:inherit;font:inherit;cursor:pointer}
 #controls button:hover:not(:disabled){background:var(--surface-2)}
@@ -979,7 +979,7 @@ try {
       themeVariables: {
         darkMode: document.documentElement.dataset.theme === 'dark',
         background: token('bg'),
-        fontFamily: token('font'),
+        fontFamily: token('sans'),
         primaryColor: token('bg'),
         primaryTextColor: token('fg'),
         primaryBorderColor: token('muted'),
@@ -1048,7 +1048,7 @@ try {
 // The artboard defaults live in a layer declared before Tailwind's so utilities and author CSS override them.
 const DESIGN_CSS = `
 @layer artboard, theme, base, components, utilities;
-@layer artboard { [data-artboard] { background: #fff; box-shadow: 0 1px 3px rgb(0 0 0 / .12), 0 8px 30px rgb(0 0 0 / .14); } }
+@layer artboard { [data-artboard] { background: #fff; box-shadow: 0 1px 3px rgb(0 0 0 / .12), 0 8px 30px rgb(0 0 0 / .14); font-family: var(--sans); } }
 html, body { margin: 0; height: 100%; }
 #viewport { position: fixed; inset: 0; overflow: hidden; touch-action: none; overscroll-behavior: none; background-color: var(--surface);
   background-image: radial-gradient(circle, var(--border) 1px, transparent 1px); background-size: 24px 24px; }
@@ -1057,9 +1057,9 @@ html, body { margin: 0; height: 100%; }
 #canvas { position: absolute; top: 0; left: 0; transform-origin: 0 0; }
 #canvas.boards { display: flex; align-items: flex-start; gap: 80px; padding: 80px; width: max-content; }
 figure.artboard { margin: 0; flex: none; }
-figure.artboard > figcaption { margin: 0 0 12px; font: 500 13px/1.2 var(--font); color: var(--muted); white-space: nowrap; }
+figure.artboard > figcaption { margin: 0 0 12px; font: 500 13px/1.2 var(--sans); color: var(--muted); white-space: nowrap; }
 #toolbar { position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); z-index: 10; display: flex; gap: 2px; padding: 4px;
-  background: var(--bg); border: 1px solid var(--border); border-radius: 10px; font: 13px var(--font); }
+  background: var(--bg); border: 1px solid var(--border); border-radius: 10px; font: 13px var(--sans); }
 #toolbar button { display: inline-flex; align-items: center; justify-content: center; min-width: 32px; height: 32px; padding: 0 8px; border: 0; border-radius: 6px; background: transparent; color: var(--fg); font: inherit; cursor: pointer; }
 #toolbar button:hover { background: var(--surface-2); }
 #toolbar button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
