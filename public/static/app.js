@@ -393,8 +393,8 @@ function applyShareState(view) {
   const restricted = view.shareAudience !== null;
   popover.querySelector('[data-share-new]').hidden = shared;
   popover.querySelector('[data-share-active]').hidden = !shared;
-  const input = popover.querySelector('#share-url');
-  if (input) input.value = view.shareUrl ?? '';
+  shareBase = view.shareUrl ?? '';
+  syncShareLink();
   popover.querySelector('input[name="share-access"][value="anyone"]').checked = !restricted;
   popover.querySelector('input[name="share-access"][value="restricted"]').checked = restricted;
   popover.querySelector('[data-share-audience]').hidden = !restricted;
@@ -418,6 +418,33 @@ document.addEventListener('change', (event) => {
   const audience = $('[data-share-audience]', radio.closest('#share-popover'));
   audience.hidden = radio.value !== 'restricted';
 });
+
+/* Section links: the page URL and share link follow the preview's fragment. -- */
+
+let shareBase = $('#share-url')?.value ?? '';
+
+function syncShareLink() {
+  const input = $('#share-url');
+  if (input) input.value = shareBase && shareBase + location.hash;
+}
+
+function sendHash(frame) {
+  frame.contentWindow?.postMessage({ type: 'artifact-hash', hash: location.hash }, '*');
+}
+
+window.addEventListener('message', (event) => {
+  const frame = [...document.querySelectorAll('iframe.preview')].find((f) => f.contentWindow === event.source);
+  const data = event.data;
+  if (!frame || !data) return;
+  if (data.type === 'artifact-hash-request') return sendHash(frame);
+  if (data.type !== 'artifact-hash' || typeof data.hash !== 'string' || (data.hash !== '' && !data.hash.startsWith('#'))) return;
+  history.replaceState(history.state, '', data.hash || location.pathname + location.search);
+  syncShareLink();
+});
+
+// The preview may have asked before this module ran.
+for (const frame of document.querySelectorAll('iframe.preview')) sendHash(frame);
+syncShareLink();
 
 /* Rename dialog ------------------------------------------------------------ */
 

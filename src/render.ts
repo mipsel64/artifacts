@@ -139,6 +139,17 @@ const MARKDOWN_CLAUDE_CSS =
   '.markdown-body blockquote{border-left:3px solid color-mix(in srgb,var(--muted) 50%,transparent)}' +
   '.markdown-body hr{height:0;background:none;border:0;border-top:1px solid var(--border)}';
 
+// GitHub's current markup: the permalink sits beside the heading, so it stays out of the heading's accessible name.
+const MARKDOWN_ANCHOR_CSS =
+  '.markdown-body .markdown-heading{position:relative}' +
+  '.markdown-body .markdown-heading .anchor{position:absolute;top:50%;left:-28px;display:flex;align-items:center;justify-content:center;' +
+  'width:24px;height:24px;margin:0;padding:0;border-radius:6px;color:var(--muted);opacity:0;transform:translateY(-50%)}' +
+  '.markdown-body .markdown-heading:hover .anchor,.markdown-body .markdown-heading .anchor:focus-visible{opacity:1}' +
+  '.markdown-body .markdown-heading .anchor:hover{color:var(--fg)}' +
+  '.markdown-body .markdown-heading .anchor:focus-visible{outline:2px solid var(--accent)}' +
+  '@media(max-width:767px){.markdown-body .markdown-heading .anchor{left:-16px;width:16px}}' +
+  '@media print{.markdown-body .markdown-heading .anchor{display:none}}';
+
 // Tailwind colors and the dark: variant for react and design, resolved through the tokens at use time.
 const TAILWIND_THEME =
   '<style type="text/tailwindcss">@theme inline{' +
@@ -822,11 +833,61 @@ try {
 }
 `;
 
+const OCTICON_LINK =
+  '<svg class="octicon octicon-link" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path fill-rule="evenodd" d="' +
+  'M7.775 3.275a.75.75 0 001.06 1.06l1.25-1.25a2 2 0 112.83 2.83l-2.5 2.5a2 2 0 01-2.83 0 .75.75 0 00-1.06 1.06 3.5 3.5 0 004.95 0' +
+  'l2.5-2.5a3.5 3.5 0 00-4.95-4.95l-1.25 1.25zm-4.69 9.64a2 2 0 010-2.83l2.5-2.5a2 2 0 012.83 0 .75.75 0 001.06-1.06 3.5 3.5 0 00-4.95 0' +
+  'l-2.5 2.5a3.5 3.5 0 004.95 4.95l1.25-1.25a.75.75 0 00-1.06-1.06l-1.25 1.25a2 2 0 01-2.83 0z"></path></svg>';
+
 const MARKDOWN_SCRIPT = `
+// The preview's fragment is mirrored in the viewer page URL, so a copied page or share link opens at the same heading.
+if (parent !== window) {
+  window.addEventListener('message', function (e) {
+    var data = e.data;
+    if (e.source !== parent || !data || data.type !== 'artifact-hash' || typeof data.hash !== 'string') return;
+    if (data.hash.charAt(0) === '#' && data.hash !== location.hash) location.replace(data.hash);
+  });
+  window.addEventListener('hashchange', function () {
+    parent.postMessage({ type: 'artifact-hash', hash: location.hash }, '*');
+  });
+  parent.postMessage({ type: 'artifact-hash-request' }, '*');
+}
+// github-slugger ids, so fragment links written for a GitHub README keep working.
+function linkHeadings(root) {
+  var seen = Object.create(null);
+  document.querySelectorAll('[id]').forEach(function (el) { seen[el.id] = 0; });
+  root.querySelectorAll('h1, h2, h3, h4, h5, h6').forEach(function (heading) {
+    var id = heading.id;
+    if (!id) {
+      var base = heading.textContent.toLowerCase().replace(/[^\\p{L}\\p{M}\\p{Nd}\\p{Pc} -]/gu, '').replace(/ /g, '-');
+      id = base;
+      while (id in seen) id = base + '-' + ++seen[base];
+      seen[id] = 0;
+      if (!id) return;
+      heading.id = id;
+    }
+    // A block wrapper would break the summary's disclosure marker.
+    if (heading.closest('summary')) return;
+    var wrapper = document.createElement('div');
+    wrapper.className = 'markdown-heading';
+    heading.classList.add('heading-element');
+    heading.replaceWith(wrapper);
+    var link = document.createElement('a');
+    link.className = 'anchor';
+    link.href = '#' + encodeURIComponent(id);
+    link.setAttribute('aria-label', 'Permalink: ' + heading.textContent);
+    link.innerHTML = '${OCTICON_LINK}';
+    wrapper.append(heading, link);
+  });
+}
 try {
   var source = ${READ_SOURCE};
   var marked = await import('${MARKED_URL}');
-  document.getElementById('out').innerHTML = marked.parse(source);
+  var out = document.getElementById('out');
+  out.innerHTML = marked.parse(source);
+  linkHeadings(out);
+  // The browser looked for the fragment before the headings existed.
+  if (location.hash) location.replace(location.hash);
   window.__artifactReady = true;
 } catch (err) {
   showError(err);
@@ -1493,7 +1554,7 @@ export async function renderDocument(
         page(
           meta.title,
           `<link rel="stylesheet" href="${MARKDOWN_CSS_URL}">\n` +
-            `<style>${SHELL_COLOR_SCHEME_CSS}${MARKDOWN_THEME_CSS}${MARKDOWN_CLAUDE_CSS}body{margin:0;background:var(--bg)}` +
+            `<style>${SHELL_COLOR_SCHEME_CSS}${MARKDOWN_THEME_CSS}${MARKDOWN_CLAUDE_CSS}${MARKDOWN_ANCHOR_CSS}body{margin:0;background:var(--bg)}` +
             '.markdown-body{box-sizing:border-box;min-height:100vh;max-width:760px;margin:0 auto;padding:48px 32px}' +
             '@media(max-width:767px){.markdown-body{padding:16px}}</style>',
           '<article class="markdown-body" id="out"></article>\n' + moduleScript(MARKDOWN_SCRIPT) + `\n<script>${LIGHTBOX_SCRIPT}</script>`,
