@@ -95,12 +95,12 @@ Minimal `html`:
 <style>
   :root { color-scheme: light; }
   :root[data-theme=dark] { color-scheme: dark; }
-  body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.6 var(--font); }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 18px/1.7 var(--font); }
   main { max-width: 760px; margin: 0 auto; padding: 24px 20px 48px; display: grid; gap: 16px; }
   header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
            padding-bottom: 12px; border-bottom: 1px solid var(--border); }
-  h1 { font-size: 18px; margin: 0; }
-  .meta { color: var(--muted); font-size: 13px; }
+  h1 { font-size: 28px; margin: 0; }
+  .meta { color: var(--muted); font-size: 14px; }
   .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; }
   a { color: var(--accent); }
   :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
@@ -124,10 +124,10 @@ const data = [{ month: 'Jul', signups: 120 }, { month: 'Aug', signups: 164 }, { 
 
 export default function Signups() {
   return (
-    <div className="min-h-dvh bg-bg text-fg font-sans text-[15px]">
+    <div className="min-h-dvh bg-bg text-fg font-sans text-[16px]">
       <header className="flex h-12 items-center justify-between border-b border-border px-4">
         <h1 className="font-semibold">Signups</h1>
-        <span className="text-[13px] text-muted">Jul to Sep 2026</span>
+        <span className="text-[14px] text-muted">Jul to Sep 2026</span>
       </header>
       <main className="mx-auto max-w-5xl p-4">
         <section className="h-72 rounded-[var(--radius)] border border-border bg-surface p-4" aria-label="Monthly signups, bar chart">
@@ -161,7 +161,7 @@ Sandbox limits: the document has an opaque origin and no access to the app. `loc
 
 Make every artifact minimal and calm, in the style of Claude's own UI.
 
-- Use slim header rows (40-48px high), 14-15px UI text and 13px metadata.
+- Use slim header rows (40-48px high), 18px serif reading text, 16px UI text and 14px metadata.
 - Use `var(--font)` for serif reading text. Use `var(--sans)` for interface text, diagrams and dashboards; keep code in `var(--mono)`.
 - Use generous whitespace on a 4px or 8px scale.
 - Use the accent color sparingly: the one primary action, links, focus and one highlight.
