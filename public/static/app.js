@@ -442,6 +442,13 @@ window.addEventListener('message', (event) => {
   syncShareLink();
 });
 
+// A fragment typed or pasted into the address bar is a same-document navigation; targets on this page, such as the skip link's #main, stay here.
+window.addEventListener('hashchange', () => {
+  if (document.getElementById(location.hash.slice(1))) return;
+  for (const frame of document.querySelectorAll('iframe.preview')) sendHash(frame);
+  syncShareLink();
+});
+
 // The preview may have asked before this module ran.
 for (const frame of document.querySelectorAll('iframe.preview')) sendHash(frame);
 syncShareLink();

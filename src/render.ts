@@ -898,10 +898,14 @@ ${HASH_BRIDGE}${SECTION_IDS}
     var all = headings();
     return sectionIds(all)[all.indexOf(heading)];
   }
+  // The browser's own order: an id, then an <a name>, before the computed heading ids.
+  function existing(name) {
+    return document.getElementById(name) || Array.from(document.getElementsByName(name)).find(function (el) { return el.localName === 'a'; });
+  }
   function target(hash) {
     var raw = hash.slice(1), name = raw;
     try { name = decodeURIComponent(raw); } catch (e) {}
-    var found = document.getElementById(raw) || document.getElementById(name);
+    var found = existing(raw) || existing(name);
     if (found) return found;
     var all = headings();
     return all[sectionIds(all).indexOf(name)] || null;
@@ -952,6 +956,11 @@ ${HASH_BRIDGE}${SECTION_IDS}
   window.addEventListener('scroll', place, true);
   window.addEventListener('resize', place);
   window.addEventListener('hashchange', reveal);
+  // A link to the current fragment fires no hashchange, and a computed id has no element for the browser to scroll to.
+  window.addEventListener('click', function (e) {
+    var origin = e.composedPath()[0], a = origin && origin.closest ? origin.closest('a[href]') : null;
+    if (a && !e.defaultPrevented && a.hash && a.hash === location.hash && a.href.split('#')[0] === location.href.split('#')[0]) reveal();
+  });
   // Layout can move until load; a reader who has started scrolling keeps their place.
   ['wheel', 'touchstart', 'keydown', 'pointerdown'].forEach(function (type) {
     window.addEventListener(type, function () { settled = true; }, { capture: true, passive: true, once: true });
