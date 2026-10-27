@@ -849,7 +849,8 @@ if (parent !== window) {
   window.addEventListener('message', function (e) {
     var data = e.data;
     if (e.source !== parent || !data || data.type !== 'artifact-hash' || typeof data.hash !== 'string') return;
-    if (data.hash.charAt(0) === '#' && data.hash !== location.hash) goToHash(data.hash);
+    // An empty fragment means the top; '#' keeps it a same-document jump instead of a reload.
+    if ((data.hash === '' || data.hash.charAt(0) === '#') && data.hash !== location.hash) goToHash(data.hash || '#');
   });
   window.addEventListener('hashchange', function () {
     parent.postMessage({ type: 'artifact-hash', hash: location.hash }, '*');
@@ -958,8 +959,11 @@ ${HASH_BRIDGE}${SECTION_IDS}
   window.addEventListener('hashchange', reveal);
   // A link to the current fragment fires no hashchange, and a computed id has no element for the browser to scroll to.
   window.addEventListener('click', function (e) {
+    if (e.defaultPrevented || e.button || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
     var origin = e.composedPath()[0], a = origin && origin.closest ? origin.closest('a[href]') : null;
-    if (a && !e.defaultPrevented && a.hash && a.hash === location.hash && a.href.split('#')[0] === location.href.split('#')[0]) reveal();
+    var base = document.querySelector('base[target]'), frame = a && (a.getAttribute('target') || (base && base.getAttribute('target')));
+    if (!a || (frame && frame !== '_self') || !a.hash || a.hash !== location.hash) return;
+    if (a.href.split('#')[0] === location.href.split('#')[0]) reveal();
   });
   // Layout can move until load; a reader who has started scrolling keeps their place.
   ['wheel', 'touchstart', 'keydown', 'pointerdown'].forEach(function (type) {
