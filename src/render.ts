@@ -961,8 +961,9 @@ ${HASH_BRIDGE}${SECTION_IDS}
   window.addEventListener('click', function (e) {
     if (e.defaultPrevented || e.button || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
     var origin = e.composedPath()[0], a = origin && origin.closest ? origin.closest('a[href]') : null;
-    var base = document.querySelector('base[target]'), frame = a && (a.getAttribute('target') || (base && base.getAttribute('target')));
-    if (!a || (frame && frame !== '_self') || !a.hash || a.hash !== location.hash) return;
+    var base = document.querySelector('base[target]');
+    var frame = !a ? '' : a.hasAttribute('target') ? a.getAttribute('target') : base ? base.getAttribute('target') : '';
+    if (!a || (frame && frame.toLowerCase() !== '_self') || !a.hash || a.hash !== location.hash) return;
     if (a.href.split('#')[0] === location.href.split('#')[0]) reveal();
   });
   // Layout can move until load; a reader who has started scrolling keeps their place.
