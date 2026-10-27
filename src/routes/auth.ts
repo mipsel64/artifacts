@@ -21,11 +21,12 @@ const SIGN_IN_FAILED = 'Google sign-in failed';
 export const MAX_NEXT_LENGTH = 2000;
 const GOOGLE_ISSUERS = ['https://accounts.google.com', 'accounts.google.com'];
 const SHARE_PATH_PATTERN = /^\/s\/[A-Za-z0-9_-]{1,64}$/;
+const RENDER_PATH_PATTERN = /^\/r\/[A-Za-z0-9_-]{1,64}$/;
 
-// Only local authorize or share paths: the sign-in redirect must never leave the app (no open redirect).
+// Only local authorize, owner render or share paths: the sign-in redirect must never leave the app (no open redirect).
 function safeNext(raw: string | undefined | null, origin: string): string | null {
   if (!raw || raw.length > MAX_NEXT_LENGTH) return null;
-  if (SHARE_PATH_PATTERN.test(raw)) return raw;
+  if (SHARE_PATH_PATTERN.test(raw) || RENDER_PATH_PATTERN.test(raw)) return raw;
   if (!raw.startsWith('/authorize?')) return null;
   const url = new URL(raw, origin);
   return url.origin === origin && url.pathname === '/authorize' ? url.pathname + url.search : null;

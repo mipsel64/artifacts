@@ -50,6 +50,7 @@ export interface ArtifactSummary {
 
 export interface ArtifactView extends ArtifactMeta {
   url: string;
+  renderUrl: string;
   shareUrl: string | null;
 }
 

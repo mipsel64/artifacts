@@ -149,6 +149,27 @@ describe('GET /auth/callback', () => {
     expect(await sha256Base64Url(verifier)).toBe(login.location.searchParams.get('code_challenge'));
   });
 
+  it('returns an allowlisted user to the owner render path', async () => {
+    const { res } = await signIn({}, '/r/artifact_123');
+    expect(res.status).toBe(302);
+    expect(res.headers.get('Location')).toBe('/r/artifact_123');
+    expect(cookieNamed(res, SESSION_COOKIE)).toBeDefined();
+  });
+
+  it.each(['/r/artifact_123/x', '/r/artifact_123?v=1'])('ignores the unsafe owner render next %s', async (next) => {
+    const { res } = await signIn({}, next);
+    expect(res.status).toBe(302);
+    expect(res.headers.get('Location')).toBe('/');
+  });
+
+  it('does not create a viewer session for an owner render path', async () => {
+    const { res } = await signIn({ sub: 'v1', email: 'carol@acme.dev' }, '/r/artifact_123');
+    expect(res.status).toBe(403);
+    expect(await res.text()).toBe('carol@acme.dev is not allowed to sign in');
+    expect(cookieNamed(res, SESSION_COOKIE)).toBeUndefined();
+    expect(await env.KV.get('user:google_v1')).toBeNull();
+  });
+
   it('accepts the accounts.google.com issuer and a profile without name or picture', async () => {
     const { res } = await signIn({ iss: 'accounts.google.com', name: undefined, picture: 42 });
     expect(res.status).toBe(302);

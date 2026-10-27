@@ -82,7 +82,7 @@ export interface ArtifactSummary {
   id: string; title: string; type: ArtifactType; version: number;
   updatedAt: string; expiresAt: string | null; shared: boolean;
 }
-export interface ArtifactView extends ArtifactMeta { url: string; shareUrl: string | null }
+export interface ArtifactView extends ArtifactMeta { url: string; renderUrl: string; shareUrl: string | null }
 
 export type AppEnv = { Bindings: Env; Variables: { user: SessionUser; authMethod: 'session' | 'token' } };
 ```
@@ -135,7 +135,7 @@ unshareArtifact(env, ownerId, id, now?): Promise<ArtifactMeta>           // idem
 getSharedArtifact(env, shareId, now?): Promise<ArtifactMeta>             // 404: unknown, revoked, or expired
 canViewShare(meta: ArtifactMeta, viewer: Session | null): boolean         // open link, owner, or matching viewer
 sweepExpired(env, now?, limit = 100): Promise<number>                    // deletes up to `limit` expired artifacts
-toView(meta, origin): ArtifactView                                           // url = {origin}/a/{id}, shareUrl = {origin}/s/{shareId}
+toView(meta, origin): ArtifactView                                           // url = {origin}/a/{id}, renderUrl = {origin}/r/{id}, shareUrl = {origin}/s/{shareId}
 fileName(meta, content): string                                             // slug(title) + extension by type/language; Archify also uses JSON vs Markdown source
 ```
 
@@ -227,7 +227,7 @@ Render (lane render):
 
 | Route | Behaviour |
 | --- | --- |
-| `GET /render/:id` | Owner only (`requireUser`); `?v=n`; HTML render document |
+| `GET /r/:id` | Owner only; unauthenticated top-level browser navigations redirect to sign-in with `next=/r/{id}`, other unauthenticated requests get 401; `?v=n`; HTML render document |
 | `GET /s/:shareId/render` | Shared; latest version; HTML render document; 403 when a restricted-link viewer lacks access |
 | `GET /s/:shareId/raw` | Shared; latest content as `text/plain`, `nosniff`; 403 when a restricted-link viewer lacks access; `?download=1` adds attachment disposition |
 

@@ -33,6 +33,7 @@ describe('create and read', () => {
     const created = await create(alice.token);
     expect(created).toMatchObject({ title: 'Hello World', type: 'html', version: 1, ownerId: alice.user.id });
     expect(created.url).toBe(`${ORIGIN}/a/${created.id}`);
+    expect(created.renderUrl).toBe(`${ORIGIN}/r/${created.id}`);
     expect(created.shareUrl).toBeNull();
 
     const got = await send(alice.token, 'GET', `/api/artifacts/${created.id}`);

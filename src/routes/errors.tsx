@@ -24,7 +24,7 @@ const ARTIFACT_PAGE = /^\/a\/[^/]+(\/edit)?$/;
 
 function isPagePath(path: string): boolean {
   if (path === '/api' || path.startsWith('/api/')) return false;
-  if (path.startsWith('/render/') || path.startsWith('/static/')) return false;
+  if (path.startsWith('/r/') || path.startsWith('/static/')) return false;
   return !/^\/s\/[^/]+\/(render|raw)$/.test(path);
 }
 

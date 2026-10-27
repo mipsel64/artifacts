@@ -183,11 +183,11 @@ function expectSandboxHeaders(res: Response) {
   expect(res.headers.get('Cache-Control')).toBe('private, no-store, no-transform');
 }
 
-describe('GET /render/:id', () => {
+describe('GET /r/:id', () => {
   it('renders the latest version for the owner with sandbox headers', async () => {
     const { user, token } = await createTestUser('alice@example.com', '1');
     const artifact = await createArtifact(env, user.id, { title: 'Page', type: 'html', content: '<h1>v1</h1>' });
-    const res = await request(`/render/${artifact.id}`, { headers: bearer(token) });
+    const res = await request(`/r/${artifact.id}`, { headers: bearer(token) });
     expect(res.status).toBe(200);
     expectSandboxResponse(res, 'text/html; charset=utf-8');
     expect(await res.text()).toBe('<h1>v1</h1>' + THEME_TAIL);
@@ -196,16 +196,16 @@ describe('GET /render/:id', () => {
   it('includes the print script only with ?print=1', async () => {
     const { user, token } = await createTestUser('alice@example.com', '1');
     const artifact = await createArtifact(env, user.id, { title: 'Notes', type: 'markdown', content: '# Hi' });
-    const plain = await request(`/render/${artifact.id}`, { headers: bearer(token) });
+    const plain = await request(`/r/${artifact.id}`, { headers: bearer(token) });
     expect(await plain.text()).not.toContain('window.print()');
-    const printed = await request(`/render/${artifact.id}?print=1`, { headers: bearer(token) });
+    const printed = await request(`/r/${artifact.id}?print=1`, { headers: bearer(token) });
     expect(await printed.text()).toContain('window.print()');
   });
 
   it('accepts the session cookie and renders non-html types as documents', async () => {
     const { user, cookie } = await createTestUser('alice@example.com', '1');
     const artifact = await createArtifact(env, user.id, { title: 'Notes', type: 'markdown', content: '# Hi' });
-    const res = await request(`/render/${artifact.id}`, { headers: { Cookie: cookie } });
+    const res = await request(`/r/${artifact.id}`, { headers: { Cookie: cookie } });
     expect(res.status).toBe(200);
     const body = await res.text();
     expect(body).toContain('<title>Notes</title>');
@@ -216,17 +216,17 @@ describe('GET /render/:id', () => {
     const { user, token } = await createTestUser('alice@example.com', '1');
     const artifact = await createArtifact(env, user.id, { title: 'Page', type: 'html', content: '<h1>v1</h1>' });
     await updateArtifact(env, user.id, artifact.id, { content: '<h1>v2</h1>' });
-    const v1 = await request(`/render/${artifact.id}?v=1`, { headers: bearer(token) });
+    const v1 = await request(`/r/${artifact.id}?v=1`, { headers: bearer(token) });
     expect(await v1.text()).toBe('<h1>v1</h1>' + THEME_TAIL);
-    const latest = await request(`/render/${artifact.id}`, { headers: bearer(token) });
+    const latest = await request(`/r/${artifact.id}`, { headers: bearer(token) });
     expect(await latest.text()).toBe('<h1>v2</h1>' + THEME_TAIL);
-    expect((await request(`/render/${artifact.id}?v=3`, { headers: bearer(token) })).status).toBe(404);
+    expect((await request(`/r/${artifact.id}?v=3`, { headers: bearer(token) })).status).toBe(404);
   });
 
   it.each(['0', '-1', '1.5', 'abc', ''])('rejects v=%j with 400', async (v) => {
     const { user, token } = await createTestUser('alice@example.com', '1');
     const artifact = await createArtifact(env, user.id, { title: 'Page', type: 'html', content: '<p>x</p>' });
-    const res = await request(`/render/${artifact.id}?v=${v}`, { headers: bearer(token) });
+    const res = await request(`/r/${artifact.id}?v=${v}`, { headers: bearer(token) });
     expect(res.status).toBe(400);
     expectSandboxHeaders(res);
   });
@@ -235,17 +235,26 @@ describe('GET /render/:id', () => {
     const alice = await createTestUser('alice@example.com', '1');
     const bob = await createTestUser('bob@example.com', '2');
     const artifact = await createArtifact(env, alice.user.id, { title: 'Page', type: 'html', content: '<p>x</p>' });
-    const other = await request(`/render/${artifact.id}`, { headers: bearer(bob.token) });
+    const other = await request(`/r/${artifact.id}`, { headers: bearer(bob.token) });
     expect(other.status).toBe(404);
     expectSandboxHeaders(other);
-    expect((await request('/render/nope', { headers: bearer(bob.token) })).status).toBe(404);
+    expect((await request('/r/nope', { headers: bearer(bob.token) })).status).toBe(404);
   });
 
   it('returns 401 without auth', async () => {
     const { user } = await createTestUser('alice@example.com', '1');
     const artifact = await createArtifact(env, user.id, { title: 'Page', type: 'html', content: '<p>x</p>' });
-    const res = await request(`/render/${artifact.id}`);
+    const res = await request(`/r/${artifact.id}`);
     expect(res.status).toBe(401);
+    expectSandboxHeaders(res);
+  });
+
+  it('redirects unauthenticated top-level browser navigations to sign-in', async () => {
+    const { user } = await createTestUser('alice@example.com', '1');
+    const artifact = await createArtifact(env, user.id, { title: 'Page', type: 'html', content: '<p>x</p>' });
+    const res = await request(`/r/${artifact.id}`, { headers: { 'Sec-Fetch-Dest': 'document' }, redirect: 'manual' });
+    expect(res.status).toBe(302);
+    expect(res.headers.get('Location')).toBe(`/auth/login?next=%2Fr%2F${artifact.id}`);
     expectSandboxHeaders(res);
   });
 });
