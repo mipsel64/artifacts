@@ -159,8 +159,11 @@ The same token works with the REST API under `/api/artifacts` (see [docs/design.
 ```sh
 cp .dev.vars.example .dev.vars   # set SESSION_SECRET, GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET (redirect URI http://localhost:8787/auth/callback), ALLOWED_EMAILS
 bun run dev         # wrangler dev on http://localhost:8787 (keeps the request origin local despite the custom-domain route; OAuth needs it)
+bun run lint
 bun run test        # vitest with real R2/KV in Miniflare
 bun run typecheck
 bun run build       # wrangler deploy --dry-run
 bun run types       # regenerate worker-configuration.d.ts after changing wrangler.jsonc
 ```
+
+CI runs test, lint and audit jobs on pushes to `main`, pull requests and manual runs. The audit job also runs each Monday. Its production audit has no ignores. The full audit ignores four development-only advisories because the fixed tool versions crash the test pool. Remove the ignores when tool upgrades permit the fixed versions.
