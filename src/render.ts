@@ -126,7 +126,7 @@ const MARKDOWN_THEME_CSS =
 
 // claude.ai-like reading style over github-markdown-css: serif body, quiet headings, hairline tables; same specificity, later in the cascade.
 const MARKDOWN_CLAUDE_CSS =
-  '.markdown-body{--md-code:#a63d38;font-family:var(--font);line-height:1.7}' +
+  '.markdown-body{--md-code:#a63d38;font-family:var(--font);font-size:18px;line-height:1.7}' +
   ':root[data-theme=dark] .markdown-body{--md-code:#db8480}' +
   '.markdown-body h1,.markdown-body h2,.markdown-body h3,.markdown-body h4,.markdown-body h5,.markdown-body h6{margin-top:1.75em;margin-bottom:.6em;padding-bottom:0;border-bottom:0;line-height:1.3}' +
   '.markdown-body h1{font-size:1.75em}.markdown-body h2{font-size:1.4em}.markdown-body h3{font-size:1.15em}.markdown-body h4,.markdown-body h5,.markdown-body h6{font-size:1em}' +
@@ -1519,7 +1519,7 @@ export async function renderDocument(
           `<link rel="stylesheet" href="${HLJS_LIGHT_CSS_URL}" data-theme-css="light" media="(prefers-color-scheme: light)">\n` +
             `<link rel="stylesheet" href="${HLJS_DARK_CSS_URL}" data-theme-css="dark" media="(prefers-color-scheme: dark)">\n` +
             `<style>${SHELL_COLOR_SCHEME_CSS}body{margin:0;background:var(--bg)}pre{margin:0}` +
-            'pre code.hljs{min-height:100vh;box-sizing:border-box;padding:16px;background:var(--bg);font:13px/1.5 var(--mono)}</style>',
+            'pre code.hljs{min-height:100vh;box-sizing:border-box;padding:16px;background:var(--bg);font:14px/1.5 var(--mono)}</style>',
           `<pre><code id="out" data-language="${escapeHtml(meta.language ?? '')}"></code></pre>\n` + moduleScript(CODE_SCRIPT),
           content,
         ),
@@ -1530,7 +1530,8 @@ export async function renderDocument(
         page(
           meta.title,
           `<script type="importmap">${IMPORT_MAP}</script>\n` +
-            `<script src="${BABEL_URL}"></script>\n${TAILWIND_THEME}\n<script src="${TAILWIND_URL}"></script>`,
+            `<script src="${BABEL_URL}"></script>\n${TAILWIND_THEME}\n<script src="${TAILWIND_URL}"></script>\n` +
+            '<style>@layer artifact-theme{:root{font-size:112.5%}}</style>',
           '<div id="root"></div>\n' + moduleScript(REACT_SCRIPT) + `\n<script>${DIAGRAM_ZOOM_SCRIPT}</script>\n<script>${LIGHTBOX_SCRIPT}</script>`,
           content,
         ),

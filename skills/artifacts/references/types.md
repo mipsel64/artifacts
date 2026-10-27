@@ -34,7 +34,7 @@ import { ChevronDown } from 'lucide-react';
 export default function Menu() {
   const [open, setOpen] = useState(false);
   return (
-    <div className="min-h-dvh bg-bg p-6 text-fg font-sans text-[15px]">
+    <div className="min-h-dvh bg-bg p-6 text-fg font-sans text-[16px]">
       <button aria-expanded={open} onClick={() => setOpen(!open)}
         className="inline-flex h-8 items-center gap-1 rounded-[var(--radius)] border border-border bg-surface px-3 hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-accent">
         Actions <ChevronDown size={16} aria-hidden="true" />
@@ -118,7 +118,7 @@ Platform team, October 2026
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Request flow</title>
 <style>
-  body { margin: 0; min-height: 100dvh; display: grid; place-items: center; background: var(--bg); color: var(--fg); font: 15px var(--sans); }
+  body { margin: 0; min-height: 100dvh; display: grid; place-items: center; background: var(--bg); color: var(--fg); font: 16px var(--sans); }
   .step { padding: 12px 16px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface);
           animation: enter 600ms ease-out both; }
   .step:nth-child(2) { animation-delay: 800ms; }
@@ -169,7 +169,7 @@ flowchart LR
 - Set `language` to a highlight.js name, for example `python`, `typescript`, `bash`, `sql`, `yaml` or `rust`.
 - If `language` is missing or unknown, highlight.js guesses the language.
 - `language` has 32 characters at most, from letters, digits and `+#._-`.
-- The file shows in 13px monospace, without line numbers. Use `markdown` when the code needs explanation around it.
+- The file shows in 14px monospace, without line numbers. Use `markdown` when the code needs explanation around it.
 
 ## svg
 
