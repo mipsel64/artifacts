@@ -833,39 +833,142 @@ try {
 }
 `;
 
+// --- section links ---
+
 const OCTICON_LINK =
   '<svg class="octicon octicon-link" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path fill-rule="evenodd" d="' +
   'M7.775 3.275a.75.75 0 001.06 1.06l1.25-1.25a2 2 0 112.83 2.83l-2.5 2.5a2 2 0 01-2.83 0 .75.75 0 00-1.06 1.06 3.5 3.5 0 004.95 0' +
   'l2.5-2.5a3.5 3.5 0 00-4.95-4.95l-1.25 1.25zm-4.69 9.64a2 2 0 010-2.83l2.5-2.5a2 2 0 012.83 0 .75.75 0 001.06-1.06 3.5 3.5 0 00-4.95 0' +
   'l-2.5 2.5a3.5 3.5 0 004.95 4.95l1.25-1.25a.75.75 0 00-1.06-1.06l-1.25 1.25a2 2 0 01-2.83 0z"></path></svg>';
 
-const MARKDOWN_SCRIPT = `
-// The preview's fragment is mirrored in the viewer page URL, so a copied page or share link opens at the same heading.
+// The viewer page mirrors the preview's fragment, so its URL and share link open at the same section.
+// Absolute URLs keep fragment jumps inside the document even when an artifact sets <base href>.
+const HASH_BRIDGE = `
+function goToHash(hash) { location.replace(location.href.split('#')[0] + hash); }
 if (parent !== window) {
   window.addEventListener('message', function (e) {
     var data = e.data;
     if (e.source !== parent || !data || data.type !== 'artifact-hash' || typeof data.hash !== 'string') return;
-    if (data.hash.charAt(0) === '#' && data.hash !== location.hash) location.replace(data.hash);
+    if (data.hash.charAt(0) === '#' && data.hash !== location.hash) goToHash(data.hash);
   });
   window.addEventListener('hashchange', function () {
     parent.postMessage({ type: 'artifact-hash', hash: location.hash }, '*');
   });
   parent.postMessage({ type: 'artifact-hash-request' }, '*');
 }
-// github-slugger ids, so fragment links written for a GitHub README keep working.
-function linkHeadings(root) {
+`;
+
+// github-slugger ids, so fragment links written for a GitHub README keep working; ids already in the document count as taken.
+const SECTION_IDS = `
+var HEADINGS = 'h1, h2, h3, h4, h5, h6';
+function sectionIds(headings) {
   var seen = Object.create(null);
   document.querySelectorAll('[id]').forEach(function (el) { seen[el.id] = 0; });
-  root.querySelectorAll('h1, h2, h3, h4, h5, h6').forEach(function (heading) {
-    var id = heading.id;
-    if (!id) {
-      var base = heading.textContent.toLowerCase().replace(/[^\\p{L}\\p{M}\\p{Nd}\\p{Pc} -]/gu, '').replace(/ /g, '-');
-      id = base;
-      while (id in seen) id = base + '-' + ++seen[base];
-      seen[id] = 0;
-      if (!id) return;
-      heading.id = id;
-    }
+  return headings.map(function (heading) {
+    if (heading.id) return heading.id;
+    var base = heading.textContent.toLowerCase().replace(/[^\\p{L}\\p{M}\\p{Nd}\\p{Pc} -]/gu, '').replace(/ /g, '-');
+    var id = base;
+    while (id in seen) id = base + '-' + ++seen[base];
+    seen[id] = 0;
+    return id;
+  });
+}
+`;
+
+const SECTION_LINK_CSS =
+  ':host{all:initial}@media print{:host{display:none!important}}' +
+  'a{display:flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:6px;color:var(--muted,#6b6a65)}' +
+  'a:hover{color:var(--fg,#141413);background:var(--surface-2,#f0eee6)}a:focus-visible{outline:2px solid var(--accent,#a9502e);outline-offset:-2px}' +
+  'svg{display:block;fill:currentColor}';
+
+// html artifacts keep their markup: a missing heading id is computed when needed instead of written to the DOM,
+// and the permalink floats after the heading text in a shadow root.
+export const SECTION_LINKS_SCRIPT = `
+(function () {
+${HASH_BRIDGE}${SECTION_IDS}
+  var current = null, hideTimer = 0, settled = false;
+  var host = document.createElement('div');
+  host.style.cssText = 'position:fixed;z-index:2147483646;display:none';
+  var root = host.attachShadow({ mode: 'open' });
+  root.innerHTML = '<style>${SECTION_LINK_CSS}</style><a target="_self">${OCTICON_LINK}</a>';
+  var link = root.querySelector('a');
+
+  function headings() { return Array.from(document.querySelectorAll(HEADINGS)); }
+  function idOf(heading) {
+    var all = headings();
+    return sectionIds(all)[all.indexOf(heading)];
+  }
+  function target(hash) {
+    var raw = hash.slice(1), name = raw;
+    try { name = decodeURIComponent(raw); } catch (e) {}
+    var found = document.getElementById(raw) || document.getElementById(name);
+    if (found) return found;
+    var all = headings();
+    return all[sectionIds(all).indexOf(name)] || null;
+  }
+  function reveal() {
+    var found = location.hash && target(location.hash);
+    if (found) found.scrollIntoView();
+  }
+  // Headings that are links, or that carry the artifact's own permalink, are left alone.
+  function eligible(heading) {
+    return !heading.closest('a[href], button, summary, label') && !heading.querySelector('a[href^="#"]');
+  }
+  function place() {
+    if (!current) return;
+    var range = document.createRange(), rects, r = null;
+    range.selectNodeContents(current);
+    rects = range.getClientRects();
+    for (var i = rects.length - 1; i >= 0 && !r; i--) if (rects[i].width) r = rects[i];
+    r = r || current.getBoundingClientRect();
+    host.style.left = Math.max(0, Math.min(r.right + 4, innerWidth - 28)) + 'px';
+    host.style.top = r.top + r.height / 2 - 12 + 'px';
+  }
+  function show(heading, id) {
+    clearTimeout(hideTimer);
+    current = heading;
+    link.href = location.href.split('#')[0] + '#' + encodeURIComponent(id);
+    link.setAttribute('aria-label', 'Permalink: ' + heading.textContent.trim());
+    if (!host.isConnected) (document.body || document.documentElement).appendChild(host);
+    host.style.display = 'block';
+    place();
+  }
+  function hide() {
+    clearTimeout(hideTimer);
+    hideTimer = setTimeout(function () { host.style.display = 'none'; current = null; }, 400);
+  }
+
+  document.addEventListener('pointerover', function (e) {
+    if (e.target === host) return;
+    var heading = e.target.closest ? e.target.closest(HEADINGS) : null;
+    if (heading && heading === current) return clearTimeout(hideTimer);
+    var id = heading && eligible(heading) && idOf(heading);
+    if (id) show(heading, id);
+    else if (current) hide();
+  });
+  document.documentElement.addEventListener('pointerleave', hide);
+  host.addEventListener('pointerenter', function () { clearTimeout(hideTimer); });
+  host.addEventListener('pointerleave', hide);
+  window.addEventListener('scroll', place, true);
+  window.addEventListener('resize', place);
+  window.addEventListener('hashchange', reveal);
+  // Layout can move until load; a reader who has started scrolling keeps their place.
+  ['wheel', 'touchstart', 'keydown', 'pointerdown'].forEach(function (type) {
+    window.addEventListener(type, function () { settled = true; }, { capture: true, passive: true, once: true });
+  });
+  window.addEventListener('load', function () { if (!settled) reveal(); });
+  reveal();
+})();
+`;
+
+// --- end section links ---
+
+const MARKDOWN_SCRIPT = `${HASH_BRIDGE}${SECTION_IDS}
+function linkHeadings(root) {
+  var headings = Array.from(root.querySelectorAll(HEADINGS)), ids = sectionIds(headings);
+  headings.forEach(function (heading, i) {
+    if (!ids[i]) return;
+    heading.id = ids[i];
     // A block wrapper would break the summary's disclosure marker.
     if (heading.closest('summary')) return;
     var wrapper = document.createElement('div');
@@ -874,7 +977,7 @@ function linkHeadings(root) {
     heading.replaceWith(wrapper);
     var link = document.createElement('a');
     link.className = 'anchor';
-    link.href = '#' + encodeURIComponent(id);
+    link.href = '#' + encodeURIComponent(ids[i]);
     link.setAttribute('aria-label', 'Permalink: ' + heading.textContent);
     link.innerHTML = '${OCTICON_LINK}';
     wrapper.append(heading, link);
@@ -887,7 +990,7 @@ try {
   out.innerHTML = marked.parse(source);
   linkHeadings(out);
   // The browser looked for the fragment before the headings existed.
-  if (location.hash) location.replace(location.hash);
+  if (location.hash) goToHash(location.hash);
   window.__artifactReady = true;
 } catch (err) {
   showError(err);
@@ -1537,7 +1640,11 @@ export async function renderDocument(
 ): Promise<string> {
   switch (meta.type) {
     case 'html':
-      return withPrintScript(content + THEME_HEAD + `<script>${DIAGRAM_ZOOM_SCRIPT}</script>\n<script>${LIGHTBOX_SCRIPT}</script>`, print, true);
+      return withPrintScript(
+        content + THEME_HEAD + `<script>${DIAGRAM_ZOOM_SCRIPT}</script>\n<script>${LIGHTBOX_SCRIPT}</script>\n<script>${SECTION_LINKS_SCRIPT}</script>`,
+        print,
+        true,
+      );
     case 'svg':
       return withPrintScript(
         '<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n' +

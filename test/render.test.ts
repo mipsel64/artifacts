@@ -2,7 +2,7 @@ import { env } from 'cloudflare:workers';
 import { createExecutionContext, reset } from 'cloudflare:test';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createArtifact, shareArtifact, unshareArtifact, updateArtifact } from '../src/artifacts';
-import { DIAGRAM_ZOOM_SCRIPT, LIGHTBOX_SCRIPT, THEME_CSS, THEME_SCRIPT, renderDocument } from '../src/render';
+import { DIAGRAM_ZOOM_SCRIPT, LIGHTBOX_SCRIPT, SECTION_LINKS_SCRIPT, THEME_CSS, THEME_SCRIPT, renderDocument } from '../src/render';
 import { ARTIFACT_TYPES, type ArtifactType } from '../src/types';
 import main from '../src/index';
 import { ORIGIN, bearer, createTestUser, request } from './helpers';
@@ -11,7 +11,9 @@ afterEach(() => reset());
 
 const meta = (type: ArtifactType, language: string | null = null, title = 'Demo') => ({ type, language, title });
 // What html documents get appended after the artifact's own markup.
-const THEME_TAIL = `<style>${THEME_CSS}</style>\n<script>${THEME_SCRIPT}</script><script>${DIAGRAM_ZOOM_SCRIPT}</script>\n<script>${LIGHTBOX_SCRIPT}</script>`;
+const THEME_TAIL =
+  `<style>${THEME_CSS}</style>\n<script>${THEME_SCRIPT}</script><script>${DIAGRAM_ZOOM_SCRIPT}</script>\n<script>${LIGHTBOX_SCRIPT}</script>\n` +
+  `<script>${SECTION_LINKS_SCRIPT}</script>`;
 // Types that do not embed source in the standard renderer page.
 const RAW_TYPES: readonly ArtifactType[] = ['html', 'svg', 'design', 'motion', 'archify'];
 
