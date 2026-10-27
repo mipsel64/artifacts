@@ -162,6 +162,7 @@ flowchart LR
 - marked parses the document with GitHub Flavored Markdown: tables, task lists and strikethrough. The page has the GitHub layout with the theme colors, 980px wide at most.
 - Fenced code blocks show without syntax highlighting. A `mermaid` code block shows as text, not as a diagram.
 - marked keeps raw HTML, but `<script>` elements do not run.
+- Headings get GitHub ids: `## Getting started` is `#getting-started`. A table of contents with `[Getting started](#getting-started)` links works, and readers can link to a section.
 - Start with one `#` title. Use `##` and `###` in sequence.
 
 ## code

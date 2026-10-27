@@ -4,7 +4,7 @@ A self-hosted take on Claude Artifacts for Cloudflare Workers. Agents create and
 
 - **Types:** HTML, React (JSX/TSX with Tailwind and npm imports via esm.sh; also for dashboards), SVG, Mermaid, Markdown, code, slides (Markdown decks with keyboard navigation and one slide per printed page), design (HTML artboards on a pan-and-zoom canvas), motion (CSS/Web Animations with a play, pause and scrub bar) and Archify (interactive architecture, workflow, sequence, data and other diagrams, plus explainers).
 - **Theme:** artifacts follow the app's System/Light/Dark choice. Non-Archify documents share Claude-style CSS variables (also Tailwind colors in React and design); Archify uses its own theme.
-- **Viewer:** Preview/Code tabs, click-to-zoom images and diagrams, version history, copy, download, open in a new tab, edit, remix a shared artifact.
+- **Viewer:** Preview/Code tabs, click-to-zoom images and diagrams, links to Markdown sections (the page URL follows the heading you open), version history, copy, download, open in a new tab, edit, remix a shared artifact.
 - **Auth:** Google sign-in for allowlisted users and restricted share viewers; OAuth 2.1 for MCP clients (consent through your Google session); personal API tokens for agents.
 - **Share:** read-only links for anyone or for listed emails and Google Workspace domains, revocable at any time.
 - **Retention:** artifacts expire 30 days after their last content change. Make one permanent, set it back to expiring, or delete it. A daily cron (03:00 UTC) removes expired artifacts.
