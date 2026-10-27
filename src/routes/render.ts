@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import type { MiddlewareHandler } from 'hono';
 import { ArtifactError, canViewShare, fileName, getArtifact, getContent, getSharedArtifact } from '../artifacts';
-import { readSession, requireUser } from '../auth';
+import { authenticate, readSession } from '../auth';
 import { renderStoredDocument } from '../render';
 import type { AppEnv } from '../types';
 
@@ -25,11 +25,25 @@ function parseVersion(value: string | undefined): number | undefined {
 
 const routes = new Hono<AppEnv>();
 
-routes.use('/render/:id', sandboxHeaders);
+const requireRenderUser: MiddlewareHandler<AppEnv> = async (c, next) => {
+  const auth = await authenticate(c);
+  if (!auth) {
+    if (c.req.header('Sec-Fetch-Dest') === 'document') {
+      const renderPath = `/r/${c.req.param('id')}`;
+      return c.redirect(`/auth/login?next=${encodeURIComponent(renderPath)}`, 302);
+    }
+    return c.json({ error: 'Unauthorized' }, 401);
+  }
+  c.set('user', auth.user);
+  c.set('authMethod', auth.method);
+  await next();
+};
+
+routes.use('/r/:id', sandboxHeaders);
 routes.use('/s/:shareId/render', sandboxHeaders);
 routes.use('/s/:shareId/raw', sandboxHeaders);
 
-routes.get('/render/:id', requireUser, async (c) => {
+routes.get('/r/:id', requireRenderUser, async (c) => {
   const version = parseVersion(c.req.query('v'));
   const meta = await getArtifact(c.env, c.var.user.id, c.req.param('id'));
   const print = c.req.query('print') === '1';

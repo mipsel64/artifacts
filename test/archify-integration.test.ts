@@ -146,7 +146,7 @@ describe('Archify artifact reads', () => {
   it('wraps the upstream document with theme synchronization and print readiness', async () => {
     const { token } = await createTestUser();
     const artifact = await create(token);
-    const res = await request(`/render/${artifact.id}?print=1`, { headers: bearer(token) });
+    const res = await request(`/r/${artifact.id}?print=1`, { headers: bearer(token) });
     expect(res.status).toBe(200);
     const body = await res.text();
     expect(body).toContain('<h1>Sample Web App</h1>');
@@ -166,7 +166,7 @@ describe('Archify artifact reads', () => {
     const stored = await getArtifact(env, user.id, artifact.id);
     await env.BUCKET.delete(archifyCacheKey(stored.versions[0].key));
     await env.BUCKET.put(stored.versions[0].key, '{ <');
-    const res = await request(`/render/${artifact.id}`, { headers: bearer(token) });
+    const res = await request(`/r/${artifact.id}`, { headers: bearer(token) });
     expect(res.status).toBe(200);
     const body = await res.text();
     expect(body).toContain('Archify could not render this candidate.');
@@ -201,7 +201,7 @@ describe('Archify artifact reads', () => {
     });
     expect(updated.status).toBe(200);
     await env.BUCKET.put(first.versions[0].key, '{');
-    const oldView = await request(`/render/${artifact.id}?v=1`, { headers: bearer(token) });
+    const oldView = await request(`/r/${artifact.id}?v=1`, { headers: bearer(token) });
     expect(await oldView.text()).toContain('<h1>Sample Web App</h1>');
     const oldExport = await send(token, 'GET', `/api/artifacts/${artifact.id}/export?format=html&version=1`);
     expect(await oldExport.text()).toContain('<h1>Sample Web App</h1>');
@@ -218,11 +218,11 @@ describe('Archify artifact reads', () => {
     const stored = await getArtifact(env, user.id, artifact.id);
     const cacheKey = archifyCacheKey(stored.versions[0].key);
     await env.BUCKET.delete(cacheKey);
-    expect(await (await request(`/render/${artifact.id}`, { headers: bearer(token) })).text()).toContain('<h1>Sample Web App</h1>');
+    expect(await (await request(`/r/${artifact.id}`, { headers: bearer(token) })).text()).toContain('<h1>Sample Web App</h1>');
     expect((await env.BUCKET.get(cacheKey))?.customMetadata).toMatchObject({ ARCHIFY_VERSION });
 
     await env.BUCKET.put(cacheKey, '<html>stale</html>', { customMetadata: { ARCHIFY_VERSION: '0.0.0' } });
-    const view = await request(`/render/${artifact.id}`, { headers: bearer(token) });
+    const view = await request(`/r/${artifact.id}`, { headers: bearer(token) });
     expect(await view.text()).toContain('<h1>Sample Web App</h1>');
     expect((await env.BUCKET.get(cacheKey))?.customMetadata).toMatchObject({ ARCHIFY_VERSION });
   });

@@ -217,7 +217,7 @@ describe('viewer session isolation', () => {
       ['GET', '/new'],
       ['GET', `/a/${id}`],
       ['GET', `/a/${id}/edit`],
-      ['GET', `/render/${id}`],
+      ['GET', `/r/${id}`],
       ['GET', `/api/artifacts/${id}/export?format=md`],
       ['POST', '/api/artifacts', { title: 'Viewer artifact', type: 'html', content: '<p>no</p>' }],
       ['GET', '/api/tokens'],

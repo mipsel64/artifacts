@@ -375,7 +375,7 @@ function ApiButton(props: {
 }
 
 function TitleMenu({ meta, version, now }: { meta: ArtifactView; version: number; now: Date }) {
-  const render = `/render/${meta.id}?v=${version}`;
+  const render = `/r/${meta.id}?v=${version}`;
   const api = `/api/artifacts/${meta.id}`;
   const permanent = meta.expiresAt === null;
   const item = 'menu-item';
@@ -434,7 +434,7 @@ function TitleMenu({ meta, version, now }: { meta: ArtifactView; version: number
           <Icon name="code-xml" />
           <span>Export as HTML…</span>
         </a>
-        <button type="button" role="menuitem" class={item} data-print={`/render/${meta.id}?v=${version}&print=1`}>
+        <button type="button" role="menuitem" class={item} data-print={`/r/${meta.id}?v=${version}&print=1`}>
           <Icon name="printer" />
           <span>Export as PDF…</span>
         </button>
@@ -549,7 +549,7 @@ function SharePopover({ meta, version }: { meta: ArtifactView; version: number }
               <span>HTML</span>
               <span class="export-ext">.html</span>
             </a>
-            <button type="button" class="export-row" data-print={`/render/${meta.id}?v=${version}&print=1`}>
+            <button type="button" class="export-row" data-print={`/r/${meta.id}?v=${version}&print=1`}>
               <Icon name="printer" />
               <span>PDF</span>
               <span class="export-ext">opens the print dialog</span>
@@ -565,7 +565,7 @@ export function Viewer({ meta, version, content, now }: { meta: ArtifactView; ve
   return (
     <>
       <ViewerFrame
-        previewSrc={`/render/${meta.id}?v=${version}`}
+        previewSrc={`/r/${meta.id}?v=${version}`}
         content={content}
         bar={
           <>

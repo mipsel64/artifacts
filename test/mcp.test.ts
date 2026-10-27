@@ -75,6 +75,7 @@ describe('MCP tools', () => {
     expect(created.value).toMatchObject({ title: 'Page', type: 'html', version: 1, shareUrl: null });
     const id = created.value.id as string;
     expect(created.value.url).toBe(`${ORIGIN}/a/${id}`);
+    expect(created.value.renderUrl).toBe(`${ORIGIN}/r/${id}`);
 
     const got = await callTool(token, 'get_artifact', { id });
     expect(got.value).toMatchObject({ id, content: '<p>one</p>', url: `${ORIGIN}/a/${id}` });

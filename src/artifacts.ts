@@ -490,6 +490,7 @@ export function toView(meta: ArtifactMeta, origin: string): ArtifactView {
   return {
     ...meta,
     url: `${origin}/a/${meta.id}`,
+    renderUrl: `${origin}/r/${meta.id}`,
     shareUrl: meta.shareId ? `${origin}/s/${meta.shareId}` : null,
   };
 }

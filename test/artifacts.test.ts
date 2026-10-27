@@ -497,7 +497,7 @@ describe('toView and fileName', () => {
   };
 
   it('builds urls', () => {
-    expect(toView(base, 'https://x.test')).toMatchObject({ url: 'https://x.test/a/abc', shareUrl: null });
+    expect(toView(base, 'https://x.test')).toMatchObject({ url: 'https://x.test/a/abc', renderUrl: 'https://x.test/r/abc', shareUrl: null });
     expect(toView({ ...base, shareId: 's1' }, 'https://x.test').shareUrl).toBe('https://x.test/s/s1');
   });
 

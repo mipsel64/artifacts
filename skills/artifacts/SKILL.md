@@ -15,7 +15,7 @@ Read `references/types.md` for the recipe and the limits of the type that you us
 3. Write files that belong to a repository in the repository. Publish a copy only when the user must see it rendered.
 4. One deliverable is one artifact. To revise it, call `update_artifact` with the same `id`. Do not create a new artifact for each revision.
 5. Ask before you create more than one artifact in one turn. Never upload many files or a repository.
-6. After a create or an update, give the `url` as a Markdown link and a one-line summary. Do not paste the content again.
+6. After a create or an update, give the `renderUrl` as a Markdown link (the full-page render) and a one-line summary. Give `url` (the app page with versions, sharing and export) only when the user wants to manage the artifact. Do not paste the content again.
 7. Never put secrets, credentials, tokens or private data in an artifact.
 8. Do not call `share_artifact` or `set_artifact_retention` unless the user asks. An artifact expires 30 days after its last content change.
 9. When the user asks to share with specific people or a company domain, pass `audience` as a list of emails and `@domain` entries. Tell the user that viewers must sign in with Google and that domain entries need Google Workspace.

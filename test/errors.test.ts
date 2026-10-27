@@ -163,7 +163,7 @@ describe('non-page responses are unchanged', () => {
     for (const [path, init] of [
       ['/s/unknown/raw', undefined],
       ['/s/unknown/render', undefined],
-      ['/render/unknown', asUser(cookie)],
+      ['/r/unknown', asUser(cookie)],
     ] as const) {
       const res = await request(path, init);
       expect(res.status).toBe(404);

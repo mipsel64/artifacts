@@ -305,7 +305,7 @@ describe('viewer', () => {
     const res = await request(`/a/${meta.id}?v=2`, init);
     expect(res.status).toBe(200);
     const body = await res.text();
-    expect(body).toContain(`<iframe src="/render/${meta.id}?v=2" sandbox="allow-scripts allow-forms allow-modals allow-popups allow-downloads" allow="fullscreen" title="Artifact preview"`);
+    expect(body).toContain(`<iframe src="/r/${meta.id}?v=2" sandbox="allow-scripts allow-forms allow-modals allow-popups allow-downloads" allow="fullscreen" title="Artifact preview"`);
     expect(body).toContain('role="tablist"');
     expect(body).toMatch(/role="tab"[^>]*aria-selected="true"/);
     expect(body).toContain('&lt;p&gt;two&lt;/p&gt;');
@@ -313,7 +313,7 @@ describe('viewer', () => {
     expect(body).toContain(`href="/a/${meta.id}?v=1"`);
     expect(body).toContain(`href="/a/${meta.id}?v=3"`);
     expect(body).toContain(`href="/api/artifacts/${meta.id}/content?version=2&amp;download=1"`);
-    expect(body).toContain(`href="/render/${meta.id}?v=2" target="_blank" rel="noopener noreferrer"`);
+    expect(body).toContain(`href="/r/${meta.id}?v=2" target="_blank" rel="noopener noreferrer"`);
     expect(body).toContain(`href="/a/${meta.id}/edit"`);
     expect(body).toContain('Make permanent');
     expect(body).toContain('Expires in 30 days');
@@ -396,11 +396,11 @@ describe('viewer', () => {
       expect(body, label).toContain(`>${label}</span>`);
     }
     expect(body).toContain(`href="/api/artifacts/${meta.id}/content?version=1&amp;download=1"`);
-    expect(body).toContain(`href="/render/${meta.id}?v=1" target="_blank" rel="noopener noreferrer"`);
+    expect(body).toContain(`href="/r/${meta.id}?v=1" target="_blank" rel="noopener noreferrer"`);
     expect(body).toContain(`href="/a/${meta.id}/edit"`);
     expect(body).toContain(`href="/api/artifacts/${meta.id}/export?format=md&amp;version=1"`);
     expect(body).toContain(`href="/api/artifacts/${meta.id}/export?format=html&amp;version=1"`);
-    expect(body).toContain(`data-print="/render/${meta.id}?v=1&amp;print=1"`);
+    expect(body).toContain(`data-print="/r/${meta.id}?v=1&amp;print=1"`);
     expect(body).toContain(`data-method="PUT" data-url="/api/artifacts/${meta.id}/retention"`);
     expect(body).toMatch(/menu-item-danger[^>]*data-method="DELETE"[^>]*data-done="\/"/);
   });
@@ -455,7 +455,7 @@ describe('viewer', () => {
     const meta = await createArtifact(env, user.id, { title: 'Doc', type: 'html', content: 'first' });
     await updateArtifact(env, user.id, meta.id, { content: 'second' });
     const body = await (await request(`/a/${meta.id}`, init)).text();
-    expect(body).toContain(`/render/${meta.id}?v=2"`);
+    expect(body).toContain(`/r/${meta.id}?v=2"`);
     expect(body).toContain('>second<');
   });
 
@@ -682,7 +682,7 @@ describe('security headers', () => {
   });
 
   it('does not add headers to paths owned by other lanes', async () => {
-    for (const path of ['/s/abc/render', '/s/abc/raw', '/render/abc', '/api/artifacts', '/auth/login']) {
+    for (const path of ['/s/abc/render', '/s/abc/raw', '/r/abc', '/api/artifacts', '/auth/login']) {
       const res = await request(path, { redirect: 'manual' });
       expect(res.headers.get('x-frame-options'), path).toBeNull();
     }
