@@ -3,6 +3,7 @@ import { ARTIFACT_TYPES, DEFAULT_READING_SIZE, READING_FONTS, READING_SIZES, typ
 import { Initial } from './components';
 import { formatDate, formatDateTime, retentionLabel } from './format';
 import { GoogleMark, Icon, Logo, TypeIcon, type IconName } from './icons';
+import { THEME_CHOICES } from './layout';
 
 const SANDBOX = 'allow-scripts allow-forms allow-modals allow-popups allow-downloads';
 
@@ -674,51 +675,123 @@ function Snippet({ id, label, children }: { id: string; label: string; children:
   );
 }
 
-function SettingsCard({ id, title, intro, children }: { id: string; title: string; intro: string; children?: Child }) {
+type SettingsSection = 'general' | 'connect' | 'apps' | 'tokens';
+
+const SETTINGS_NAV: { group: string; items: { id: SettingsSection; label: string; icon: IconName }[] }[] = [
+  { group: 'Preferences', items: [{ id: 'general', label: 'General', icon: 'settings' }] },
+  {
+    group: 'Agents',
+    items: [
+      { id: 'connect', label: 'Connect an agent', icon: 'plug' },
+      { id: 'apps', label: 'Connected apps', icon: 'link' },
+      { id: 'tokens', label: 'API tokens', icon: 'key-round' },
+    ],
+  },
+];
+
+// The first section shows without a fragment; app.js switches sections on #general, #connect, … without reloading.
+function SettingsNav() {
   return (
-    <section class="card settings-card" aria-labelledby={id}>
-      <h2 id={id}>{title}</h2>
-      <p class="muted">{intro}</p>
+    <nav class="settings-nav" aria-label="Settings sections">
+      {SETTINGS_NAV.map(({ group, items }) => (
+        <>
+          <p class="settings-nav-group">{group}</p>
+          <ul class="settings-nav-list">
+            {items.map((item) => (
+              <li>
+                <a class="settings-nav-link" href={`#${item.id}`} aria-current={item.id === 'general' ? 'true' : undefined}>
+                  <Icon name={item.icon} />
+                  <span>{item.label}</span>
+                </a>
+              </li>
+            ))}
+          </ul>
+        </>
+      ))}
+    </nav>
+  );
+}
+
+function SettingsPanel({ id, title, intro, children }: { id: SettingsSection; title: string; intro?: Child; children?: Child }) {
+  return (
+    <section class="settings-panel" data-settings-panel={id} aria-labelledby={`${id}-heading`} hidden={id !== 'general'}>
+      <h2 id={`${id}-heading`}>{title}</h2>
+      {intro && <p class="settings-intro">{intro}</p>}
       {children}
     </section>
   );
 }
 
+// A grid so the control stays beside its label on narrow screens while the hint moves under both.
+function SettingsRow({ label, hint, children }: { label: Child; hint?: { id: string; text: string }; children: Child }) {
+  return (
+    <div class="settings-row">
+      <div class="settings-row-label">{label}</div>
+      {hint && (
+        <p class="settings-row-hint" id={hint.id}>
+          {hint.text}
+        </p>
+      )}
+      <div class="settings-row-control">{children}</div>
+    </div>
+  );
+}
+
+function QuietSelect({ id, hint, children }: { id: string; hint: string; children: Child }) {
+  return (
+    <span class="select-quiet">
+      <select id={id} name={id} aria-describedby={hint}>
+        {children}
+      </select>
+      <Icon name="chevron-down" />
+    </span>
+  );
+}
+
 const READING_FONT_LABELS: Record<ReadingFont, string> = { serif: 'Serif', sans: 'Sans', mono: 'Mono' };
 
-// Stored in this browser like the theme; app.js applies it to the preview and sends it to every artifact frame.
-function ReadingSettings() {
+// Theme and reading choices are stored in this browser; app.js sends them to every artifact frame.
+function GeneralPanel() {
   return (
-    <SettingsCard
-      id="reading-heading"
-      title="Reading"
-      intro="Font and text size for markdown, slides and react artifacts, and for html artifacts that use the theme font variables. Saved in this browser."
-    >
-      <div class="reading-form">
-        <fieldset class="share-access">
-          <legend>Font</legend>
-          {(Object.keys(READING_FONTS) as ReadingFont[]).map((font) => (
-            <label class="share-access-option">
-              <input type="radio" name="reading-font" value={font} checked={font === 'serif'} data-stack={READING_FONTS[font]} />
-              <span>{READING_FONT_LABELS[font]}</span>
-            </label>
-          ))}
-        </fieldset>
-        <div class="field">
-          <label for="reading-size">Text size</label>
-          <select id="reading-size" name="reading-size">
-            {READING_SIZES.map((size) => (
-              <option value={String(size)} selected={size === DEFAULT_READING_SIZE}>
-                {size === DEFAULT_READING_SIZE ? `${size} px (default)` : `${size} px`}
+    <SettingsPanel id="general" title="Appearance" intro="Saved in this browser.">
+      <div class="settings-rows">
+        <SettingsRow label={<span id="theme-label">Theme</span>}>
+          <div class="segmented segmented-radios" role="radiogroup" aria-labelledby="theme-label">
+            {THEME_CHOICES.map((choice) => (
+              <label class="segmented-option" title={choice.label}>
+                <input class="sr-only" type="radio" name="theme" value={choice.id} checked={choice.id === 'system'} />
+                <Icon name={choice.icon} />
+                <span class="sr-only">{choice.label}</span>
+              </label>
+            ))}
+          </div>
+        </SettingsRow>
+        <SettingsRow
+          label={<label for="reading-font">Reading font</label>}
+          hint={{ id: 'reading-font-hint', text: 'Markdown, slides, react, and html that uses the theme font.' }}
+        >
+          <QuietSelect id="reading-font" hint="reading-font-hint">
+            {(Object.keys(READING_FONTS) as ReadingFont[]).map((font) => (
+              <option value={font} selected={font === 'serif'} data-stack={READING_FONTS[font]}>
+                {READING_FONT_LABELS[font]}
               </option>
             ))}
-          </select>
-        </div>
+          </QuietSelect>
+        </SettingsRow>
+        <SettingsRow
+          label={<label for="reading-size">Text size</label>}
+          hint={{ id: 'reading-size-hint', text: 'Markdown, react, and html that uses the theme size. Slides keep their size.' }}
+        >
+          <QuietSelect id="reading-size" hint="reading-size-hint">
+            {READING_SIZES.map((size) => (
+              <option value={String(size)} selected={size === DEFAULT_READING_SIZE}>
+                {size === DEFAULT_READING_SIZE ? `Default · ${size} px` : `${size} px`}
+              </option>
+            ))}
+          </QuietSelect>
+        </SettingsRow>
       </div>
-      <p class="reading-preview" data-reading-preview>
-        Agents publish reports, plans and guides here. This is how their text reads with your choice.
-      </p>
-    </SettingsCard>
+    </SettingsPanel>
   );
 }
 
@@ -727,97 +800,100 @@ export function Settings({ tokens, apps, origin }: SettingsProps) {
   const json = `{ "mcpServers": { "artifacts": { "type": "http", "url": "${origin}/mcp", "headers": { "Authorization": "Bearer <YOUR_TOKEN>" } } } }`;
   const oauthCommand = `claude mcp add --transport http artifacts ${origin}/mcp`;
   return (
-    <>
-      <h1 class="page-title">Settings</h1>
-      <ReadingSettings />
-      <SettingsCard
-        id="mcp-heading"
-        title="Connect an agent"
-        intro="Agents reach Artifacts over MCP. Sign in with Google, or send an API token in the Authorization header."
-      >
-        <Tabs
-          label="Connection method"
-          tabs={[
-            { id: 'claude-ai', label: 'Claude.ai & Desktop' },
-            { id: 'claude-code', label: 'Claude Code' },
-            { id: 'token', label: 'API token' },
-            { id: 'json', label: 'JSON' },
-          ]}
-        />
-        <div role="tabpanel" id="panel-claude-ai" aria-labelledby="tab-claude-ai" class="tab-panel">
-          <Snippet id="mcp-url" label="Connector URL">{`${origin}/mcp`}</Snippet>
-          <p class="help">Add it as a custom connector and sign in with Google when asked.</p>
-        </div>
-        <div role="tabpanel" id="panel-claude-code" aria-labelledby="tab-claude-code" class="tab-panel" hidden>
-          <Snippet id="mcp-oauth-command" label="Shell">{oauthCommand}</Snippet>
-          <p class="help">
-            Run it, then type <code>/mcp</code> in Claude Code and choose artifacts to sign in.
-          </p>
-        </div>
-        <div role="tabpanel" id="panel-token" aria-labelledby="tab-token" class="tab-panel" hidden>
-          <Snippet id="mcp-command" label="Shell">{command}</Snippet>
-          <p class="help">Replace &lt;YOUR_TOKEN&gt; with a token from API tokens below.</p>
-        </div>
-        <div role="tabpanel" id="panel-json" aria-labelledby="tab-json" class="tab-panel" hidden>
-          <Snippet id="mcp-json" label="JSON">{json}</Snippet>
-          <p class="help">Paste it into your MCP client configuration and replace &lt;YOUR_TOKEN&gt;.</p>
-        </div>
-      </SettingsCard>
-      <SettingsCard id="apps-heading" title="Connected apps" intro="Apps you allowed to use your artifacts by signing in over MCP. Revoking stops them.">
-        <ul class="items" id="app-list">
-          {apps.map((app) => (
-            <li class="item">
-              <Initial name={app.name} />
-              <div class="item-main">
-                <span class="item-title">{app.name}</span>
-                <span class="item-meta">
-                  Connected <time datetime={app.createdAt}>{formatDate(app.createdAt)}</time>
-                </span>
-              </div>
-              <ApiButton method="DELETE" url={`/api/grants/${app.id}`} label="Revoke" confirm={`Revoke access for "${app.name}"?`} danger />
-            </li>
-          ))}
-        </ul>
-        {apps.length === 0 && <p class="empty-text">No connected apps.</p>}
-      </SettingsCard>
-      <SettingsCard id="tokens-heading" title="API tokens" intro="Tokens let agents call the MCP server and REST API as you.">
-        <form class="form form-inline" method="post" data-form="token">
-          <div class="field">
-            <label for="token-name">Token name</label>
-            <input id="token-name" name="name" required maxlength={100} autocomplete="off" />
+    <div class="settings">
+      <div class="settings-head">
+        <h1>Settings</h1>
+      </div>
+      <SettingsNav />
+      <div class="settings-content">
+        <GeneralPanel />
+        <SettingsPanel id="connect" title="Connect an agent" intro="Agents reach Artifacts over MCP. Sign in with Google, or send an API token in the Authorization header.">
+          <Tabs
+            label="Connection method"
+            tabs={[
+              { id: 'claude-ai', label: 'Claude.ai & Desktop' },
+              { id: 'claude-code', label: 'Claude Code' },
+              { id: 'token', label: 'API token' },
+              { id: 'json', label: 'JSON' },
+            ]}
+          />
+          <div role="tabpanel" id="panel-claude-ai" aria-labelledby="tab-claude-ai" class="tab-panel">
+            <Snippet id="mcp-url" label="Connector URL">{`${origin}/mcp`}</Snippet>
+            <p class="help">Add it as a custom connector and sign in with Google when asked.</p>
           </div>
-          <button type="submit" class="button button-primary">
-            Create token
-          </button>
-        </form>
-        <div id="new-token" class="callout callout-success" hidden>
-          <Icon name="shield-check" size={20} />
-          <div class="callout-body">
-            <label for="new-token-value">New token</label>
-            <div class="inline-field">
-              <input id="new-token-value" class="mono-input" readonly />
-              <CopyButton target="#new-token-value" />
+          <div role="tabpanel" id="panel-claude-code" aria-labelledby="tab-claude-code" class="tab-panel" hidden>
+            <Snippet id="mcp-oauth-command" label="Shell">{oauthCommand}</Snippet>
+            <p class="help">
+              Run it, then type <code>/mcp</code> in Claude Code and choose artifacts to sign in.
+            </p>
+          </div>
+          <div role="tabpanel" id="panel-token" aria-labelledby="tab-token" class="tab-panel" hidden>
+            <Snippet id="mcp-command" label="Shell">{command}</Snippet>
+            <p class="help">
+              Replace &lt;YOUR_TOKEN&gt; with a token from <a href="#tokens">API tokens</a>.
+            </p>
+          </div>
+          <div role="tabpanel" id="panel-json" aria-labelledby="tab-json" class="tab-panel" hidden>
+            <Snippet id="mcp-json" label="JSON">{json}</Snippet>
+            <p class="help">Paste it into your MCP client configuration and replace &lt;YOUR_TOKEN&gt;.</p>
+          </div>
+        </SettingsPanel>
+        <SettingsPanel id="apps" title="Connected apps" intro="Apps you allowed to use your artifacts by signing in over MCP. Revoking stops them.">
+          <ul class="items" id="app-list">
+            {apps.map((app) => (
+              <li class="item">
+                <Initial name={app.name} />
+                <div class="item-main">
+                  <span class="item-title">{app.name}</span>
+                  <span class="item-meta">
+                    Connected <time datetime={app.createdAt}>{formatDate(app.createdAt)}</time>
+                  </span>
+                </div>
+                <ApiButton method="DELETE" url={`/api/grants/${app.id}`} label="Revoke" confirm={`Revoke access for "${app.name}"?`} danger />
+              </li>
+            ))}
+          </ul>
+          {apps.length === 0 && <p class="empty-text">No connected apps.</p>}
+        </SettingsPanel>
+        <SettingsPanel id="tokens" title="API tokens" intro="Tokens let agents call the MCP server and REST API as you.">
+          <form class="form form-inline" method="post" data-form="token">
+            <div class="field">
+              <label for="token-name">Token name</label>
+              <input id="token-name" name="name" required maxlength={100} autocomplete="off" />
             </div>
-            <p>Copy it now: you will not see it again.</p>
-          </div>
-        </div>
-        <ul class="items" id="token-list">
-          {tokens.map((token) => (
-            <li class="item">
-              <div class="item-main">
-                <span class="item-title">{token.name}</span>
-                <span class="item-meta">
-                  Created <time datetime={token.createdAt}>{formatDate(token.createdAt)}</time>
-                </span>
+            <button type="submit" class="button button-primary">
+              Create token
+            </button>
+          </form>
+          <div id="new-token" class="callout callout-success" hidden>
+            <Icon name="shield-check" size={20} />
+            <div class="callout-body">
+              <label for="new-token-value">New token</label>
+              <div class="inline-field">
+                <input id="new-token-value" class="mono-input" readonly />
+                <CopyButton target="#new-token-value" />
               </div>
-              <ApiButton method="DELETE" url={`/api/tokens/${token.id}`} label="Revoke" confirm={`Revoke token "${token.name}"?`} danger />
-            </li>
-          ))}
-        </ul>
-        <p class="empty-text" id="no-tokens" hidden={tokens.length > 0}>
-          No tokens yet.
-        </p>
-      </SettingsCard>
-    </>
+              <p>Copy it now: you will not see it again.</p>
+            </div>
+          </div>
+          <ul class="items" id="token-list">
+            {tokens.map((token) => (
+              <li class="item">
+                <div class="item-main">
+                  <span class="item-title">{token.name}</span>
+                  <span class="item-meta">
+                    Created <time datetime={token.createdAt}>{formatDate(token.createdAt)}</time>
+                  </span>
+                </div>
+                <ApiButton method="DELETE" url={`/api/tokens/${token.id}`} label="Revoke" confirm={`Revoke token "${token.name}"?`} danger />
+              </li>
+            ))}
+          </ul>
+          <p class="empty-text" id="no-tokens" hidden={tokens.length > 0}>
+            No tokens yet.
+          </p>
+        </SettingsPanel>
+      </div>
+    </div>
   );
 }

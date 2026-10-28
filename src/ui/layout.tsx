@@ -20,7 +20,7 @@ interface LayoutProps {
   children?: Child;
 }
 
-const THEME_CHOICES = [
+export const THEME_CHOICES = [
   { id: 'system', label: 'System', icon: 'monitor' },
   { id: 'light', label: 'Light', icon: 'sun' },
   { id: 'dark', label: 'Dark', icon: 'moon' },

@@ -1952,27 +1952,231 @@ textarea:focus-visible {
 
 /* Settings ---------------------------------------------------------------- */
 
-.settings-card {
-  margin-bottom: var(--s5);
-  padding: var(--s5);
+/* One framed block like the viewer: a title row, the section list on the left, one section on the right. */
+.settings {
+  display: grid;
+  grid-template-columns: 232px minmax(0, 1fr);
+  grid-template-rows: auto 1fr;
+  max-width: 960px;
+  min-height: 560px;
+  margin: 0 auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
 }
 
-.settings-card > h2 {
-  margin-bottom: var(--s1);
+.settings-head {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  min-height: 48px;
+  padding: 0 var(--s4);
+  border-bottom: 1px solid var(--border);
 }
 
-.settings-card > .muted {
-  margin-bottom: var(--s4);
+.settings-head h1 {
+  font-size: var(--fs-base);
+  font-weight: 600;
+}
+
+.settings-nav {
+  padding: var(--s4) var(--s3);
+  border-right: 1px solid var(--border);
+}
+
+.settings-nav-group {
+  margin: var(--s5) var(--s2) var(--s2);
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+}
+
+.settings-nav-group:first-child {
+  margin-top: 0;
+}
+
+.settings-nav-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.settings-nav-link {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  min-height: 36px;
+  padding: 0 var(--s2);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-size: var(--fs-sm);
+  text-decoration: none;
+  transition: background-color var(--ease);
+}
+
+.settings-nav-link .icon {
+  flex: none;
+  color: var(--text-muted);
+}
+
+.settings-nav-link:hover {
+  background: var(--hover);
+}
+
+.settings-nav-link:focus-visible {
+  outline-offset: -2px;
+}
+
+.settings-nav-link[aria-current='true'] {
+  background: var(--surface-2);
+  font-weight: 500;
+}
+
+.settings-nav-link[aria-current='true'] .icon {
+  color: var(--text);
+}
+
+.settings-content {
+  min-width: 0;
+  padding: var(--s5) var(--s6) var(--s6);
+  border-radius: 0 0 7px 0;
+  background: var(--bg);
+}
+
+.settings-panel > h2 {
+  font-size: var(--fs-lg);
+  font-weight: 500;
+}
+
+.settings-intro {
+  margin-top: var(--s1);
+  color: var(--text-muted);
   font-size: var(--fs-sm);
 }
 
-.settings-card > .tabs {
+.settings-intro + * {
+  margin-top: var(--s4);
+}
+
+.settings-panel > .tabs {
   margin-bottom: var(--s3);
   border-bottom: 1px solid var(--border);
 }
 
-.settings-card > .tabs .tab[aria-selected='true']::after {
-  bottom: -1px;
+/* Label on the left, control on the right, hairlines between rows. */
+.settings-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    'label control'
+    'hint control';
+  align-content: center;
+  align-items: center;
+  gap: 2px var(--s4);
+  min-height: 64px;
+  padding: var(--s3) 0;
+}
+
+.settings-row + .settings-row {
+  border-top: 1px solid var(--border);
+}
+
+.settings-row:not(:has(.settings-row-hint)) {
+  grid-template-areas: 'label control';
+}
+
+.settings-row-label {
+  grid-area: label;
+  font-size: var(--fs-base);
+}
+
+.settings-row-label > label {
+  font-size: inherit;
+  font-weight: 400;
+}
+
+.settings-row-hint {
+  grid-area: hint;
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+}
+
+.settings-row-control {
+  grid-area: control;
+  justify-self: end;
+}
+
+.segmented-option {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: 36px;
+  height: 28px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition:
+    color var(--ease),
+    background-color var(--ease);
+}
+
+.segmented-option:hover {
+  color: var(--text);
+}
+
+.segmented-option:has(input:checked) {
+  border-color: var(--border-strong);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.14);
+}
+
+.segmented-option:has(input:focus-visible) {
+  outline: 2px solid var(--ring);
+}
+
+/* A borderless select that reads as a value with a chevron, like a menu. */
+.select-quiet {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+}
+
+.select-quiet select {
+  width: auto;
+  min-height: var(--control);
+  padding: 0 32px 0 var(--s3);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  font-size: var(--fs-base);
+  appearance: none;
+  cursor: pointer;
+}
+
+.select-quiet select:hover {
+  background: var(--hover);
+}
+
+.select-quiet .icon {
+  position: absolute;
+  right: var(--s2);
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+.settings-panel .items:not(:empty) {
+  border-width: 1px 0;
+  border-radius: 0;
+}
+
+.settings-panel .item {
+  padding-inline: 0;
 }
 
 .tab-panel {
@@ -2080,29 +2284,8 @@ textarea:focus-visible {
   color: var(--text);
 }
 
-.settings-card .form-inline + .callout {
+.settings-panel .form-inline + .callout {
   margin-top: var(--s4);
-}
-
-.reading-form {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  gap: var(--s5);
-}
-
-.reading-form .field {
-  width: 160px;
-}
-
-/* app.js sets the font and size from the choice; inline styles are blocked by the page CSP. */
-.reading-preview {
-  margin-top: var(--s4);
-  padding: var(--s4);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  color: var(--text);
-  line-height: 1.7;
 }
 
 /* Authorization ----------------------------------------------------------- */
@@ -2199,12 +2382,48 @@ textarea:focus-visible {
   }
 
   .form-card,
-  .settings-card,
   .auth-card {
     padding: var(--s4);
   }
 
-  .settings-card > .tabs .tab {
+  .settings {
+    grid-template-columns: minmax(0, 1fr);
+    min-height: 0;
+  }
+
+  /* The section list becomes one scrolling row above the section. */
+  .settings-nav {
+    display: flex;
+    overflow-x: auto;
+    padding: var(--s2);
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .settings-nav-group {
+    display: none;
+  }
+
+  .settings-nav-list {
+    flex-direction: row;
+  }
+
+  .settings-nav-link {
+    white-space: nowrap;
+  }
+
+  .settings-content {
+    padding: var(--s4);
+    border-radius: 0 0 7px 7px;
+  }
+
+  .settings-row {
+    grid-template-areas:
+      'label control'
+      'hint hint';
+  }
+
+  .settings-panel > .tabs .tab {
     min-height: var(--control);
   }
 
