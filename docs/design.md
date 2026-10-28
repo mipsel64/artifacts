@@ -194,7 +194,7 @@ Pages (lane ui; HTML; unauthenticated pages show the landing / sign-in link):
 | `GET /a/:id` | Viewer: Preview/Code, version switcher (`?v=n`), copy, download, open in new tab, edit, share, retention, delete |
 | `GET /a/:id/edit` | Edit form (title + content of latest version) |
 | `GET /s/:shareId` | Read-only viewer + "Remix" for signed-in allowlisted users. A restricted link returns a 403 "Restricted link" page when the viewer lacks access; it shows no artifact details or audience |
-| `GET /settings` | Reading font and text size (stored in this browser), connected apps (OAuth grants), API tokens, MCP setup (OAuth first, API token as the alternative) |
+| `GET /settings` | One framed block with a section list and one section at a time: General (theme, reading font and text size, stored in this browser), Connect an agent (MCP setup, OAuth first, API token as the alternative), Connected apps (OAuth grants), API tokens. `app.js` switches sections on `#general`, `#connect`, `#apps` and `#tokens` without a reload; no element has those ids, so the page does not scroll |
 | `GET /authorize` | OAuth consent page (see OAuth below) |
 
 Auth (lane auth):

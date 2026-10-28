@@ -216,6 +216,7 @@ function syncThemeButtons() {
   for (const button of document.querySelectorAll('[data-theme-choice]')) {
     button.setAttribute('aria-checked', String(button.dataset.themeChoice === current));
   }
+  for (const input of document.querySelectorAll('input[name="theme"]')) input.checked = input.value === current;
   for (const button of document.querySelectorAll('[data-theme-cycle]')) {
     const label = `Theme: ${THEME_NAMES[current]}`;
     button.setAttribute('aria-label', label);
@@ -260,33 +261,53 @@ for (const frame of document.querySelectorAll('iframe.preview')) {
   sendTheme(frame);
 }
 
-/* Reading font and size (Settings) ----------------------------------------- */
+/* Settings: sections, theme radios, reading font and size ------------------- */
 
-const readingPreview = $('[data-reading-preview]');
+const settingsNav = $('.settings-nav');
 
-function showReading() {
-  const font = $('input[name="reading-font"]:checked');
-  readingPreview.style.fontFamily = font.dataset.stack;
-  readingPreview.style.fontSize = `${$('#reading-size').value}px`;
-}
-
-if (readingPreview) {
-  for (const input of document.querySelectorAll('input[name="reading-font"]')) {
-    input.closest('label').style.fontFamily = input.dataset.stack;
-    if (input.value === stored('reading-font')) input.checked = true;
+function showSettingsSection() {
+  const panels = [...document.querySelectorAll('[data-settings-panel]')];
+  const panel = panels.find((p) => `#${p.dataset.settingsPanel}` === location.hash) || panels[0];
+  // A link inside a section (Connect an agent → API tokens) would leave focus in a hidden panel.
+  const strand = panels.some((p) => p !== panel && p.contains(document.activeElement));
+  for (const p of panels) p.hidden = p !== panel;
+  for (const link of settingsNav.querySelectorAll('a')) {
+    if (link.hash === `#${panel.dataset.settingsPanel}`) link.setAttribute('aria-current', 'true');
+    else link.removeAttribute('aria-current');
   }
-  const select = $('#reading-size');
-  if ([...select.options].some((option) => option.value === stored('reading-size'))) select.value = stored('reading-size');
-  showReading();
-  document.addEventListener('change', (event) => {
-    const input = event.target.closest('input[name="reading-font"], #reading-size');
-    if (!input) return;
-    try {
-      localStorage.setItem(input.name, input.value);
-    } catch {}
-    showReading();
-  });
+  if (strand) $('h2', panel).focus();
 }
+
+if (settingsNav) {
+  window.addEventListener('hashchange', showSettingsSection);
+  showSettingsSection();
+}
+
+const readingFont = $('#reading-font');
+
+// The page CSP blocks inline style attributes, so each font name is drawn in its own font through CSSOM.
+function showReadingFont() {
+  readingFont.style.fontFamily = readingFont.selectedOptions[0].dataset.stack;
+}
+
+if (readingFont) {
+  for (const option of readingFont.options) option.style.fontFamily = option.dataset.stack;
+  for (const select of [readingFont, $('#reading-size')]) {
+    const value = stored(select.name);
+    if ([...select.options].some((option) => option.value === value)) select.value = value;
+  }
+  showReadingFont();
+}
+
+document.addEventListener('change', (event) => {
+  if (event.target.matches('input[name="theme"]')) return setTheme(event.target.value);
+  const select = event.target.closest('#reading-font, #reading-size');
+  if (!select) return;
+  try {
+    localStorage.setItem(select.name, select.value);
+  } catch {}
+  showReadingFont();
+});
 
 document.addEventListener('click', (event) => {
   const choice = event.target.closest('[data-theme-choice]');

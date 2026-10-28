@@ -102,7 +102,7 @@ routes.get('/settings', pageHeaders, async (c) => {
     })),
   );
   return c.html(
-    <Layout title="Settings" me={me} settingsActive width="medium">
+    <Layout title="Settings" me={me} settingsActive>
       <Settings tokens={tokens} apps={apps} origin={new URL(c.req.url).origin} />
     </Layout>,
   );
