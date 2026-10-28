@@ -1,5 +1,5 @@
 import { ARCHIFY_VERSION, ArchifyError, archifyCacheKey, formatArchifyDiagnostics, renderArchify } from './archify';
-import type { ArtifactMeta } from './types';
+import { DEFAULT_READING_SIZE, READING_FONTS, READING_SIZES, type ArtifactMeta } from './types';
 
 const JSDELIVR = 'https://cdn.jsdelivr.net/npm';
 const MARKED_URL = `${JSDELIVR}/marked@18.1.0/lib/marked.esm.js`;
@@ -69,21 +69,24 @@ export const THEME_CSS =
   ':root{--bg:#faf9f5;--surface:#f5f4ed;--surface-2:#f0eee6;--border:#e3e1d9;--fg:#141413;--muted:#6b6a65;--accent:#a9502e;--on-accent:#faf9f5;' +
   '--danger:#b3261e;--warning:#8f5d00;--success:#38734a;--info:#2f6aa3;' +
   '--chart-1:#c6613f;--chart-2:#3d78b5;--chart-3:#3f8a65;--chart-4:#8660b5;--chart-5:#a67c00;--chart-6:#2f8a94;' +
-  "--font:ui-serif,'Iowan Old Style','Palatino Linotype',Palatino,Georgia,'Times New Roman',serif;--sans:system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;--mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;" +
+  `--font:${READING_FONTS.serif};--sans:${READING_FONTS.sans};--mono:${READING_FONTS.mono};--font-size:${DEFAULT_READING_SIZE}px;` +
   '--radius:8px;--shadow:0 8px 24px rgb(20 20 19 / .12)}' +
   `:root[data-theme=dark]{${THEME_DARK_TOKENS}}` +
   `@media (prefers-color-scheme: dark){:root:not([data-theme]){${THEME_DARK_TOKENS}}}` +
   '}';
 
-// The sandbox has no storage or parent access, so the viewer's theme choice arrives by postMessage; nothing in a message is evaluated.
+// The sandbox has no storage or parent access, so the viewer's theme and reading choices arrive by postMessage.
+// Nothing in a message is evaluated; only listed font names and sizes reach the reading style.
 export const THEME_SCRIPT = `
 (function () {
   var root = document.documentElement, media = matchMedia('(prefers-color-scheme: dark)'), choice = 'system', current = null, written = null;
   // The print tab has no parent to ask, and paper is light.
   var printing = parent === window && /[?&]print=1(&|$)/.test(location.search);
   // Layer order follows first appearance, so the token layer must come first to rank below the artifact's own layers.
-  var style = document.currentScript && document.currentScript.previousElementSibling;
+  var style = document.currentScript && document.currentScript.previousElementSibling, reading = null;
   if (style && style.tagName === 'STYLE' && document.head) document.head.prepend(style);
+  else style = null;
+  var SIZES = ${JSON.stringify(READING_SIZES)};
   function apply() {
     var theme = printing ? 'light' : choice === 'system' ? (media.matches ? 'dark' : 'light') : choice;
     // An artifact that sets its own data-theme (daisyUI, Pico, its own toggle) keeps it.
@@ -96,11 +99,22 @@ export const THEME_SCRIPT = `
     current = theme;
     window.dispatchEvent(new CustomEvent('artifact-theme', { detail: theme }));
   }
+  // Later in the same layer, so the choice beats the token defaults but never the artifact's own CSS.
+  function read(font, size) {
+    if (!style) return;
+    var css = (font === 'sans' || font === 'mono' ? '--font:var(--' + font + ');' : '') + (SIZES.indexOf(size) === -1 ? '' : '--font-size:' + size + 'px;');
+    if (!reading) {
+      reading = document.createElement('style');
+      style.after(reading);
+    }
+    reading.textContent = css && '@layer artifact-theme{:root{' + css + '}}';
+  }
   media.addEventListener('change', apply);
   window.addEventListener('message', function (e) {
     var data = e.data;
     if (e.source !== parent || !data || data.type !== 'artifact-theme' || ['light', 'dark', 'system'].indexOf(data.theme) === -1) return;
     choice = data.theme;
+    read(data.font, data.size);
     apply();
   });
   apply();
@@ -126,7 +140,7 @@ const MARKDOWN_THEME_CSS =
 
 // claude.ai-like reading style over github-markdown-css: serif body, quiet headings, hairline tables; same specificity, later in the cascade.
 const MARKDOWN_CLAUDE_CSS =
-  '.markdown-body{--md-code:#a63d38;font-family:var(--font);font-size:18px;line-height:1.7}' +
+  '.markdown-body{--md-code:#a63d38;font-family:var(--font);font-size:var(--font-size);line-height:1.7}' +
   ':root[data-theme=dark] .markdown-body{--md-code:#db8480}' +
   '.markdown-body h1,.markdown-body h2,.markdown-body h3,.markdown-body h4,.markdown-body h5,.markdown-body h6{margin-top:1.75em;margin-bottom:.6em;padding-bottom:0;border-bottom:0;line-height:1.3}' +
   '.markdown-body h1{font-size:1.75em}.markdown-body h2{font-size:1.4em}.markdown-body h3{font-size:1.15em}.markdown-body h4,.markdown-body h5,.markdown-body h6{font-size:1em}' +
@@ -919,14 +933,17 @@ ${HASH_BRIDGE}${SECTION_IDS}
   function eligible(heading) {
     return !heading.closest('a[href], button, summary, label') && !heading.querySelector('a[href^="#"]');
   }
+  // Before the first line like markdown and GitHub; after the last line when the heading starts at the page edge.
   function place() {
     if (!current) return;
-    var range = document.createRange(), rects, r = null;
+    var range = document.createRange(), rects, first = null, last = null, box = current.getBoundingClientRect();
     range.selectNodeContents(current);
     rects = range.getClientRects();
-    for (var i = rects.length - 1; i >= 0 && !r; i--) if (rects[i].width) r = rects[i];
-    r = r || current.getBoundingClientRect();
-    host.style.left = Math.max(0, Math.min(r.right + 4, innerWidth - 28)) + 'px';
+    for (var i = 0; i < rects.length; i++) if (rects[i].width) { first = first || rects[i]; last = rects[i]; }
+    first = first || box;
+    last = last || box;
+    var before = first.left >= 28, r = before ? first : last;
+    host.style.left = (before ? first.left - 28 : Math.min(last.right + 4, innerWidth - 28)) + 'px';
     host.style.top = r.top + r.height / 2 - 12 + 'px';
   }
   function show(heading, id) {
@@ -1713,7 +1730,7 @@ export async function renderDocument(
           meta.title,
           `<script type="importmap">${IMPORT_MAP}</script>\n` +
             `<script src="${BABEL_URL}"></script>\n${TAILWIND_THEME}\n<script src="${TAILWIND_URL}"></script>\n` +
-            '<style>@layer artifact-theme{:root{font-size:112.5%}}</style>',
+            '<style>@layer artifact-theme{:root{font-size:var(--font-size)}}</style>',
           '<div id="root"></div>\n' + moduleScript(REACT_SCRIPT) + `\n<script>${DIAGRAM_ZOOM_SCRIPT}</script>\n<script>${LIGHTBOX_SCRIPT}</script>`,
           content,
         ),

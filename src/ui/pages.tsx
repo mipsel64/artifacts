@@ -1,5 +1,5 @@
 import type { Child } from 'hono/jsx';
-import { ARTIFACT_TYPES, type ArtifactSummary, type ArtifactType, type ArtifactView } from '../types';
+import { ARTIFACT_TYPES, DEFAULT_READING_SIZE, READING_FONTS, READING_SIZES, type ArtifactSummary, type ArtifactType, type ArtifactView, type ReadingFont } from '../types';
 import { Initial } from './components';
 import { formatDate, formatDateTime, retentionLabel } from './format';
 import { GoogleMark, Icon, Logo, TypeIcon, type IconName } from './icons';
@@ -684,6 +684,44 @@ function SettingsCard({ id, title, intro, children }: { id: string; title: strin
   );
 }
 
+const READING_FONT_LABELS: Record<ReadingFont, string> = { serif: 'Serif', sans: 'Sans', mono: 'Mono' };
+
+// Stored in this browser like the theme; app.js applies it to the preview and sends it to every artifact frame.
+function ReadingSettings() {
+  return (
+    <SettingsCard
+      id="reading-heading"
+      title="Reading"
+      intro="Font and text size for markdown, slides and react artifacts, and for html artifacts that use the theme font variables. Saved in this browser."
+    >
+      <div class="reading-form">
+        <fieldset class="share-access">
+          <legend>Font</legend>
+          {(Object.keys(READING_FONTS) as ReadingFont[]).map((font) => (
+            <label class="share-access-option">
+              <input type="radio" name="reading-font" value={font} checked={font === 'serif'} data-stack={READING_FONTS[font]} />
+              <span>{READING_FONT_LABELS[font]}</span>
+            </label>
+          ))}
+        </fieldset>
+        <div class="field">
+          <label for="reading-size">Text size</label>
+          <select id="reading-size" name="reading-size">
+            {READING_SIZES.map((size) => (
+              <option value={String(size)} selected={size === DEFAULT_READING_SIZE}>
+                {size === DEFAULT_READING_SIZE ? `${size} px (default)` : `${size} px`}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+      <p class="reading-preview" data-reading-preview>
+        Agents publish reports, plans and guides here. This is how their text reads with your choice.
+      </p>
+    </SettingsCard>
+  );
+}
+
 export function Settings({ tokens, apps, origin }: SettingsProps) {
   const command = `claude mcp add --transport http artifacts ${origin}/mcp --header "Authorization: Bearer <YOUR_TOKEN>"`;
   const json = `{ "mcpServers": { "artifacts": { "type": "http", "url": "${origin}/mcp", "headers": { "Authorization": "Bearer <YOUR_TOKEN>" } } } }`;
@@ -691,6 +729,7 @@ export function Settings({ tokens, apps, origin }: SettingsProps) {
   return (
     <>
       <h1 class="page-title">Settings</h1>
+      <ReadingSettings />
       <SettingsCard
         id="mcp-heading"
         title="Connect an agent"

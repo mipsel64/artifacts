@@ -233,9 +233,18 @@ function setTheme(choice) {
   for (const frame of document.querySelectorAll('iframe.preview')) sendTheme(frame);
 }
 
-// The sandboxed preview cannot read storage or this page, so it gets the choice by message.
+function stored(key) {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+// The sandboxed preview cannot read storage or this page, so it gets the choices by message; it ignores values it does not list.
 function sendTheme(frame) {
-  frame.contentWindow?.postMessage({ type: 'artifact-theme', theme: currentTheme() }, '*');
+  const size = Number(stored('reading-size')) || null;
+  frame.contentWindow?.postMessage({ type: 'artifact-theme', theme: currentTheme(), font: stored('reading-font'), size }, '*');
 }
 
 window.addEventListener('message', (event) => {
@@ -249,6 +258,34 @@ window.addEventListener('message', (event) => {
 for (const frame of document.querySelectorAll('iframe.preview')) {
   frame.addEventListener('load', () => sendTheme(frame));
   sendTheme(frame);
+}
+
+/* Reading font and size (Settings) ----------------------------------------- */
+
+const readingPreview = $('[data-reading-preview]');
+
+function showReading() {
+  const font = $('input[name="reading-font"]:checked');
+  readingPreview.style.fontFamily = font.dataset.stack;
+  readingPreview.style.fontSize = `${$('#reading-size').value}px`;
+}
+
+if (readingPreview) {
+  for (const input of document.querySelectorAll('input[name="reading-font"]')) {
+    input.closest('label').style.fontFamily = input.dataset.stack;
+    if (input.value === stored('reading-font')) input.checked = true;
+  }
+  const select = $('#reading-size');
+  if ([...select.options].some((option) => option.value === stored('reading-size'))) select.value = stored('reading-size');
+  showReading();
+  document.addEventListener('change', (event) => {
+    const input = event.target.closest('input[name="reading-font"], #reading-size');
+    if (!input) return;
+    try {
+      localStorage.setItem(input.name, input.value);
+    } catch {}
+    showReading();
+  });
 }
 
 document.addEventListener('click', (event) => {

@@ -2,7 +2,7 @@
 
 Each section gives the renderer behavior, the limits and a small example. All types run in the same sandbox and receive theme support. Archify uses its own viewer styles; the other types use the theme tokens from `SKILL.md`.
 
-Reading text uses `var(--font)` (serif). Interface text, diagrams and dashboards use `var(--sans)`. Code uses `var(--mono)`. In `react` and `design`, the Tailwind utilities `font-serif`, `font-sans` and `font-mono` map to those tokens. React text defaults to serif; design artboards default to sans.
+Reading text uses `var(--font)` and `var(--font-size)`; the reader chooses both in Settings (serif, sans or mono, 16px by default). Interface text, diagrams and dashboards use `var(--sans)`. Code uses `var(--mono)`. In `react` and `design`, the Tailwind utilities `font-serif`, `font-sans` and `font-mono` map to `--font`, `--sans` and `--mono`. React text defaults to `--font`, and `1rem` equals `--font-size`; design artboards default to sans.
 
 ## html
 
@@ -11,7 +11,7 @@ Reading text uses `var(--font)` (serif). Interface text, diagrams and dashboards
 - You can load libraries from a CDN, for example `<script type="module">import * as d3 from 'https://esm.sh/d3@7';</script>`.
 - A Mermaid diagram that the page draws itself (`<pre class="mermaid">` or `mermaid.render`) gets pan and zoom from the renderer: drag, pinch or Ctrl/Cmd + wheel, `0` or Fit to reset, and a toolbar on hover. This also applies in `react`. For a page that is only one diagram, use the `mermaid` type.
 - Images and diagrams open in a zoom viewer on click in `html`, `react`, `markdown` and `slides`. Add `data-artifact-no-zoom` to an element or container that handles its own clicks.
-- Headings (`h1` to `h6`) get a link icon on hover, and the viewer URL follows the section. A heading without an `id` gets a GitHub-style one (`Getting started` is `#getting-started`), but the renderer does not write it to your DOM. Give a heading an `id` when the link must stay the same after you change its text. A heading inside a link, or one that has its own `href="#…"` link, gets no icon.
+- Headings (`h1` to `h6`) get a link icon on hover, and the viewer URL follows the section. A heading without an `id` gets a GitHub-style one (`Getting started` is `#getting-started`), but the renderer does not write it to your DOM. Give a heading an `id` when the link must stay the same after you change its text. The link uses your `id`, so make it the slug of the full heading text without its number: `<h2 id="rules-and-scope">2. Rules and scope</h2>`, not `id="rules"`. A heading inside a link, or one that has its own `href="#…"` link, gets no icon.
 - The renderer adds no error panel to `html`. A script error is silent, so keep scripts small and simple.
 - Open external links in a new tab: `<a href="..." target="_blank" rel="noopener">`. The sandbox blocks navigation of the top window.
 - Print gives the PDF export. Add `@media print` rules when the page contains fixed or interactive parts.
