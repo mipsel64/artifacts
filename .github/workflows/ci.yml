@@ -51,5 +51,8 @@ jobs:
           bun-version: '1.4.4'
       - run: bun install --frozen-lockfile
       - run: bun audit --prod
-      # The patched tooling (wrangler 4.153, vitest-plugin 1.4.8, miniflare 5.20261023) crashes the test pool; drop these ignores after upgrading it.
-      - run: bun audit --ignore GHSA-4qv8-2p9j-2685 --ignore GHSA-f72v-6w45-q472 --ignore GHSA-xjj6-f33q-929c --ignore GHSA-mrhx-c7xc-m3w5
+      # Dev-only undici and zod under miniflare and vitest-plugin. The patched tooling (wrangler 4.153, vitest-plugin 1.4.8,
+      # miniflare 5.20261023) crashes the test pool; drop these ignores after upgrading it.
+      - run: >-
+          bun audit --ignore GHSA-4qv8-2p9j-2685 --ignore GHSA-f72v-6w45-q472 --ignore GHSA-xjj6-f33q-929c --ignore GHSA-mrhx-c7xc-m3w5
+          --ignore GHSA-4w7w-5xrc-9h26 --ignore GHSA-2m5v-pch6-74hx --ignore GHSA-qrxm-fqhp-jwvm --ignore GHSA-9fm3-97px-rjf6 --ignore GHSA-55wc-3pg8-jfw6
