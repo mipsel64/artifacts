@@ -68,7 +68,8 @@ The renderer adds these CSS variables to `:root` in every document, in a low-pri
 | `--accent`, `--on-accent` | The primary action, links, focus rings, one highlight. `--on-accent` is text on `--accent`. |
 | `--danger`, `--warning`, `--success`, `--info` | Status. Always add text or an icon. |
 | `--chart-1` ... `--chart-6` | Data series, in this order |
-| `--font`, `--sans`, `--mono` | Serif reading text. Interface text, diagrams and UI mockups. Code and tabular numbers. |
+| `--font`, `--sans`, `--mono` | Reading text. Interface text, diagrams and UI mockups. Code and tabular numbers. |
+| `--font-size` | Reading text size (16px by default) |
 | `--radius`, `--shadow` | Corner radius. The one shadow for floating layers, such as menus. |
 
 The palette is Claude-style. Light: `--bg` #faf9f5, `--fg` #141413, `--accent` #a9502e. Dark: `--bg` #151515, `--fg` #f0efec, `--accent` #d97757.
@@ -82,6 +83,7 @@ The palette is Claude-style. Light: `--bg` #faf9f5, `--fg` #141413, `--accent` #
 - For `html`, `react` and `motion`, the renderer does not set the background, the text color or `color-scheme`. Set `background: var(--bg)` and `color: var(--fg)` yourself. You can also set `color-scheme`.
 - A `design` artboard is white and uses sans by default, as a blank screen. Put `bg-bg text-fg` on each artboard to use the theme colors.
 - SVG presentation attributes accept tokens: `fill="var(--chart-1)"`. This also works in Recharts props.
+- The reader chooses the reading font (serif, sans or mono) and the text size in Settings. They reach the document as `--font` and `--font-size`. Text that uses these tokens follows the choice; fixed `px` sizes and font names do not. `markdown`, `slides` and `react` text use them by default.
 
 Minimal `html`:
 
@@ -95,11 +97,11 @@ Minimal `html`:
 <style>
   :root { color-scheme: light; }
   :root[data-theme=dark] { color-scheme: dark; }
-  body { margin: 0; background: var(--bg); color: var(--fg); font: 18px/1.7 var(--font); }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: var(--font-size)/1.7 var(--font); }
   main { max-width: 760px; margin: 0 auto; padding: 24px 20px 48px; display: grid; gap: 16px; }
   header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
            padding-bottom: 12px; border-bottom: 1px solid var(--border); }
-  h1 { font-size: 28px; margin: 0; }
+  h1 { font-size: 1.75em; margin: 0; }
   .meta { color: var(--muted); font-size: 14px; }
   .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; }
   a { color: var(--accent); }
@@ -161,8 +163,8 @@ Sandbox limits: the document has an opaque origin and no access to the app. `loc
 
 Make every artifact minimal and calm, in the style of Claude's own UI.
 
-- Use slim header rows (40-48px high), 18px serif reading text, 16px UI text and 14px metadata.
-- Use `var(--font)` for serif reading text. Use `var(--sans)` for interface text, diagrams and dashboards; keep code in `var(--mono)`.
+- Use slim header rows (40-48px high), `var(--font-size)` reading text, 16px UI text and 14px metadata.
+- Use `var(--font)` for reading text. Use `var(--sans)` for interface text, diagrams and dashboards; keep code in `var(--mono)`.
 - Use generous whitespace on a 4px or 8px scale.
 - Use the accent color sparingly: the one primary action, links, focus and one highlight.
 - Put secondary actions in one menu, not in a row of buttons.
@@ -175,7 +177,7 @@ Make every artifact minimal and calm, in the style of Claude's own UI.
 1. **Contrast.** Body text needs 4.5:1. Large text, icons and chart marks need 3:1. Check both themes.
 2. **Keyboard.** Every control is a real `button`, `a` or form element with a visible `:focus-visible` ring. The tab order follows the visual order.
 3. **Small screens.** At 375px width there is no horizontal scroll. Stack columns and let wide tables scroll inside their own container.
-4. **Type and spacing.** Use few sizes (13, 15, 18, 24px), line height 1.5-1.6, 60-75 characters per line, `font-variant-numeric: tabular-nums` for numbers.
+4. **Type and spacing.** Use few sizes: `var(--font-size)` for reading text, headings at 1.15em, 1.4em and 1.75em of it, 16px UI text and 14px metadata. Use line height 1.7 for reading text and 1.5 for interface text, 60-75 characters per line, and `font-variant-numeric: tabular-nums` for numbers.
 5. **Icons.** Use inline SVG icons from one set (Lucide style, 1.5-2px stroke). Do not use emoji as icons.
 6. **Motion.** Animate only `transform` and `opacity`, for 150-300ms. Respect `prefers-reduced-motion`.
 7. **Charts.** Show a legend or direct labels, axis units and a short text summary. Do not use color as the only signal.

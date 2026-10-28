@@ -3,7 +3,7 @@ import { reset } from 'cloudflare:test';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createArtifact, deleteArtifact, getArtifact, sweepExpired, updateArtifact } from '../src/artifacts';
 import { ARCHIFY_VERSION, archifyCacheKey } from '../src/archify';
-import { renderStoredDocument, THEME_SCRIPT } from '../src/render';
+import { renderStoredDocument, THEME_CSS, THEME_SCRIPT } from '../src/render';
 import architecture from '../skills/artifacts/references/archify/examples/web-app.architecture.json';
 import type { ArtifactSummary, ArtifactView } from '../src/types';
 import { bearer, createTestUser, request } from './helpers';
@@ -150,7 +150,7 @@ describe('Archify artifact reads', () => {
     expect(res.status).toBe(200);
     const body = await res.text();
     expect(body).toContain('<h1>Sample Web App</h1>');
-    expect(body).not.toContain('@layer artifact-theme{');
+    expect(body).not.toContain(THEME_CSS);
     const bridge = body.indexOf("window.addEventListener('artifact-theme'");
     const theme = body.indexOf(THEME_SCRIPT);
     const ready = body.indexOf('<script>window.__artifactReady = true</script>');
@@ -171,7 +171,7 @@ describe('Archify artifact reads', () => {
     const body = await res.text();
     expect(body).toContain('Archify could not render this candidate.');
     expect(body).toContain('[archify-json]');
-    expect(body).toContain('@layer artifact-theme{');
+    expect(body).toContain(THEME_CSS);
     expect(body).toContain(':root{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}');
     expect(body).not.toContain('{ <');
   });

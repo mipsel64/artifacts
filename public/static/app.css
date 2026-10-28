@@ -2084,6 +2084,27 @@ textarea:focus-visible {
   margin-top: var(--s4);
 }
 
+.reading-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--s5);
+}
+
+.reading-form .field {
+  width: 160px;
+}
+
+/* app.js sets the font and size from the choice; inline styles are blocked by the page CSP. */
+.reading-preview {
+  margin-top: var(--s4);
+  padding: var(--s4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  line-height: 1.7;
+}
+
 /* Authorization ----------------------------------------------------------- */
 
 .auth-card {
