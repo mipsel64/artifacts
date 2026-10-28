@@ -268,11 +268,14 @@ const settingsNav = $('.settings-nav');
 function showSettingsSection() {
   const panels = [...document.querySelectorAll('[data-settings-panel]')];
   const panel = panels.find((p) => `#${p.dataset.settingsPanel}` === location.hash) || panels[0];
+  // A link inside a section (Connect an agent → API tokens) would leave focus in a hidden panel.
+  const strand = panels.some((p) => p !== panel && p.contains(document.activeElement));
   for (const p of panels) p.hidden = p !== panel;
   for (const link of settingsNav.querySelectorAll('a')) {
     if (link.hash === `#${panel.dataset.settingsPanel}`) link.setAttribute('aria-current', 'true');
     else link.removeAttribute('aria-current');
   }
+  if (strand) $('h2', panel).focus();
 }
 
 if (settingsNav) {

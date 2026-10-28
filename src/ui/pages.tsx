@@ -715,7 +715,9 @@ function SettingsNav() {
 function SettingsPanel({ id, title, intro, children }: { id: SettingsSection; title: string; intro?: Child; children?: Child }) {
   return (
     <section class="settings-panel" data-settings-panel={id} aria-labelledby={`${id}-heading`} hidden={id !== 'general'}>
-      <h2 id={`${id}-heading`}>{title}</h2>
+      <h2 id={`${id}-heading`} tabindex={-1}>
+        {title}
+      </h2>
       {intro && <p class="settings-intro">{intro}</p>}
       {children}
     </section>
