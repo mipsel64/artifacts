@@ -3,7 +3,7 @@ import { AlertDialog } from '@astryxdesign/core/AlertDialog';
 import { Avatar } from '@astryxdesign/core/Avatar';
 import { Banner } from '@astryxdesign/core/Banner';
 import { Button } from '@astryxdesign/core/Button';
-import { DropdownMenu, DropdownMenuDivider, DropdownMenuItem, DropdownMenuRadioGroup, DropdownMenuRadioItem } from '@astryxdesign/core/DropdownMenu';
+import { DropdownMenu, DropdownMenuDivider, DropdownMenuItem } from '@astryxdesign/core/DropdownMenu';
 import { HStack, VStack } from '@astryxdesign/core/Layout';
 import { AppShell } from '@astryxdesign/core/AppShell';
 import { Text } from '@astryxdesign/core/Text';
@@ -134,11 +134,9 @@ function AccountMenu({ me, settingsActive }: { me: Identity; settingsActive?: bo
       <DropdownMenuItem label="Settings" href="/settings" aria-current={settingsActive ? 'page' : undefined} />
       <DropdownMenuDivider />
       <Text id="appearance-label" type="supporting" color="secondary" className="menu-group-label">Appearance</Text>
-      <DropdownMenuRadioGroup label="Appearance" aria-labelledby="appearance-label" value={mode} onChange={(value) => setMode(value as ThemeMode)}>
-        <DropdownMenuRadioItem label="System" value="system" />
-        <DropdownMenuRadioItem label="Light" value="light" />
-        <DropdownMenuRadioItem label="Dark" value="dark" />
-      </DropdownMenuRadioGroup>
+      <DropdownMenuItem label="System" onClick={() => setMode('system')} endContent={mode === 'system' ? <Icon name="check" /> : undefined} />
+      <DropdownMenuItem label="Light" onClick={() => setMode('light')} endContent={mode === 'light' ? <Icon name="check" /> : undefined} />
+      <DropdownMenuItem label="Dark" onClick={() => setMode('dark')} endContent={mode === 'dark' ? <Icon name="check" /> : undefined} />
     </DropdownMenu>
   );
 }

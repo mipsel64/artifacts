@@ -34,7 +34,7 @@ export function Library({ items, now }: LibraryProps) {
           }
         />
       ) : (
-        <List density="compact" hasDividers edge="flush">
+        <List density="balanced" hasDividers edge="padded">
           {items.map((item) => (
             <ListItem
               key={item.id}
