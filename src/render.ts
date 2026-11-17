@@ -179,7 +179,7 @@ const TAILWIND_THEME =
 
 // --- diagram zoom ---
 
-// Icon geometry from Lucide (ISC license, see src/ui/icons.tsx).
+// Icon geometry from Lucide (ISC license, see src/ui/app/icons.tsx).
 const ZOOM_ICONS = {
   out: '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3M8 11h6"/>',
   in: '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3M11 8v6M8 11h6"/>',

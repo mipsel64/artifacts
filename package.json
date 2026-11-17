@@ -5,8 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "wrangler dev --local-upstream localhost:8787",
+    "astryx": "node node_modules/@astryxdesign/cli/clients/cli/bin/astryx.mjs",
     "archify:sync": "bun scripts/archify-sync.ts",
     "archify:build": "bun scripts/archify-build.ts",
+    "client:build": "bun scripts/client-build.ts",
     "test": "bun run archify:build && vitest run",
     "typecheck": "bun run archify:build && tsc --noEmit",
     "types": "wrangler types --strict-vars=false",
@@ -14,15 +16,23 @@
     "lint": "oxlint --deny-warnings"
   },
   "dependencies": {
+    "@astryxdesign/core": "0.7.16",
+    "@astryxdesign/theme-neutral": "0.7.16",
     "@cloudflare/workers-oauth-provider": "^1.2.3",
     "@modelcontextprotocol/sdk": "^1.32.1",
+    "@stylexjs/stylex": "^0.19.2",
     "hono": "^4.13.18",
     "memfs": "^4.80.0",
+    "react": "19",
+    "react-dom": "19",
     "zod": "^4"
   },
   "devDependencies": {
+    "@astryxdesign/cli": "0.7.16",
     "@cloudflare/vitest-plugin": "^1.4.0",
     "@types/node": "^26.6.5",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
     "esbuild": "^0.28.2",
     "oxlint": "^1.89.0",
     "typescript": "^7.0.2",

@@ -12,7 +12,7 @@ afterEach(() => {
 
 const SECURITY_HEADERS: Record<string, string> = {
   'content-security-policy':
-    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' https://lh3.googleusercontent.com data:; frame-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'",
+    "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' https://lh3.googleusercontent.com data:; frame-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'",
   'x-frame-options': 'DENY',
   'referrer-policy': 'same-origin',
   'x-content-type-options': 'nosniff',
@@ -25,8 +25,10 @@ async function expectErrorPage(res: Response, status: number, title: string): Pr
   for (const [name, value] of Object.entries(SECURITY_HEADERS)) expect(res.headers.get(name)).toBe(value);
   const body = await res.text();
   expect(body).toContain('<!doctype html>');
-  expect(body).toContain(`<h1>${title}</h1>`);
-  expect(body).toContain('href="/static/app.css"');
+  expect(body).toContain(`>${title}</h1>`);
+  expect(body).toContain('href="/static/build/app.css"');
+  expect(body).toContain('src="/static/build/client.js"');
+  expect(body).toContain('id="page-data"');
   return body;
 }
 
@@ -38,9 +40,9 @@ describe('share page errors', () => {
     expect(body).toContain('This share link was removed, has expired, or never existed.');
     expect(body).toContain('<title>Not found · Artifacts</title>');
     expect(body).toContain('Go to Artifacts');
-    expect(body).not.toContain('id="account-menu"');
+    expect(body).not.toContain('action="/auth/logout"');
     expect(body).not.toContain('<script>');
-    expect(body).not.toContain('style="');
+    expect(body).toContain('"page":"error"');
   });
 
   it('renders the same page for a revoked share link', async () => {
@@ -55,7 +57,8 @@ describe('share page errors', () => {
   it('shows the account menu when signed in', async () => {
     const { cookie } = await createTestUser();
     const body = await expectErrorPage(await request('/s/unknown', asUser(cookie)), 404, 'Link not available');
-    expect(body).toContain('id="account-menu"');
+    expect(body).toContain('alice@example.com');
+    expect(body).toContain('href="/new"');
   });
 });
 
@@ -66,7 +69,8 @@ describe('artifact page errors', () => {
       const body = await expectErrorPage(await request(path, asUser(cookie)), 404, 'Artifact not found');
       expect(body).toContain('It may have expired or been deleted, or it belongs to another account.');
       expect(body).toContain('Back to your artifacts');
-      expect(body).toContain('id="account-menu"');
+      expect(body).toContain('alice@example.com');
+      expect(body).toContain('href="/new"');
     }
   });
 
@@ -117,7 +121,7 @@ describe('other page errors', () => {
     });
     const res = await main.fetch(new Request(`${ORIGIN}/nope`, asUser(cookie)), { ...env, KV: broken }, createExecutionContext());
     const body = await expectErrorPage(res, 404, 'Page not found');
-    expect(body).not.toContain('id="account-menu"');
+    expect(body).not.toContain('action="/auth/logout"');
   });
 
   it('renders a 500 without the error details and still logs them', async () => {
@@ -135,7 +139,8 @@ describe('other page errors', () => {
     const body = await expectErrorPage(res, 500, 'Something went wrong');
     expect(body).toContain('Try again in a moment.');
     expect(body).not.toContain('R2 down');
-    expect(body).toContain('id="account-menu"');
+    expect(body).toContain('alice@example.com');
+    expect(body).toContain('href="/new"');
     expect(log).toHaveBeenCalled();
   });
 });

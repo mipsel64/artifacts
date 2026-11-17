@@ -1,0 +1,12 @@
+[data-astryx-theme="claude"] {
+  --color-artifact-html: light-dark(#c6613f, #d97757);
+  --color-artifact-react: light-dark(#3f8a65, #6cc08f);
+  --color-artifact-svg: light-dark(#a67c00, #d9a441);
+  --color-artifact-mermaid: light-dark(#8660b5, #a98bd6);
+  --color-artifact-markdown: light-dark(#3d78b5, #7ea6d9);
+  --color-artifact-code: light-dark(#6a7f2e, #a3b85a);
+  --color-artifact-slides: light-dark(#c04a5f, #e07a8c);
+  --color-artifact-design: light-dark(#2f8a94, #5fc0c9);
+  --color-artifact-motion: light-dark(#b0589a, #d98bc3);
+  --color-artifact-archify: light-dark(#5778c7, #8ba7ed);
+}

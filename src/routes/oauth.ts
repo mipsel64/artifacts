@@ -1,13 +1,11 @@
-import { AuthorizationError, type ConsentDescription, type GrantSummary, type OAuthHelpers } from '@cloudflare/workers-oauth-provider';
+import { AuthorizationError, type GrantSummary, type OAuthHelpers } from '@cloudflare/workers-oauth-provider';
 import { Hono, type Context } from 'hono';
 import { ArtifactError } from '../artifacts';
 import { isAllowed, readSession, requireSession } from '../auth';
 import { MAX_NEXT_LENGTH } from './auth';
 import type { AppEnv } from '../types';
-import { pageHeaders, setPageHeaders } from '../ui/headers';
-import { Callout, Initial } from '../ui/components';
-import { Icon } from '../ui/icons';
-import { Layout } from '../ui/layout';
+import { pageHeaders } from '../ui/headers';
+import { renderPage } from '../ui/app/document';
 
 export function oauthHelpers(c: Context<AppEnv>): OAuthHelpers {
   if (!c.env.OAUTH_PROVIDER) throw new Error('OAUTH_PROVIDER is not available');
@@ -32,61 +30,12 @@ function redirectSource(redirectUri: string): string {
   return url.protocol === 'http:' || url.protocol === 'https:' ? url.origin : url.protocol;
 }
 
-function ErrorPage({ message }: { message: string }) {
-  return (
-    <Layout title="Authorization error" me={null} signIn={false} width="narrow">
-      <div class="card auth-card">
-        <span class="auth-icon auth-icon-danger">
-          <Icon name="circle-alert" size={24} />
-        </span>
-        <h1>Authorization failed</h1>
-        <p>{message}</p>
-        <p class="muted">Go back to the app and start signing in again.</p>
-      </div>
-    </Layout>
-  );
-}
-
-function ConsentPage({ details, email, handle }: { details: ConsentDescription; email: string; handle: string }) {
-  return (
-    <Layout title="Authorize" me={null} signIn={false} width="narrow">
-      <form class="card auth-card" method="post" action="/authorize">
-        <Initial name={details.clientName} />
-        <h1>{details.clientName} wants to access your Artifacts</h1>
-        <p class="muted">This app registered itself, so its name is not verified.</p>
-        {details.redirectIsLoopback && (
-          <Callout kind="warning">
-            <strong>This sends access to an app on your computer.</strong> Continue only if you just started signing in from it.
-          </Callout>
-        )}
-        <dl class="facts">
-          <div>
-            <dt>Sends access to</dt>
-            <dd>
-              <strong>{details.redirectHost}</strong>
-            </dd>
-          </div>
-          <div>
-            <dt>Signed in as</dt>
-            <dd>{email}</dd>
-          </div>
-          <div>
-            <dt>Can</dt>
-            <dd>List, read, create, change, share and delete your artifacts until you revoke it in Settings.</dd>
-          </div>
-        </dl>
-        <input type="hidden" name="handle" value={handle} />
-        <div class="actions actions-stack">
-          <button type="submit" name="decision" value="approve" class="button button-primary button-lg">
-            Allow
-          </button>
-          <button type="submit" name="decision" value="deny" class="button button-lg">
-            Deny
-          </button>
-        </div>
-      </form>
-    </Layout>
-  );
+function authorizationError(c: Context<AppEnv>, message: string) {
+  return renderPage(c, 'authError', { message }, {
+    title: 'Authorization error',
+    status: 400,
+    shell: { me: null, signIn: false, width: 'narrow' },
+  });
 }
 
 const routes = new Hono<AppEnv>();
@@ -102,19 +51,28 @@ routes.get('/authorize', pageHeaders, async (c) => {
       const next = url.pathname + url.search;
       // Sign-in keeps `next` in a cookie; a longer request would be dropped and the client would never get an answer.
       if (next.length > MAX_NEXT_LENGTH) {
-        return c.html(<ErrorPage message="This authorization request is too long. Sign in to Artifacts first, then try again." />, 400);
+        return authorizationError(c, 'This authorization request is too long. Sign in to Artifacts first, then try again.');
       }
       return c.redirect(`/auth/login?next=${encodeURIComponent(next)}`, 302);
     }
     const details = await oauth.describeConsent(authRequest);
     const consent = await oauth.beginConsent(authRequest);
     for (const [name, value] of consent.headers) c.header(name, value, { append: name === 'set-cookie' });
-    setPageHeaders(c, `'self' ${redirectSource(details.redirectUri)}`);
-    return c.html(<ConsentPage details={details} email={session.email} handle={consent.handle} />);
+    return renderPage(c, 'consent', {
+      clientName: details.clientName,
+      redirectHost: details.redirectHost,
+      redirectIsLoopback: details.redirectIsLoopback,
+      email: session.email,
+      handle: consent.handle,
+    }, {
+      title: 'Authorize',
+      formAction: `'self' ${redirectSource(details.redirectUri)}`,
+      shell: { me: null, signIn: false, width: 'narrow' },
+    });
   } catch (error) {
     if (!(error instanceof AuthorizationError)) throw error;
     if (error.redirectTo) return c.redirect(error.redirectTo, 302);
-    return c.html(<ErrorPage message={error.description} />, 400);
+    return authorizationError(c, error.description);
   }
 });
 
@@ -140,7 +98,7 @@ routes.post('/authorize', pageHeaders, requireSession, async (c) => {
     return new Response(null, { status: 302, headers: approved.headers });
   } catch (error) {
     if (!(error instanceof AuthorizationError)) throw error;
-    return c.html(<ErrorPage message={error.description} />, 400);
+    return authorizationError(c, error.description);
   }
 });
 

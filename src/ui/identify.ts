@@ -1,7 +1,7 @@
 import type { Context } from 'hono';
 import { authenticate, getUser } from '../auth';
 import type { AppEnv } from '../types';
-import type { Identity } from './layout';
+import type { Identity } from './app/identity';
 
 export async function identify(c: Context<AppEnv>): Promise<(Identity & { id: string }) | null> {
   const auth = await authenticate(c);
