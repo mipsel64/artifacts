@@ -55,8 +55,8 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: var(--spacing-8);
-    height: var(--spacing-8);
+    width: var(--spacing-10);
+    height: var(--spacing-10);
     flex: none;
     border-radius: var(--radius-container);
     background: color-mix(in srgb, currentColor 12%, transparent);
@@ -175,8 +175,14 @@
     padding: var(--spacing-4) var(--spacing-3);
     border-right: thin solid var(--color-border);
   }
-  .settings-nav-section + .settings-nav-section { margin-top: var(--spacing-5); }
-  .settings-nav-group { margin: 0 var(--spacing-4) var(--spacing-2); }
+  .settings-nav-section + .settings-nav-section { margin-top: var(--spacing-6); }
+  .settings-nav-group {
+    margin: 0 var(--spacing-4) var(--spacing-2);
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
   .settings-content {
     min-width: 0;
     padding: var(--spacing-5) var(--spacing-6) var(--spacing-6);
