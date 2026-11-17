@@ -35,6 +35,7 @@ export function Shared({ shareId, title, type, language, signedIn }: SharedProps
     <ViewerFrame
       previewSrc={`/s/${shareId}/render`}
       contentUrl={`/s/${shareId}/raw`}
+      fitWidth={type === 'html' || type === 'react'}
       bar={(loadContent) => (
         <>
           <Heading level={1} weight="semibold" className="viewer-title viewer-title-plain">
