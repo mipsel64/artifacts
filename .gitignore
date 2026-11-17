@@ -5,3 +5,7 @@ dist
 .vitest
 src/archify/engine.gen.js
 .archify-sync-*
+public/static/build/
+themes/*/*.png
+themes/*/*.html
+themes/*/*.pictures.json

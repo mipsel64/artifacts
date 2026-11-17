@@ -70,7 +70,7 @@ export async function createSessionCookie(
 ): Promise<string> {
   const exp = Math.floor(now.getTime() / 1000) + ttlSeconds;
   const payload = toBase64Url(encoder.encode(JSON.stringify({ uid: user.id, email: user.email, hd: user.hostedDomain ?? null, exp })));
-  const signature = new Uint8Array(await crypto.subtle.sign('HMAC', await hmacKey(env, 'sign'), encoder.encode(payload)));
+  const signature = new Uint8Array(await crypto.subtle.sign('HMAC', await hmacKey(env, 'sign'), encoder.encode(payload).buffer as ArrayBuffer));
   return `${SESSION_COOKIE}=${payload}.${toBase64Url(signature)}; ${COOKIE_ATTRIBUTES}; Max-Age=${ttlSeconds}`;
 }
 
@@ -95,7 +95,7 @@ export async function readSession(
     const valid = await crypto.subtle.verify(
       'HMAC',
       await hmacKey(env, 'verify'),
-      fromBase64Url(signature),
+      fromBase64Url(signature).buffer as ArrayBuffer,
       encoder.encode(payload),
     );
     if (!valid) return null;

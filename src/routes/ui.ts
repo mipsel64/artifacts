@@ -1,12 +1,11 @@
 import { Hono } from 'hono';
-import { ArtifactError, canViewShare, getArtifact, getContent, getSharedArtifact, listArtifacts, toView } from '../artifacts';
+import { ArtifactError, canViewShare, getArtifact, getContent, getSharedArtifact, listArtifacts } from '../artifacts';
 import { listApiTokens, readSession } from '../auth';
 import { listGrants, oauthHelpers } from './oauth';
 import type { AppEnv } from '../types';
 import { pageHeaders } from '../ui/headers';
 import { identify } from '../ui/identify';
-import { Layout } from '../ui/layout';
-import { ArtifactList, EditArtifact, Landing, NewArtifact, RestrictedShare, Settings, SharedViewer, Viewer } from '../ui/pages';
+import { renderPage } from '../ui/app/document';
 
 function parseVersion(raw: string | undefined): number | undefined {
   if (raw === undefined) return undefined;
@@ -19,28 +18,22 @@ const routes = new Hono<AppEnv>();
 routes.get('/', pageHeaders, async (c) => {
   const me = await identify(c);
   if (!me) {
-    return c.html(
-      <Layout title="Welcome" me={null}>
-        <Landing />
-      </Layout>,
-    );
+    return renderPage(c, 'landing', {}, { title: 'Welcome', shell: { me: null } });
   }
   const items = await listArtifacts(c.env, me.id);
-  return c.html(
-    <Layout title="Artifacts" me={me}>
-      <ArtifactList items={items} now={new Date()} />
-    </Layout>,
-  );
+  return renderPage(c, 'library', { items, now: new Date().toISOString() }, {
+    title: 'Artifacts',
+    shell: { me },
+  });
 });
 
 routes.get('/new', pageHeaders, async (c) => {
   const me = await identify(c);
   if (!me) return c.redirect('/');
-  return c.html(
-    <Layout title="New artifact" me={me} width="narrow">
-      <NewArtifact />
-    </Layout>,
-  );
+  return renderPage(c, 'newArtifact', {}, {
+    title: 'New artifact',
+    shell: { me, width: 'narrow' },
+  });
 });
 
 routes.get('/a/:id', pageHeaders, async (c) => {
@@ -48,12 +41,26 @@ routes.get('/a/:id', pageHeaders, async (c) => {
   if (!me) return c.redirect('/');
   const meta = await getArtifact(c.env, me.id, c.req.param('id'));
   const version = parseVersion(c.req.query('v')) ?? meta.version;
-  const content = await getContent(c.env, meta, version);
-  return c.html(
-    <Layout title={meta.title} me={me} fill>
-      <Viewer meta={toView(meta, new URL(c.req.url).origin)} version={version} content={content} now={new Date()} />
-    </Layout>,
-  );
+  if (!meta.versions.some((info) => info.version === version)) throw new ArtifactError(404, 'Version not found');
+  const origin = new URL(c.req.url).origin;
+  return renderPage(c, 'viewer', {
+    meta: {
+      id: meta.id,
+      title: meta.title,
+      type: meta.type,
+      language: meta.language,
+      version: meta.version,
+      versions: meta.versions.map((info) => ({ version: info.version, createdAt: info.createdAt })),
+      expiresAt: meta.expiresAt,
+      shareUrl: meta.shareId ? `${origin}/s/${meta.shareId}` : null,
+      shareAudience: meta.shareAudience,
+    },
+    version,
+    now: new Date().toISOString(),
+  }, {
+    title: meta.title,
+    shell: { me, width: 'fill' },
+  });
 });
 
 routes.get('/a/:id/edit', pageHeaders, async (c) => {
@@ -61,11 +68,10 @@ routes.get('/a/:id/edit', pageHeaders, async (c) => {
   if (!me) return c.redirect('/');
   const meta = await getArtifact(c.env, me.id, c.req.param('id'));
   const content = await getContent(c.env, meta);
-  return c.html(
-    <Layout title={`Edit ${meta.title}`} me={me} width="narrow">
-      <EditArtifact meta={toView(meta, new URL(c.req.url).origin)} content={content} />
-    </Layout>,
-  );
+  return renderPage(c, 'editArtifact', { id: meta.id, title: meta.title, content }, {
+    title: `Edit ${meta.title}`,
+    shell: { me, width: 'narrow' },
+  });
 });
 
 routes.get('/s/:shareId', pageHeaders, async (c) => {
@@ -74,19 +80,22 @@ routes.get('/s/:shareId', pageHeaders, async (c) => {
   const viewer = await readSession(c.env, c.req.header('Cookie'));
   const me = await identify(c);
   if (!canViewShare(meta, viewer)) {
-    return c.html(
-      <Layout title="Restricted link" me={me} viewerEmail={viewer?.email ?? null} signIn={false} width="narrow">
-        <RestrictedShare shareId={shareId} viewerEmail={viewer?.email ?? null} />
-      </Layout>,
-      403,
-    );
+    return renderPage(c, 'restricted', { shareId, viewerEmail: viewer?.email ?? null }, {
+      title: 'Restricted link',
+      status: 403,
+      shell: { me, viewerEmail: viewer?.email ?? null, signIn: false, width: 'narrow' },
+    });
   }
-  const content = await getContent(c.env, meta);
-  return c.html(
-    <Layout title={meta.title} me={me} viewerEmail={me ? null : viewer?.email ?? null} fill>
-      <SharedViewer shareId={shareId} meta={toView(meta, new URL(c.req.url).origin)} content={content} signedIn={me !== null} />
-    </Layout>,
-  );
+  return renderPage(c, 'shared', {
+    shareId,
+    title: meta.title,
+    type: meta.type,
+    language: meta.language,
+    signedIn: me !== null,
+  }, {
+    title: meta.title,
+    shell: { me, viewerEmail: me ? null : viewer?.email ?? null, width: 'fill' },
+  });
 });
 
 routes.get('/settings', pageHeaders, async (c) => {
@@ -101,11 +110,10 @@ routes.get('/settings', pageHeaders, async (c) => {
       createdAt: new Date(grant.createdAt * 1000).toISOString(),
     })),
   );
-  return c.html(
-    <Layout title="Settings" me={me} settingsActive>
-      <Settings tokens={tokens} apps={apps} origin={new URL(c.req.url).origin} />
-    </Layout>,
-  );
+  return renderPage(c, 'settings', { tokens, apps, origin: new URL(c.req.url).origin }, {
+    title: 'Settings',
+    shell: { me, settingsActive: true },
+  });
 });
 
 export default routes;

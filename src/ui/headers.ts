@@ -2,7 +2,7 @@ import type { Context, MiddlewareHandler } from 'hono';
 import type { AppEnv } from '../types';
 
 const csp = (formAction: string) =>
-  `default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' https://lh3.googleusercontent.com data:; frame-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action ${formAction}; frame-ancestors 'none'`;
+  `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' https://lh3.googleusercontent.com data:; frame-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action ${formAction}; frame-ancestors 'none'`;
 
 export function setPageHeaders(c: Context<AppEnv>, formAction = "'self'") {
   c.header('Content-Security-Policy', csp(formAction));

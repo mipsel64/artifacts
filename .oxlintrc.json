@@ -3,6 +3,8 @@
     "vendor/**",
     "src/archify/engine.gen.js",
     "worker-configuration.d.ts",
+    "src/themes/**/*.d.ts",
+    "themes/**/*.d.ts",
     "dist/**",
     ".wrangler/**"
   ]

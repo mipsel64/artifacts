@@ -158,6 +158,10 @@ describe('restricted share routes', () => {
     const body = await page.text();
     expect(body).not.toContain('Needle Private Title');
     expect(body).not.toContain('Needle Private Content');
+    expect(body).toContain('Sign in to view');
+    expect(body).toContain('This link is shared with specific people.');
+    expect(body).toContain('"page":"restricted"');
+    expect(body).toContain(`href="/auth/login?next=${encodeURIComponent(`/s/${shareId}`)}"`);
     expect((await request(`/s/${shareId}/render`)).status).toBe(403);
     expect((await request(`/s/${shareId}/raw`)).status).toBe(403);
   });
@@ -205,7 +209,9 @@ describe('viewer session isolation', () => {
     expect(landing.status).toBe(200);
     const body = await landing.text();
     expect(body).toContain('Sign in with Google');
-    expect(body).not.toContain('id="account-menu"');
+    expect(body).toContain('"page":"landing"');
+    expect(body).toContain('href="/static/build/app.css"');
+    expect(body).not.toContain('action="/auth/logout"');
   });
 
   it('cannot open or change owner resources', async () => {

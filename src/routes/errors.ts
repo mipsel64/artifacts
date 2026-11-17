@@ -1,10 +1,10 @@
 import type { Context } from 'hono';
 import { ArtifactError } from '../artifacts';
 import type { AppEnv } from '../types';
-import { setPageHeaders } from '../ui/headers';
-import { Icon, type IconName } from '../ui/icons';
+import { renderPage } from '../ui/app/document';
+import type { IconName } from '../ui/app/icons';
+import type { Identity } from '../ui/app/identity';
 import { identify } from '../ui/identify';
-import { Layout, type Identity } from '../ui/layout';
 
 type Status = 400 | 403 | 404 | 409 | 413 | 500;
 
@@ -18,7 +18,6 @@ interface ErrorCopy {
   signInAction: boolean;
 }
 
-// Paths that answer with JSON, a sandboxed document or a static file keep their non-HTML error responses.
 const SHARE_PAGE = /^\/s\/[^/]+$/;
 const ARTIFACT_PAGE = /^\/a\/[^/]+(\/edit)?$/;
 
@@ -54,33 +53,6 @@ function copyFor(status: Status, path: string, message: string): ErrorCopy {
   return { icon: 'circle-alert', danger: true, heading: String(status), title: 'Request problem', text: message, home: 'Go to Artifacts', signInAction: false };
 }
 
-function ErrorPage({ copy, me }: { copy: ErrorCopy; me: Identity | null }) {
-  const pageTitle = copy.heading === '404' ? 'Not found' : copy.title;
-  return (
-    <Layout title={pageTitle} me={me} signIn={false} width="narrow">
-      <div class="card auth-card error-card">
-        <span class={copy.danger ? 'auth-icon auth-icon-danger' : 'auth-icon'}>
-          <Icon name={copy.icon} size={24} />
-        </span>
-        <p class="error-status">{copy.heading}</p>
-        <h1>{copy.title}</h1>
-        <p class="muted">{copy.text}</p>
-        <div class="actions actions-center">
-          <a class="button button-primary" href="/">
-            {copy.home}
-          </a>
-          {copy.signInAction && !me && (
-            <a class="button" href="/auth/login">
-              Sign in
-            </a>
-          )}
-        </div>
-      </div>
-    </Layout>
-  );
-}
-
-// The header is best effort: a failing session or profile lookup must never replace the error being shown.
 async function tryIdentify(c: Context<AppEnv>): Promise<Identity | null> {
   try {
     return await identify(c);
@@ -90,9 +62,13 @@ async function tryIdentify(c: Context<AppEnv>): Promise<Identity | null> {
 }
 
 async function errorPage(c: Context<AppEnv>, status: Status, message: string) {
-  setPageHeaders(c);
   const me = await tryIdentify(c);
-  return c.html(<ErrorPage copy={copyFor(status, c.req.path, message)} me={me} />, status);
+  const copy = copyFor(status, c.req.path, message);
+  return renderPage(c, 'error', { ...copy, signedIn: me !== null }, {
+    title: copy.heading === '404' ? 'Not found' : copy.title,
+    status,
+    shell: { me, signIn: false, width: 'narrow' },
+  });
 }
 
 export function handleError(err: Error, c: Context<AppEnv>): Response | Promise<Response> {

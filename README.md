@@ -158,7 +158,9 @@ The same token works with the REST API under `/api/artifacts` (see [docs/design.
 
 ```sh
 cp .dev.vars.example .dev.vars   # set SESSION_SECRET, GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET (redirect URI http://localhost:8787/auth/callback), ALLOWED_EMAILS
-bun run dev         # wrangler dev on http://localhost:8787 (keeps the request origin local despite the custom-domain route; OAuth needs it)
+bun run dev         # wrangler dev on http://localhost:8787 (keeps the request origin local despite the custom-domain route; OAuth needs it); builds public/static/build/ first
+bun run client:build  # rebuild the page bundle (public/static/build/) after a change in src/ui/app/ or the theme
+bun run astryx …   # Astryx CLI: components, docs, and the `claude` theme editor (see AGENTS.md)
 bun run lint
 bun run test        # vitest with real R2/KV in Miniflare
 bun run typecheck

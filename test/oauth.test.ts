@@ -291,8 +291,9 @@ describe('consent page', () => {
     expect(html).not.toContain('on your computer');
     expect(handle).not.toBe('');
     expect(binding).toContain('__Host-oauth-');
-    expect(html).toContain('name="decision" value="approve"');
-    expect(html).toContain('name="decision" value="deny"');
+    expect(html).toContain('name="decision"');
+    expect(html).toContain('value="approve"');
+    expect(html).toContain('value="deny"');
 
     const csp = res.headers.get('Content-Security-Policy')!;
     expect(csp).toContain("frame-ancestors 'none'");
@@ -307,7 +308,7 @@ describe('consent page', () => {
     const { challenge } = await pkce();
     const clientId = await registerClient('Local', LOOPBACK_REDIRECT);
     const { res, html } = await openConsent(cookie, authorizePath(clientId, challenge, LOOPBACK_REDIRECT));
-    expect(html).toContain('callout callout-warning');
+    expect(html).toContain('This sends access to an app on your computer.');
     expect(html).toContain('on your computer');
     expect(html).toContain('<strong>localhost</strong>');
     expect(res.headers.get('Content-Security-Policy')).toContain("form-action 'self' http://localhost:8976;");
@@ -416,7 +417,12 @@ describe('OAuth access to /mcp', () => {
 });
 
 describe('connected apps', () => {
-  const grantIdFrom = (html: string) => /data-url="\/api\/grants\/([^"]+)"/.exec(html)?.[1] ?? '';
+  const grantIdFrom = (html: string) => {
+    const data = /<script type="application\/json" id="page-data">(.*?)<\/script>/.exec(html)?.[1];
+    if (!data) return '';
+    const page: { props: { apps: { id: string }[] } } = JSON.parse(data);
+    return page.props.apps[0]?.id ?? '';
+  };
   const settings = (cookie: string) => request('/settings', { headers: { Cookie: cookie } }).then((res) => res.text());
   const revoke = (cookie: string, id: string) => request(`/api/grants/${id}`, { method: 'DELETE', headers: { Cookie: cookie, Origin: ORIGIN } });
 
