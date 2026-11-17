@@ -3,6 +3,7 @@ import { Badge } from '@astryxdesign/core/Badge';
 import { Banner } from '@astryxdesign/core/Banner';
 import { Button } from '@astryxdesign/core/Button';
 import { HStack, VStack } from '@astryxdesign/core/Layout';
+import { List, ListItem } from '@astryxdesign/core/List';
 import { Popover } from '@astryxdesign/core/Popover';
 import { RadioList, RadioListItem } from '@astryxdesign/core/RadioList';
 import { Tab, TabList } from '@astryxdesign/core/TabList';
@@ -11,6 +12,7 @@ import { TextInput } from '@astryxdesign/core/TextInput';
 import { Text } from '@astryxdesign/core/Text';
 import type { ArtifactView } from '../../../../types';
 import { api } from '../../api';
+import { Icon } from '../../icons';
 import { CopyButton } from '../../Shell';
 
 interface SharePopoverProps {
@@ -132,11 +134,29 @@ export function SharePopover({ id, version, shareUrl, shareAudience, fragment, o
             </VStack>
           </div>
           <div role="tabpanel" id="panel-share-export" aria-label="Export" hidden={tab !== 'export'}>
-            <VStack gap={1} hAlign="stretch">
-              <Button label="Markdown" href={`${apiPath}/export?format=md&version=${version}`} variant="ghost" width="100%" />
-              <Button label="HTML" href={`${apiPath}/export?format=html&version=${version}`} variant="ghost" width="100%" />
-              <Button label="PDF" onClick={() => window.open(`${renderPath}&print=1`, '_blank', 'noopener')} variant="ghost" width="100%" />
-            </VStack>
+            <List density="compact">
+              <ListItem
+                itemKey="md"
+                href={`${apiPath}/export?format=md&version=${version}`}
+                startContent={<Icon name="file-text" size={16} />}
+                label="Markdown"
+                endContent={<Text type="supporting" color="secondary">.md</Text>}
+              />
+              <ListItem
+                itemKey="html"
+                href={`${apiPath}/export?format=html&version=${version}`}
+                startContent={<Icon name="code-xml" size={16} />}
+                label="HTML"
+                endContent={<Text type="supporting" color="secondary">.html</Text>}
+              />
+              <ListItem
+                itemKey="pdf"
+                onClick={() => window.open(`${renderPath}&print=1`, '_blank', 'noopener')}
+                startContent={<Icon name="printer" size={16} />}
+                label="PDF"
+                endContent={<Text type="supporting" color="secondary">opens the print dialog</Text>}
+              />
+            </List>
           </div>
         </VStack>
       }
