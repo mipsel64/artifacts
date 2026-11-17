@@ -1,6 +1,8 @@
 import { build } from 'esbuild';
-import { mkdir } from 'node:fs/promises';
+import { mkdir, rm } from 'node:fs/promises';
 
+// wrangler uploads every file in public/, so outputs from older builds must not stay behind.
+await rm('public/static/build', { recursive: true, force: true });
 await mkdir('public/static/build', { recursive: true });
 
 await Promise.all([
