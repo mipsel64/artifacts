@@ -48,16 +48,22 @@ describe('document shell', () => {
     expect(body).toContain('<link rel="icon" href="/favicon.svg" type="image/svg+xml">');
     expect(body).toContain('href="/auth/login"');
     expect(body).toContain('Sign in with Google');
+    expect(body).toContain('astryx-side-nav');
+    expect(body).not.toContain('astryx-top-nav');
     for (const feature of ['MCP for agents', 'Sandboxed preview', 'Share links']) expect(body).toContain(feature);
     expect(body).not.toContain('Sign out');
     expect(pageData(body)).toMatchObject({ page: 'landing', shell: { me: null }, mode: 'system' });
   });
 
-  it('renders the signed-in header with New and the profile name and picture', async () => {
+  it('renders the signed-in sidebar with New artifact and the profile name and picture', async () => {
     const { init } = await signedInAlice();
     await upsertUser(env, { sub: '1', email: 'alice@example.com', name: 'Alice Liddell', avatarUrl: 'https://lh3.googleusercontent.com/a/1' });
     const body = await (await request('/', init)).text();
+    expect(body).toContain('astryx-side-nav');
+    expect(body).not.toContain('astryx-top-nav');
+    expect(body).toContain('+ New artifact');
     expect(body).toContain('href="/new"');
+    expect(body).toContain('aria-label="Main navigation"');
     expect(body).toContain('Alice Liddell');
     expect(body).not.toContain('href="/auth/login"');
     expect(pageData(body).shell.me).toMatchObject({ email: 'alice@example.com', name: 'Alice Liddell', avatarUrl: 'https://lh3.googleusercontent.com/a/1' });
