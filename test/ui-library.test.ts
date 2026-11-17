@@ -73,7 +73,6 @@ describe('Astryx artifact library', () => {
     expect(body.match(new RegExp(`href="/a/${artifact.id}"`, 'g'))).toHaveLength(1);
     expect(body).toContain(indexedTitle);
     expect(pageData(body).props.items?.[0].title).toBe(indexedTitle);
-    expect(body).not.toContain('New artifact</span>');
   });
 
   it('labels an artifact with under a day left as expiring within a day', async () => {

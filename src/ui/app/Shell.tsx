@@ -4,10 +4,10 @@ import { Avatar } from '@astryxdesign/core/Avatar';
 import { Banner } from '@astryxdesign/core/Banner';
 import { Button } from '@astryxdesign/core/Button';
 import { DropdownMenu, DropdownMenuDivider, DropdownMenuItem } from '@astryxdesign/core/DropdownMenu';
-import { HStack, VStack } from '@astryxdesign/core/Layout';
+import { VStack } from '@astryxdesign/core/Layout';
 import { AppShell } from '@astryxdesign/core/AppShell';
 import { Text } from '@astryxdesign/core/Text';
-import { TopNav, TopNavHeading } from '@astryxdesign/core/TopNav';
+import { SideNav, SideNavHeading, SideNavItem } from '@astryxdesign/core/SideNav';
 import { useClipboard } from '@astryxdesign/core/hooks';
 import type { Identity } from './identity';
 import { Logo, Icon } from './icons';
@@ -126,7 +126,7 @@ function AccountMenu({ me, settingsActive }: { me: Identity; settingsActive?: bo
     <DropdownMenu
       alignment="end"
       renderTrigger={(props) => (
-        <Button {...props} label={name} variant="ghost" icon={<Avatar name={name} src={me.avatarUrl ?? undefined} size="sm" tooltip={false} />} />
+        <Button {...props} label={name} variant="ghost" width="100%" className="account-trigger" icon={<Avatar name={name} src={me.avatarUrl ?? undefined} size="sm" tooltip={false} />} />
       )}
       header={<VStack gap={1}><Text weight="semibold">{name}</Text><Text color="secondary" type="supporting">{me.email}</Text></VStack>}
       footer={<form method="post" action="/auth/logout"><Button label="Sign out" type="submit" variant="ghost" /></form>}
@@ -146,35 +146,36 @@ function ThemeCycle() {
   const choices: ThemeMode[] = ['system', 'light', 'dark'];
   const next = choices[(choices.indexOf(mode) + 1) % choices.length];
   const label = `Theme: ${mode[0].toUpperCase()}${mode.slice(1)}`;
-  return <Button label={label} variant="ghost" onClick={() => setMode(next)} />;
+  return <Button label={label} variant="ghost" width="100%" onClick={() => setMode(next)} />;
 }
 
-function Header({ me, viewerEmail, signIn = true, settingsActive }: ShellProps) {
+function SidebarFooter({ me, viewerEmail, signIn = true, settingsActive }: ShellProps) {
+  if (me) return <AccountMenu me={me} settingsActive={settingsActive} />;
   return (
-    <TopNav
-      label="Main navigation"
-      heading={<TopNavHeading logo={<Logo />} heading="Artifacts" headingHref="/" />}
-      endContent={
-        <HStack gap={2} vAlign="center">
-          {me ? (
-            <>
-              <Button label="New artifact" href="/new" size="sm" icon={<svg className="artifact-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>}>New</Button>
-              <AccountMenu me={me} settingsActive={settingsActive} />
-            </>
-          ) : (
-            <>
-              <ThemeCycle />
-              {viewerEmail ? (
-                <>
-                  <Text type="supporting" color="secondary" className="viewer-email">{viewerEmail}</Text>
-                  <form method="post" action="/auth/logout"><Button label="Sign out" type="submit" size="sm" /></form>
-                </>
-              ) : signIn && <Button label="Sign in" href="/auth/login" size="sm" />}
-            </>
-          )}
-        </HStack>
-      }
-    />
+    <VStack gap={2} hAlign="stretch">
+      <ThemeCycle />
+      {viewerEmail ? (
+        <>
+          <Text type="supporting" color="secondary" className="viewer-email">{viewerEmail}</Text>
+          <form method="post" action="/auth/logout"><Button label="Sign out" type="submit" width="100%" /></form>
+        </>
+      ) : signIn && <Button label="Sign in" href="/auth/login" width="100%" />}
+    </VStack>
+  );
+}
+
+function Sidebar(props: ShellProps) {
+  const { settingsActive } = props;
+  return (
+    <SideNav
+      aria-label="Main navigation"
+      header={<SideNavHeading icon={<Logo size={28} />} heading="Artifacts" headingHref="/" />}
+      topContent={<Button label="+ New artifact" href="/new" variant="primary" width="100%" />}
+      footer={<SidebarFooter {...props} />}
+    >
+      <SideNavItem label="Artifacts" href="/" icon="viewColumns" isSelected={!settingsActive} />
+      <SideNavItem label="Settings" href="/settings" icon="wrench" isSelected={Boolean(settingsActive)} />
+    </SideNav>
   );
 }
 
@@ -185,10 +186,9 @@ export function Shell({ shell, children }: { shell: ShellProps; children: ReactN
   return (
     <AppShell
       banner={error ? <Banner status="error" title={error} role="alert" container="section" isDismissable onDismiss={clearError} /> : undefined}
-      topNav={<Header {...shell} />}
+      sideNav={<Sidebar {...shell} />}
       height={width === 'fill' ? 'fill' : 'auto'}
-      contentPadding={width === 'fill' ? 0 : 4}
-      mobileNav={false}
+      contentPadding={width === 'fill' ? 0 : 8}
       variant="section"
     >
       <VStack gap={4} className={className}>{children}</VStack>
