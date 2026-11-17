@@ -39,6 +39,7 @@ export function Viewer({ meta, version, now }: ViewerProps) {
       previewSrc={`/r/${meta.id}?v=${version}`}
       contentUrl={`${apiPath}/content?version=${version}`}
       onHashChange={setFragment}
+      fitWidth={meta.type === 'html' || meta.type === 'react'}
       bar={(loadContent) => (
         <>
           <TitleMenu meta={meta} version={version} now={now} loadContent={loadContent} />
