@@ -30,7 +30,7 @@ const TYPE_DESCRIPTION =
   'react: one self-contained React component file (JSX/TSX) with a default export; Tailwind CSS classes are available and npm packages can be imported by name (loaded from esm.sh). For a dashboard, import a chart library such as recharts and put the data in the file; update the artifact to refresh the data. ' +
   'svg: SVG markup. ' +
   'mermaid: Mermaid diagram source. ' +
-  'markdown: a Markdown document (docs, reports, guides). ' +
+  'markdown: a Markdown document (docs, reports, guides); ```mermaid code blocks render as diagrams. ' +
   'code: source code shown with syntax highlighting; set language. ' +
   'slides: a slide deck in Markdown. Separate slides with a line that contains only --- and has a blank line before it. Each slide is a 16:9 frame (1280x720, scaled to fit); arrow keys and buttons move between slides, and printing gives one slide per page. Raw HTML and a <style> block are allowed for layout. ' +
   'design: an HTML fragment for UI mockups and flows. Give each screen its own top-level element with data-artboard="Name" and a fixed size (for example style="width:390px;height:844px"); artboards are laid out side by side on a canvas that can be panned and zoomed. Tailwind CSS classes are available; scripts are allowed for clickable prototypes. ' +
