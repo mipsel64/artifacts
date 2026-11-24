@@ -166,6 +166,10 @@ async function bestEffort(operation: () => Promise<unknown>, retry: () => Promis
   }
 }
 
+export function isPossiblyTruncatedTitle(title: string): boolean {
+  return title.length === INDEX_TITLE_LENGTH && title.endsWith('…');
+}
+
 function writeIndex(env: Env, meta: ArtifactMeta) {
   const metadata: IndexMetadata = {
     title: meta.title.length > INDEX_TITLE_LENGTH ? `${meta.title.slice(0, INDEX_TITLE_LENGTH - 1)}…` : meta.title,
