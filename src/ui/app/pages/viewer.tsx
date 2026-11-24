@@ -1,6 +1,8 @@
 import { useState } from 'react';
-import { HStack } from '@astryxdesign/core/Layout';
-import type { ArtifactType, ArtifactView } from '../../../types';
+import { HStack, VStack } from '@astryxdesign/core/Layout';
+import { Heading, Text } from '@astryxdesign/core/Text';
+import type { ArtifactType } from '../../../types';
+import { formatDateTime, retentionLabel } from '../../format';
 import { ViewerFrame } from './viewer/frame';
 import { TitleMenu } from './viewer/title-menu';
 import { VersionMenu } from './viewer/version-menu';
@@ -25,14 +27,15 @@ export interface ViewerProps {
 }
 
 export function Viewer({ meta, version, now }: ViewerProps) {
-  const [shareUrl, setShareUrl] = useState(meta.shareUrl);
-  const [shareAudience, setShareAudience] = useState(meta.shareAudience);
+  const [sharing, setSharing] = useState({ shareUrl: meta.shareUrl, shareAudience: meta.shareAudience });
+  const { shareUrl, shareAudience } = sharing;
   const [fragment, setFragment] = useState('');
   const apiPath = `/api/artifacts/${meta.id}`;
-  const applyShareView = (view: ArtifactView) => {
-    setShareUrl(view.shareUrl);
-    setShareAudience(view.shareAudience);
-  };
+  const createdAt = meta.versions.find((entry) => entry.version === version)?.createdAt;
+  const typeLabel = meta.language ? `${meta.type} · ${meta.language}` : meta.type;
+  const accessLabel = !shareUrl ? 'Not shared' : shareAudience === null ? 'Anyone with the link' : 'Specific people';
+  const isLatest = version === meta.version;
+  const accessHeading = isLatest ? 'Access' : 'Latest version share link';
 
   return (
     <ViewerFrame
@@ -40,18 +43,44 @@ export function Viewer({ meta, version, now }: ViewerProps) {
       contentUrl={`${apiPath}/content?version=${version}`}
       onHashChange={setFragment}
       fitWidth={meta.type === 'html' || meta.type === 'react'}
+      details={
+        <VStack gap={3} className="viewer-detail-card">
+          <Heading level={2}>Artifact details</Heading>
+          <dl className="viewer-facts">
+            <VStack gap={1}><dt>Type</dt><dd>{typeLabel}</dd></VStack>
+            <VStack gap={1}><dt>Version</dt><dd>v{version} of {meta.version}</dd></VStack>
+            <VStack gap={1}>
+              <dt>Retention</dt>
+              <dd>{retentionLabel(meta.expiresAt, new Date(now))}</dd>
+              {meta.expiresAt && <dd><time dateTime={meta.expiresAt}>{formatDateTime(meta.expiresAt)} UTC</time></dd>}
+            </VStack>
+            <VStack gap={1}><dt>{accessHeading}</dt><dd>{accessLabel}</dd></VStack>
+            {shareUrl && shareAudience && (
+              <VStack gap={1}><dt>Allowed emails or domains</dt><dd>{shareAudience.join(', ')}</dd></VStack>
+            )}
+            {createdAt && (
+              <VStack gap={1}><dt>Version saved</dt><dd><time dateTime={createdAt}>{formatDateTime(createdAt)} UTC</time></dd></VStack>
+            )}
+          </dl>
+        </VStack>
+      }
       bar={(loadContent) => (
         <>
-          <TitleMenu meta={meta} version={version} now={now} loadContent={loadContent} />
+          <VStack gap={1} className="viewer-identity">
+            <TitleMenu meta={meta} version={version} fragment={fragment} now={now} loadContent={loadContent} />
+            <Text type="supporting" color="secondary" className="viewer-byline">
+              {typeLabel} · {isLatest ? accessLabel : `${accessHeading}: ${accessLabel}`}
+            </Text>
+          </VStack>
           <HStack gap={1} vAlign="center" className="viewer-bar-end">
-            <VersionMenu meta={meta} version={version} />
+            <VersionMenu meta={meta} version={version} fragment={fragment} />
             <SharePopover
               id={meta.id}
               version={version}
               shareUrl={shareUrl}
               shareAudience={shareAudience}
               fragment={fragment}
-              onView={applyShareView}
+              onView={({ shareUrl, shareAudience }) => setSharing({ shareUrl, shareAudience })}
             />
           </HStack>
         </>

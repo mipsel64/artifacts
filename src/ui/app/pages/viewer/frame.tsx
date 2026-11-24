@@ -4,7 +4,6 @@ import { Divider } from '@astryxdesign/core/Divider';
 import { HStack, VStack } from '@astryxdesign/core/Layout';
 import { Tab, TabList } from '@astryxdesign/core/TabList';
 import { Text } from '@astryxdesign/core/Text';
-import { Icon } from '../../icons';
 import { usePreviewBridge } from '../../preview';
 
 export type LoadContent = () => Promise<string>;
@@ -13,6 +12,7 @@ interface ViewerFrameProps {
   previewSrc: string;
   contentUrl: string;
   bar: (loadContent: LoadContent) => ReactNode;
+  details: ReactNode;
   onHashChange?: (hash: string) => void;
   fitWidth?: boolean;
 }
@@ -21,12 +21,12 @@ interface ViewerFrameProps {
 // desktop width and scale the iframe down, so the whole layout fits the phone instead of being cut off.
 const FIT_DESKTOP_WIDTH = 1024;
 
-export function ViewerFrame({ previewSrc, contentUrl, bar, onHashChange, fitWidth = false }: ViewerFrameProps) {
+export function ViewerFrame({ previewSrc, contentUrl, bar, details, onHashChange, fitWidth = false }: ViewerFrameProps) {
   const frameRef = useRef<HTMLIFrameElement>(null);
-  const paneRef = useRef<HTMLDivElement>(null);
+  const paneRef = useRef<HTMLElement>(null);
   const loadedRef = useRef<string | null>(null);
   const pendingRef = useRef<Promise<string> | null>(null);
-  const [view, setView] = useState<'preview' | 'code'>('preview');
+  const [view, setView] = useState<'preview' | 'code' | 'details'>('preview');
   const [content, setContent] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -80,7 +80,7 @@ export function ViewerFrame({ previewSrc, contentUrl, bar, onHashChange, fitWidt
   }, [contentUrl]);
 
   const changeView = (next: string) => {
-    if (next !== 'preview' && next !== 'code') return;
+    if (next !== 'preview' && next !== 'code' && next !== 'details') return;
     setView(next);
     if (next === 'code') void loadContent().catch(() => {});
   };
@@ -88,14 +88,15 @@ export function ViewerFrame({ previewSrc, contentUrl, bar, onHashChange, fitWidt
   return (
     <VStack gap={0} className="viewer">
       <HStack gap={2} vAlign="center" wrap="wrap" className="viewer-bar">
-        <TabList value={view} onChange={changeView} role="tablist" size="sm">
-          <Tab value="preview" label="Preview" isLabelHidden panelId="panel-preview" icon={<Icon name="frame" />} />
-          <Tab value="code" label="Code" isLabelHidden panelId="panel-code" icon={<Icon name="code-xml" />} />
-        </TabList>
         {bar(loadContent)}
       </HStack>
+      <TabList value={view} onChange={changeView} role="tablist" aria-label="Artifact view" size="md" className="viewer-tabs">
+        <Tab value="preview" label="Preview" panelId="panel-preview" />
+        <Tab value="code" label="Source" panelId="panel-code" />
+        <Tab value="details" label="Details" panelId="panel-details" />
+      </TabList>
       <Divider />
-      <div role="tabpanel" id="panel-preview" aria-label="Preview" className="viewer-pane viewer-preview" hidden={view !== 'preview'} ref={paneRef}>
+      <section role="tabpanel" id="panel-preview" aria-label="Preview" className="viewer-pane viewer-preview" hidden={view !== 'preview'} ref={paneRef}>
         <iframe
           ref={frameRef}
           data-artifact-preview
@@ -105,9 +106,9 @@ export function ViewerFrame({ previewSrc, contentUrl, bar, onHashChange, fitWidt
           title="Artifact preview"
           style={fit ? { flex: 'none', width: FIT_DESKTOP_WIDTH, height: fit.height, transform: `scale(${fit.scale})`, transformOrigin: '0 0' } : undefined}
         />
-      </div>
-      <div role="tabpanel" id="panel-code" aria-label="Code" className="viewer-pane viewer-code" hidden={view !== 'code'}>
-        {loading && <VStack padding={4}><Text role="status">Loading code…</Text></VStack>}
+      </section>
+      <section role="tabpanel" id="panel-code" aria-label="Source" className="viewer-pane viewer-code" hidden={view !== 'code'} tabIndex={content === null ? 0 : undefined}>
+        {loading && <VStack padding={4}><Text role="status">Loading source…</Text></VStack>}
         {error && !loading && (
           <VStack gap={3} padding={4} hAlign="start">
             <Text role="alert">{error}</Text>
@@ -115,7 +116,10 @@ export function ViewerFrame({ previewSrc, contentUrl, bar, onHashChange, fitWidt
           </VStack>
         )}
         {content !== null && <pre className="viewer-code-content" tabIndex={0}><code>{content}</code></pre>}
-      </div>
+      </section>
+      <section role="tabpanel" id="panel-details" aria-label="Details" className="viewer-pane viewer-details" hidden={view !== 'details'} tabIndex={0}>
+        {details}
+      </section>
     </VStack>
   );
 }
