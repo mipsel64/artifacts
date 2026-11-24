@@ -1,11 +1,21 @@
-@layer reset, astryx, theme, app;
+@layer reset, astryx, theme, app-base, app;
 @import '@astryxdesign/core/reset.css' layer(reset);
 @import '@astryxdesign/core/astryx.css' layer(astryx);
 @import '../../themes/claude/claude.css' layer(theme);
 @import '../../themes/claude/claude.fonts.css' layer(theme);
 @import '../theme/artifact-colors.css' layer(theme);
+@import './workspace.css';
+@import './library.css';
+@import './reader.css';
+@import './preferences.css';
 
-@layer app {
+@layer app-base {
+  :root {
+    --workspace-display-font: ui-serif, Georgia, serif;
+  }
+  .artifact-editor-header {
+    --font-family-heading: var(--workspace-display-font);
+  }
   .app-width {
     width: min(100%, 76ch);
     margin-inline: auto;

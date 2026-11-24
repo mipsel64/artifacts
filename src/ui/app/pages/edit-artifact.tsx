@@ -4,7 +4,7 @@ import { FormLayout } from '@astryxdesign/core/FormLayout';
 import { HStack, VStack } from '@astryxdesign/core/Layout';
 import { TextArea } from '@astryxdesign/core/TextArea';
 import { TextInput } from '@astryxdesign/core/TextInput';
-import { Heading } from '@astryxdesign/core/Text';
+import { Heading, Text } from '@astryxdesign/core/Text';
 import { api } from '../api';
 import { useFeedback } from '../Shell';
 
@@ -51,7 +51,11 @@ export function EditArtifact({ id, title: initialTitle, content: initialContent 
 
   return (
     <VStack gap={6} hAlign="stretch">
-      <Heading level={1}>Edit artifact</Heading>
+      <VStack gap={1} className="artifact-editor-header">
+        <Text type="supporting" color="secondary">Personal workspace</Text>
+        <Heading level={1} type="display-3">Edit artifact</Heading>
+        <Text as="p" color="secondary">You are editing the latest version. Saving a content change creates a new version.</Text>
+      </VStack>
       <form method="post" data-form="edit" data-id={id} onSubmit={submit}>
         <FormLayout>
           <TextInput
@@ -68,12 +72,12 @@ export function EditArtifact({ id, title: initialTitle, content: initialContent 
             value={content}
             onChange={setContent}
             isRequired
-            rows={22}
+            rows={14}
             hasSpellCheck={false}
             controlClassName="artifact-content-editor"
           />
           <HStack gap={2}>
-            <Button label="Save" type="submit" variant="primary" isLoading={saving} />
+            <Button label="Save changes" type="submit" variant="primary" isLoading={saving} />
             <Button label="Cancel" href={`/a/${id}`} />
           </HStack>
         </FormLayout>

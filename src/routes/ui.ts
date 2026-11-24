@@ -112,7 +112,7 @@ routes.get('/settings', pageHeaders, async (c) => {
   );
   return renderPage(c, 'settings', { tokens, apps, origin: new URL(c.req.url).origin }, {
     title: 'Settings',
-    shell: { me, settingsActive: true },
+    shell: { me },
   });
 });
 

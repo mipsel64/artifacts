@@ -1,0 +1,270 @@
+@layer app {
+  .preferences-page {
+    width: 100%;
+    container: preferences / inline-size;
+  }
+  .preferences-heading {
+    display: grid;
+    gap: var(--spacing-1);
+    overflow-wrap: anywhere;
+  }
+  .preferences-heading .preferences-display {
+    font-family: var(--workspace-display-font);
+    font-size: clamp(var(--font-size-3xl), 5vw, var(--font-size-5xl));
+    font-weight: 500;
+    line-height: 1.05;
+  }
+  .preferences-kicker,
+  .preferences-serial {
+    letter-spacing: .1em;
+    text-transform: uppercase;
+  }
+  .preferences-kicker {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-2);
+  }
+  .preferences-kicker::before {
+    content: '';
+    inline-size: var(--spacing-5);
+    block-size: .125em;
+    background: var(--color-accent);
+  }
+  .preferences-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--spacing-6);
+    border-block-start: thin solid var(--color-border);
+    margin-block-start: var(--spacing-5);
+    padding-block-start: var(--spacing-5);
+  }
+  .preferences-nav {
+    display: none;
+    flex-direction: column;
+    gap: var(--spacing-6);
+    padding-inline-end: var(--spacing-3);
+    border-inline-end: thin solid var(--color-border);
+  }
+  .preferences-nav .preferences-serial {
+    padding-inline: var(--spacing-3);
+  }
+  .preferences-nav .preferences-nav-link {
+    display: flex;
+    align-items: center;
+    min-block-size: var(--spacing-10);
+    padding: var(--spacing-2) var(--spacing-3);
+    border-inline-start: thin solid transparent;
+    border-radius: var(--radius-element);
+    text-decoration: none;
+  }
+  .preferences-nav-link:hover {
+    background: var(--color-background-muted);
+  }
+  .preferences-nav .preferences-nav-link[aria-current='page'] {
+    background: var(--color-accent-muted);
+    border-inline-start-color: var(--color-accent);
+  }
+  .preferences-content {
+    min-inline-size: 0;
+  }
+  .preferences-mobile-nav,
+  .preferences-method {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--spacing-2) var(--spacing-3);
+  }
+  .preferences-mobile-nav {
+    margin-block-end: var(--spacing-4);
+  }
+  .preferences-select {
+    appearance: auto;
+    box-sizing: border-box;
+    max-inline-size: 100%;
+    min-block-size: max(2.75rem, var(--spacing-8));
+    padding: var(--spacing-1) var(--spacing-2);
+    border: thin solid var(--color-border-emphasized);
+    border-radius: var(--radius-element);
+    background: var(--color-background-surface);
+    color: var(--color-text-primary);
+    font: inherit;
+    font-size: max(1rem, var(--text-body-size));
+  }
+  .preferences-select:focus-visible,
+  .preferences-theme-choice:focus-within {
+    outline: .125em solid var(--color-text-accent);
+    outline-offset: .125em;
+  }
+  .preferences-appearance {
+    display: grid;
+    gap: var(--spacing-4);
+    align-items: start;
+  }
+  .preferences-choices {
+    min-inline-size: 0;
+  }
+  .preferences-theme {
+    min-inline-size: 0;
+    border: 0;
+    margin: 0;
+    padding: 0;
+  }
+  .preferences-theme legend {
+    margin-block-end: var(--spacing-2);
+    color: var(--color-text-primary);
+    font-size: var(--text-label-size);
+    font-weight: var(--text-label-weight);
+  }
+  .preferences-theme-choice {
+    display: grid;
+    flex: 1 1 0;
+    min-inline-size: 0;
+    gap: var(--spacing-1);
+    padding: var(--spacing-1);
+    border: thin solid var(--color-border-emphasized);
+    border-radius: var(--radius-element);
+    background: var(--color-background-surface);
+    cursor: pointer;
+  }
+  .preferences-theme-choice:has(:checked) {
+    border-color: var(--color-accent);
+    background: var(--color-accent-muted);
+  }
+  .preferences-theme-choice .preferences-theme-caption {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-1);
+  }
+  .preferences-theme-caption input {
+    appearance: auto;
+    margin: 0;
+    accent-color: var(--color-accent);
+  }
+  .preferences-theme-thumbnail {
+    display: block;
+    inline-size: 100%;
+    block-size: var(--spacing-8);
+    overflow: hidden;
+    border-radius: var(--radius-inner);
+  }
+  .preferences-theme-thumbnail [data-scheme='light'] { color-scheme: only light; }
+  .preferences-theme-thumbnail [data-scheme='dark'] { color-scheme: only dark; }
+  .preferences-theme-thumbnail [data-scheme] { color: var(--color-text-primary); }
+  .preferences-theme-paper { fill: var(--color-background-muted); }
+  .preferences-reading-setting {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: var(--spacing-1) var(--spacing-2);
+    padding-block-start: var(--spacing-2);
+    border-block-start: thin solid var(--color-border);
+  }
+  .preferences-reading-setting > p { grid-column: 1 / -1; }
+  .preferences-specimen {
+    min-inline-size: 0;
+    overflow: hidden;
+    border: thin solid var(--color-border);
+    border-radius: var(--radius-container);
+    background: var(--color-background-surface);
+    color: var(--color-text-primary);
+  }
+  .preferences-specimen-header {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-2);
+    padding: var(--spacing-2) var(--spacing-3);
+    border-block-end: thin solid var(--color-border);
+  }
+  .preferences-specimen-art {
+    display: none;
+    margin: 0;
+    padding: var(--spacing-2);
+    background: color-mix(in srgb, var(--color-artifact-svg) 18%, var(--color-background-surface));
+    color: color-mix(in srgb, var(--color-artifact-react) 55%, var(--color-text-primary));
+  }
+  .preferences-specimen-art svg {
+    display: block;
+    inline-size: min(100%, 14rem);
+    margin-inline: auto;
+  }
+  .preferences-specimen-text {
+    padding: var(--spacing-3);
+    line-height: 1.6;
+    overflow-wrap: break-word;
+  }
+  .preferences-specimen-text h3 {
+    margin-block: var(--spacing-1);
+    font-family: inherit;
+    font-size: 1.55em;
+    font-weight: 500;
+    line-height: 1.14;
+    letter-spacing: -.035em;
+  }
+  .preferences-specimen-text p {
+    margin: 0;
+    font: inherit;
+  }
+  .preferences-panel .settings-token-form > :first-child,
+  .preferences-panel .settings-secret-row > :first-child { min-inline-size: 0; }
+  .preferences-access {
+    max-inline-size: 38rem;
+    width: 100%;
+    margin-inline: auto;
+    padding-block-start: var(--spacing-4);
+    overflow-wrap: anywhere;
+  }
+  .preferences-handoff,
+  .preferences-access-mark { margin-block: 0 var(--spacing-3); }
+  .preferences-handoff > :last-child { order: 1; }
+  .preferences-handoff::after {
+    content: '';
+    inline-size: var(--spacing-6);
+    block-size: .0625em;
+    background: var(--color-border-emphasized);
+  }
+  .preferences-access-mark {
+    display: grid;
+    place-items: center;
+    inline-size: var(--spacing-10);
+    block-size: var(--spacing-10);
+    border: thin solid var(--color-border);
+    border-radius: var(--radius-element);
+    background: var(--color-background-muted);
+    color: var(--color-text-secondary);
+  }
+  .preferences-access-mark .artifact-icon {
+    inline-size: var(--spacing-6);
+    block-size: var(--spacing-6);
+  }
+  .preferences-access-facts,
+  .preferences-access-capabilities { margin: 0; }
+  .preferences-access-facts {
+    display: grid;
+    grid-template-columns: minmax(0, 7em) minmax(0, 1fr);
+    gap: var(--spacing-2);
+    align-self: stretch;
+    border-block: thin solid var(--color-border);
+    padding-block: var(--spacing-3);
+  }
+  .preferences-access-facts dt,
+  .preferences-access-capabilities dd { color: var(--color-text-secondary); }
+  .preferences-access-capabilities dt { font-weight: 600; }
+  .preferences-access dd { margin-inline-start: 0; }
+
+  @container preferences (min-width: 44rem) {
+    .preferences-layout {
+      grid-template-columns: minmax(10rem, 12rem) minmax(0, 1fr);
+      gap: var(--spacing-6);
+    }
+    .preferences-nav { display: flex; }
+    .preferences-mobile-nav { display: none; }
+  }
+  @container preferences (min-width: 49rem) {
+    .preferences-appearance {
+      grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+      gap: var(--spacing-5);
+    }
+    .preferences-specimen-art { display: block; }
+    .preferences-theme-thumbnail { block-size: var(--spacing-12); }
+  }
+}

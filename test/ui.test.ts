@@ -2,7 +2,7 @@ import { env } from 'cloudflare:workers';
 import { reset } from 'cloudflare:test';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createArtifact, shareArtifact } from '../src/artifacts';
-import { upsertUser } from '../src/auth';
+import { createSessionCookie, upsertUser } from '../src/auth';
 import { formatDateTime, retentionLabel } from '../src/ui/format';
 import { createTestUser, request } from './helpers';
 
@@ -16,7 +16,7 @@ async function signedInAlice() {
 interface PageData {
   page: string;
   props: Record<string, unknown>;
-  shell: { me: { email: string; name: string | null; avatarUrl: string | null } | null; settingsActive?: boolean };
+  shell: { me: { email: string; name: string | null; avatarUrl: string | null } | null };
   mode: string;
 }
 
@@ -24,6 +24,10 @@ function pageData(body: string): PageData {
   const match = body.match(/<script type="application\/json" id="page-data">(.*?)<\/script>/);
   if (!match) throw new Error('page-data is missing');
   return JSON.parse(match[1]) as PageData;
+}
+
+function workspaceNav(body: string): string | undefined {
+  return body.match(/<nav\b[^>]*\baria-label="Workspace"[^>]*>(.*?)<\/nav>/s)?.[1];
 }
 
 const HEADERS: Record<string, string> = {
@@ -48,23 +52,27 @@ describe('document shell', () => {
     expect(body).toContain('<link rel="icon" href="/favicon.svg" type="image/svg+xml">');
     expect(body).toContain('href="/auth/login"');
     expect(body).toContain('Sign in with Google');
-    expect(body).toContain('astryx-side-nav');
-    expect(body).not.toContain('astryx-top-nav');
+    expect(workspaceNav(body)).toBeUndefined();
+    expect(body).toContain('Theme: System');
+    expect(body).not.toContain('href="/new"');
+    expect(body).not.toContain('href="/settings"');
     for (const feature of ['MCP for agents', 'Sandboxed preview', 'Share links']) expect(body).toContain(feature);
     expect(body).not.toContain('Sign out');
     expect(pageData(body)).toMatchObject({ page: 'landing', shell: { me: null }, mode: 'system' });
   });
 
-  it('renders the signed-in sidebar with New artifact and the profile name and picture', async () => {
+  it('shows workspace links and the signed-in profile in the header', async () => {
     const { init } = await signedInAlice();
     await upsertUser(env, { sub: '1', email: 'alice@example.com', name: 'Alice Liddell', avatarUrl: 'https://lh3.googleusercontent.com/a/1' });
     const body = await (await request('/', init)).text();
-    expect(body).toContain('astryx-side-nav');
-    expect(body).not.toContain('astryx-top-nav');
-    expect(body).toContain('+ New artifact');
-    expect(body).toContain('href="/new"');
-    expect(body).toContain('aria-label="Main navigation"');
-    expect(body).toContain('Alice Liddell');
+    const navigation = workspaceNav(body);
+    expect(navigation).toContain('Library');
+    expect(navigation).toContain('href="/settings"');
+    expect(navigation).toContain('Settings');
+    expect(navigation).toContain('href="/new"');
+    expect(navigation).toContain('New artifact');
+    expect(body).toContain('Personal workspace');
+    expect(body).toContain('aria-label="Alice Liddell"');
     expect(body).not.toContain('href="/auth/login"');
     expect(pageData(body).shell.me).toMatchObject({ email: 'alice@example.com', name: 'Alice Liddell', avatarUrl: 'https://lh3.googleusercontent.com/a/1' });
   });
@@ -76,12 +84,49 @@ describe('document shell', () => {
     expect(body).toMatch(/>alice</);
   });
 
-  it('marks Settings as active only on /settings', async () => {
-    const { init } = await signedInAlice();
-    for (const path of ['/', '/new', '/settings']) {
-      const data = pageData(await (await request(path, init)).text());
-      expect(Boolean(data.shell.settingsActive), path).toBe(path === '/settings');
+  it('marks only the current workspace destination as the current page', async () => {
+    const { user, init } = await signedInAlice();
+    const meta = await createArtifact(env, user.id, { title: 'Doc', type: 'html', content: 'x' });
+    for (const path of ['/', '/new', '/settings', `/a/${meta.id}`, `/a/${meta.id}/edit`]) {
+      const navigation = workspaceNav(await (await request(path, init)).text());
+      expect(navigation, path).toBeDefined();
+      const current = navigation?.match(/<a\b(?=[^>]*\baria-current="page")[^>]*>/g) ?? [];
+      if (path.startsWith('/a/')) {
+        expect(current, path).toHaveLength(0);
+      } else {
+        expect(current, path).toHaveLength(1);
+        expect(current[0], path).toContain(`href="${path}"`);
+      }
     }
+  });
+
+  it.each([['reader@acme.dev', 200], ['other@acme.dev', 403]] as const)('keeps theme and sign-out controls without workspace links for %s', async (email, status) => {
+    const { user } = await signedInAlice();
+    const meta = await createArtifact(env, user.id, { title: 'Shared doc', type: 'html', content: 'x' });
+    const { shareId } = await shareArtifact(env, user.id, meta.id, { audience: ['reader@acme.dev'] });
+    const cookie = (await createSessionCookie(env, { id: 'google_viewer', email, hostedDomain: null })).split(';')[0];
+    const res = await request(`/s/${shareId}`, { headers: { Cookie: cookie } });
+    expect(res.status).toBe(status);
+    const body = await res.text();
+    expect(workspaceNav(body)).toBeUndefined();
+    expect(body).toContain(`>${email}</`);
+    expect(body).toContain('Theme: System');
+    expect(body).toContain('action="/auth/logout"');
+    expect(body).not.toContain('href="/new"');
+    expect(body).not.toContain('href="/settings"');
+  });
+
+  it('keeps workspace links off the signed-out restricted page', async () => {
+    const { user } = await signedInAlice();
+    const meta = await createArtifact(env, user.id, { title: 'Restricted doc', type: 'html', content: 'x' });
+    const { shareId } = await shareArtifact(env, user.id, meta.id, { audience: ['reader@acme.dev'] });
+    const res = await request(`/s/${shareId}`);
+    expect(res.status).toBe(403);
+    const body = await res.text();
+    expect(workspaceNav(body)).toBeUndefined();
+    expect(body).not.toContain('href="/auth/login"');
+    expect(body).not.toContain('href="/new"');
+    expect(body).not.toContain('href="/settings"');
   });
 
   it('renders the theme mode from the theme cookie and ignores other values', async () => {
