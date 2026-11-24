@@ -15,20 +15,11 @@
     max-inline-size: 100%;
     margin-inline-start: auto;
   }
-  .workspace-nav {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: var(--spacing-2);
-  }
-  .workspace-brand,
-  .workspace-link {
+  .workspace-brand {
     display: inline-flex;
     min-block-size: var(--size-element-sm);
     align-items: center;
     text-decoration: none;
-  }
-  .workspace-brand {
     gap: var(--spacing-2);
     color: var(--color-text-primary);
     font-size: var(--font-size-lg);
@@ -39,21 +30,122 @@
     margin-inline-start: var(--spacing-2);
     white-space: nowrap;
   }
-  .workspace-link {
-    color: var(--color-text-secondary);
-    font-size: var(--text-label-size);
-  }
-  .workspace-link:hover,
-  .workspace-nav [aria-current="page"] {
+  .account-trigger {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-2);
+    min-block-size: var(--size-element-sm);
+    padding: var(--spacing-0-5) var(--spacing-2);
+    border: 0;
+    border-radius: var(--radius-element);
+    background: transparent;
     color: var(--color-text-primary);
-    text-decoration: underline;
-    text-underline-offset: var(--spacing-1);
+    text-align: start;
+    cursor: pointer;
   }
-  .workspace-link[aria-current="page"] {
+  .account-trigger:hover {
+    background: var(--color-neutral);
+  }
+  .workspace-account-popover {
+    position: fixed;
+    inset: auto;
+    inset-block-start: var(--workspace-bar-height);
+    inset-inline-end: var(--workspace-inset);
+    inline-size: min(16rem, calc(100dvi - 2 * var(--workspace-inset)));
+    max-block-size: calc(100dvb - var(--workspace-bar-height) - 2 * var(--spacing-2));
+    margin: 0;
+    margin-block-start: var(--spacing-2);
+    padding: var(--spacing-3);
+    overflow: auto;
+    overflow-wrap: anywhere;
+    border: thin solid var(--color-border);
+    border-radius: var(--radius-container);
+    background: var(--color-background-popover);
+    color: var(--color-text-primary);
+    box-shadow: var(--shadow-med);
+  }
+  @supports (inset-block-start: anchor(end)) {
+    .workspace-account-popover {
+      inset-block-start: anchor(end, var(--workspace-bar-height));
+      inset-inline-end: anchor(end, var(--workspace-inset));
+      position-try-fallbacks: flip-block;
+    }
+  }
+  .workspace-theme-track {
+    display: flex;
+    min-inline-size: 0;
+    padding: var(--spacing-0-5);
+    margin: 0;
+    border: 0;
+    border-radius: var(--radius-element);
+    background: var(--color-neutral);
+  }
+  .workspace-theme-option {
+    position: relative;
+    display: grid;
+    place-items: center;
+    inline-size: var(--spacing-10);
+    block-size: var(--spacing-10);
+    border: thin solid transparent;
+    border-radius: var(--radius-inner);
+    color: var(--color-text-secondary);
+    cursor: pointer;
+  }
+  .workspace-theme-option:hover {
+    background: var(--color-neutral);
+  }
+  .workspace-theme-option:has(:checked) {
+    background: var(--color-background-surface);
+    color: var(--color-text-primary);
+    box-shadow: var(--shadow-low);
+  }
+  .workspace-theme-option .artifact-icon {
+    inline-size: var(--spacing-5);
+    block-size: var(--spacing-5);
+  }
+  .workspace-theme-option input {
+    position: absolute;
+    inset: 0;
+    inline-size: 100%;
+    block-size: 100%;
+    margin: 0;
+    opacity: 0;
+    cursor: inherit;
+  }
+  .workspace-theme-option-label {
+    position: absolute;
+    clip-path: inset(50%);
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+  @media (forced-colors: active) {
+    .workspace-theme-option:has(:checked) {
+      border-color: Highlight;
+    }
+  }
+  .workspace-account-link {
+    display: flex;
+    align-items: center;
+    min-block-size: var(--size-element-sm);
+    padding-inline: var(--spacing-2);
+    border-radius: var(--radius-inner);
+    color: var(--color-text-primary);
+    font-size: var(--text-label-size);
+    text-decoration: none;
+  }
+  .workspace-account-link:hover,
+  .workspace-account-link[aria-current="page"] {
+    background: var(--color-neutral);
+  }
+  .workspace-account-link[aria-current="page"] {
     font-weight: var(--font-weight-semibold);
   }
   .workspace-brand:focus-visible,
-  .workspace-link:focus-visible {
+  .account-trigger:focus-visible,
+  .workspace-theme-option:has(:focus-visible),
+  .workspace-account-link:focus-visible {
     outline: var(--focus-outline-width) var(--focus-outline-style) var(--focus-outline-color);
     outline-offset: var(--focus-outline-offset);
     border-radius: var(--radius-inner);
@@ -90,8 +182,7 @@
     .workspace-content {
       --workspace-bar-height: calc(var(--spacing-12) + var(--spacing-1-5));
     }
-    .workspace-brand,
-    .workspace-nav {
+    .workspace-brand {
       gap: var(--spacing-1-5);
     }
     .workspace-crumb,

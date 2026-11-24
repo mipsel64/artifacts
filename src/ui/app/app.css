@@ -42,17 +42,6 @@
   .auth-form {
     width: 100%;
   }
-  .account-trigger {
-    display: inline-flex;
-    align-items: center;
-    justify-content: flex-start;
-    gap: var(--spacing-2);
-    text-align: start;
-  }
-  .menu-group-label {
-    display: block;
-    padding: var(--spacing-2) var(--spacing-3) var(--spacing-1);
-  }
   .viewer-email {
     max-width: 28ch;
     overflow: hidden;
