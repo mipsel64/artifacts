@@ -4,9 +4,11 @@ A self-hosted take on Claude Artifacts for Cloudflare Workers. Agents create and
 
 - **Types:** HTML, React (JSX/TSX with Tailwind and npm imports via esm.sh; also for dashboards), SVG, Mermaid, Markdown, code, slides (Markdown decks with keyboard navigation and one slide per printed page), design (HTML artboards on a pan-and-zoom canvas), motion (CSS/Web Animations with a play, pause and scrub bar) and Archify (interactive architecture, workflow, sequence, data and other diagrams, plus explainers).
 - **Theme:** artifacts follow the app's System/Light/Dark choice and the reading font (serif, sans or mono) and text size chosen in Settings. Non-Archify documents share Claude-style CSS variables (also Tailwind colors in React and design); Archify uses its own theme.
-- **Viewer:** Preview/Code tabs, click-to-zoom images and diagrams, links to Markdown and HTML sections (the page URL follows the heading you open), version history, copy, download, open in a new tab, edit, remix a shared artifact.
+- **Library:** search by title or type. Filter for shared artifacts or artifacts that expire in the next seven days. On desktop, choose Preview to run an artifact in the quick-look pane. Search alone does not run artifact code. On phones, tap an artifact to open the reader.
+- **Viewer:** switch between Preview, Source and Details. Use the title dropdown to copy, download, open in a new tab, rename, edit, export, change retention or delete. Version history, image zoom and links to document sections remain available. An eligible signed-in reader can remix a shared artifact.
+- **Settings:** preview the reading font and text size before opening an artifact. Use separate sections for appearance, agent setup, connected apps and API tokens.
 - **Auth:** Google sign-in for allowlisted users and restricted share viewers; OAuth 2.1 for MCP clients (consent through your Google session); personal API tokens for agents.
-- **Share:** read-only links for anyone or for listed emails and Google Workspace domains, revocable at any time.
+- **Share:** use the Share dropdown to create, copy or stop a read-only link. New links start with restricted access selected. List emails or Google Workspace domains, or explicitly choose anyone with the link.
 - **Retention:** artifacts expire 30 days after their last content change. Make one permanent, set it back to expiring, or delete it. A daily cron (03:00 UTC) removes expired artifacts.
 - **MCP:** a stateless Streamable HTTP endpoint at `/mcp` with tools to list, get, create, update, delete, share and set retention.
 
@@ -47,9 +49,11 @@ Archify cache hits do not run the diagram renderer. Each Archify version uses ex
 | Create or update an artifact (MCP) | ~1.5 | ~9 ms | 1 write, 1 read | 2 Class A, 0–2 Class B |
 | Open an artifact in the viewer | 2 | ~16 ms | 1 read | 4 Class B |
 | Open a public share link | 2 | ~23 ms | 2 reads | 4 Class B |
-| Open the artifact list | 1 | ~17 ms | 1 list, 1 read | — |
+| Open the artifact list, excluding the desktop preview | 1 | ~17 ms | 1 list, 1 read | — |
 
 MCP clients also send `initialize` and `tools/list`, hence ~1.5 requests per tool call. These ratios are consistent with the R2 and KV counters of the same 24 hours.
+
+These historical measurements do not include desktop quick looks. Choosing Preview loads its render separately. The phone layout does not request a library preview.
 
 ### Monthly estimates
 
@@ -163,6 +167,8 @@ bun run client:build  # rebuild the page bundle (public/static/build/) after a c
 bun run astryx …   # Astryx CLI: components, docs, and the `claude` theme editor (see AGENTS.md)
 bun run lint
 bun run test        # vitest with real R2/KV in Miniflare
+bunx --no-install playwright install chromium  # one-time browser setup
+bun run test:e2e    # Chromium against a local Worker with isolated storage
 bun run typecheck
 bun run build       # wrangler deploy --dry-run
 bun run types       # regenerate worker-configuration.d.ts after changing wrangler.jsonc

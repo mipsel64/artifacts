@@ -7,7 +7,7 @@ A self-hosted clone of Claude Artifacts. Agents create and update artifacts over
 In scope:
 
 - Artifact types: `html`, `react`, `svg`, `mermaid`, `markdown`, `code`, `slides`, `design`, `motion`, `archify`.
-- Preview/Code view, version history, copy, download, open in a new tab, edit (new version), remix a shared artifact into your own account.
+- Searchable library with a desktop quick look and direct reader links on phones. The reader has Preview, Source and Details tabs, version history and a title dropdown. Eligible signed-in users can remix a shared artifact into their accounts.
 - Google sign-in (OpenID Connect) for an email allowlist and restricted share viewers, personal API tokens, and OAuth 2.1 for MCP clients (Claude.ai, Claude Desktop, Claude Code) using the Google session for consent.
 - Share links (open to anyone or restricted to listed viewers, revocable).
 - Retention: 30 days by default, make permanent, set back to expiring, delete. A daily cron deletes expired artifacts.
@@ -191,12 +191,13 @@ Pages (lane ui; HTML; unauthenticated pages show the landing / sign-in link):
 
 | Route | Page |
 | --- | --- |
-| `GET /` | Landing (signed out) or artifact list (signed in) |
+| `GET /` | Landing (signed out) or searchable library (signed in). Filter by sharing or expiry in the next seven days. Desktop shows metadata without running artifact code; an explicit preview action loads one sandboxed render. Phones link straight to the reader. |
+| `GET /library/titles?ids=…` | Private title lookup for library search. A session can resolve up to 24 IDs per request, for its own unexpired artifacts only. The browser requests full titles on search only when an index title can be truncated. The response is not cached. |
 | `GET /new` | Create form |
-| `GET /a/:id` | Viewer: Preview/Code, version switcher (`?v=n`), copy, download, open in new tab, edit, share, retention, delete |
+| `GET /a/:id` | Reader: Preview, Source and Details; version switcher (`?v=n`). The title dropdown provides copy, download, open, rename, edit, Markdown/HTML/PDF export, retention and delete. The separate Share dropdown controls link access. |
 | `GET /a/:id/edit` | Edit form (title + content of latest version) |
 | `GET /s/:shareId` | Read-only viewer + "Remix" for signed-in allowlisted users. A restricted link returns a 403 "Restricted link" page when the viewer lacks access; it shows no artifact details or audience |
-| `GET /settings` | A section list and one section at a time: General (theme, reading font and text size, stored in this browser), Connect an agent (MCP setup, OAuth first, API token as the alternative), Connected apps (OAuth grants), API tokens. The page switches sections on `#general`, `#connect`, `#apps` and `#tokens` without a reload; no element has those ids, so the page does not scroll |
+| `GET /settings` | Appearance (theme, font, text size and a live reading sample), Connect an agent (OAuth or API token setup), Connected apps (OAuth grants) and API tokens. Section links keep `#general`, `#connect`, `#apps` and `#tokens` and work without a reload. |
 | `GET /authorize` | OAuth consent page (see OAuth below) |
 
 Auth (lane auth):
