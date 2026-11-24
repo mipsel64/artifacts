@@ -151,7 +151,8 @@ const MARKDOWN_CLAUDE_CSS =
   '.markdown-body table th,.markdown-body table td{padding:8px 14px;border:0;border-bottom:1px solid var(--border)}' +
   '.markdown-body table tr,.markdown-body table tr:nth-child(2n){background:transparent;border-top:0}' +
   '.markdown-body blockquote{border-left:3px solid color-mix(in srgb,var(--muted) 50%,transparent)}' +
-  '.markdown-body hr{height:0;background:none;border:0;border-top:1px solid var(--border)}';
+  '.markdown-body hr{height:0;background:none;border:0;border-top:1px solid var(--border)}' +
+  '.markdown-body .mermaid{margin-bottom:16px}.markdown-body .mermaid>svg{display:block;margin:0 auto}';
 
 // GitHub's current markup: the permalink sits beside the heading, so it stays out of the heading's accessible name.
 const MARKDOWN_ANCHOR_CSS =
@@ -994,7 +995,45 @@ ${HASH_BRIDGE}${SECTION_IDS}
 
 // --- end section links ---
 
-const MARKDOWN_SCRIPT = `${HASH_BRIDGE}${SECTION_IDS}
+// Mermaid derives shades from its theme variables, so it needs the resolved hex values, not var().
+const MERMAID_CONFIG = `
+function mermaidConfig() {
+  var css = getComputedStyle(document.documentElement);
+  var token = function (name) { return css.getPropertyValue('--' + name).trim(); };
+  return {
+    startOnLoad: false,
+    suppressErrorRendering: true,
+    theme: 'base',
+    themeVariables: {
+      darkMode: document.documentElement.dataset.theme === 'dark',
+      background: token('bg'),
+      fontFamily: token('sans'),
+      primaryColor: token('bg'),
+      primaryTextColor: token('fg'),
+      primaryBorderColor: token('muted'),
+      secondaryColor: token('surface-2'),
+      secondaryTextColor: token('fg'),
+      secondaryBorderColor: token('border'),
+      tertiaryColor: token('surface'),
+      tertiaryTextColor: token('fg'),
+      tertiaryBorderColor: token('border'),
+      mainBkg: token('bg'),
+      nodeBorder: token('muted'),
+      clusterBkg: token('surface-2'),
+      clusterBorder: token('border'),
+      lineColor: token('muted'),
+      textColor: token('fg'),
+      titleColor: token('fg'),
+      edgeLabelBackground: token('surface'),
+      noteBkgColor: token('surface-2'),
+      noteTextColor: token('fg'),
+      noteBorderColor: token('border'),
+    },
+  };
+}
+`;
+
+const MARKDOWN_SCRIPT = `${HASH_BRIDGE}${SECTION_IDS}${MERMAID_CONFIG}
 function linkHeadings(root) {
   var headings = Array.from(root.querySelectorAll(HEADINGS)), ids = sectionIds(headings);
   headings.forEach(function (heading, i) {
@@ -1014,12 +1053,42 @@ function linkHeadings(root) {
     wrapper.append(heading, link);
   });
 }
+// A diagram that fails keeps its source block, so the rest of the document still reads.
+async function drawDiagrams(root) {
+  var blocks = Array.from(root.querySelectorAll('pre > code.language-mermaid'));
+  if (!blocks.length) return;
+  var mermaid = (await import('${MERMAID_URL}')).default;
+  var diagrams = blocks.map(function (code) { return { block: code.parentNode, source: code.textContent, el: null }; });
+  var draw = async function (report) {
+    mermaid.initialize(mermaidConfig());
+    for (var i = 0; i < diagrams.length; i++) {
+      var d = diagrams[i], id = 'artifact-mermaid-' + i;
+      try {
+        var result = await mermaid.render(id, d.source);
+        if (!d.el) {
+          d.el = document.createElement('div');
+          d.el.className = 'mermaid';
+          d.block.replaceWith(d.el);
+        }
+        d.el.innerHTML = result.svg;
+      } catch (err) {
+        document.querySelectorAll('#d' + id).forEach(function (el) { el.remove(); });
+        if (report) showError('Mermaid diagram ' + (i + 1) + ': ' + ((err && err.message) || err));
+      }
+    }
+  };
+  // Mermaid queues renders, so the last theme switch wins.
+  window.addEventListener('artifact-theme', function () { draw(false); });
+  await draw(true);
+}
 try {
   var source = ${READ_SOURCE};
   var marked = await import('${MARKED_URL}');
   var out = document.getElementById('out');
   out.innerHTML = marked.parse(source);
   linkHeadings(out);
+  // Diagrams change the layout, so they come before the fragment scroll and the print flag.
+  await drawDiagrams(out).catch(showError);
   // The browser looked for the fragment before the headings existed.
   if (location.hash) goToHash(location.hash);
   window.__artifactReady = true;
@@ -1155,7 +1224,7 @@ function slidesDocument(title: string, content: string, print: boolean): string 
 
 // --- end slides ---
 
-const MERMAID_SCRIPT = `
+const MERMAID_SCRIPT = `${MERMAID_CONFIG}
 var removeDiagram = function () {
   document.querySelectorAll('#dartifact-diagram').forEach(function (el) { el.remove(); });
 };
@@ -1164,39 +1233,7 @@ try {
   var mermaid = (await import('${MERMAID_URL}')).default;
   var canvas = document.getElementById('canvas');
   var draw = async function () {
-    // Mermaid derives shades from its theme variables, so it needs the resolved hex values, not var().
-    var css = getComputedStyle(document.documentElement);
-    var token = function (name) { return css.getPropertyValue('--' + name).trim(); };
-    mermaid.initialize({
-      startOnLoad: false,
-      suppressErrorRendering: true,
-      theme: 'base',
-      themeVariables: {
-        darkMode: document.documentElement.dataset.theme === 'dark',
-        background: token('bg'),
-        fontFamily: token('sans'),
-        primaryColor: token('bg'),
-        primaryTextColor: token('fg'),
-        primaryBorderColor: token('muted'),
-        secondaryColor: token('surface-2'),
-        secondaryTextColor: token('fg'),
-        secondaryBorderColor: token('border'),
-        tertiaryColor: token('surface'),
-        tertiaryTextColor: token('fg'),
-        tertiaryBorderColor: token('border'),
-        mainBkg: token('bg'),
-        nodeBorder: token('muted'),
-        clusterBkg: token('surface-2'),
-        clusterBorder: token('border'),
-        lineColor: token('muted'),
-        textColor: token('fg'),
-        titleColor: token('fg'),
-        edgeLabelBackground: token('surface'),
-        noteBkgColor: token('surface-2'),
-        noteTextColor: token('fg'),
-        noteBorderColor: token('border'),
-      },
-    });
+    mermaid.initialize(mermaidConfig());
     var result = await mermaid.render('artifact-diagram', source);
     canvas.innerHTML = result.svg;
     // Mermaid emits width=100% with a max-width, which has no definite size inside the shrink-to-fit canvas.
