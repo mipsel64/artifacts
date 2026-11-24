@@ -9,3 +9,4 @@ public/static/build/
 themes/*/*.png
 themes/*/*.html
 themes/*/*.pictures.json
+/e2e/test-results/
