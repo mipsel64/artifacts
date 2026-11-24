@@ -1,9 +1,8 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useId, useMemo, useState, type ReactNode } from 'react';
 import { AlertDialog } from '@astryxdesign/core/AlertDialog';
 import { Avatar } from '@astryxdesign/core/Avatar';
 import { Banner } from '@astryxdesign/core/Banner';
 import { Button } from '@astryxdesign/core/Button';
-import { DropdownMenu, DropdownMenuItem } from '@astryxdesign/core/DropdownMenu';
 import { HStack, VStack } from '@astryxdesign/core/Layout';
 import { AppShell } from '@astryxdesign/core/AppShell';
 import { Text } from '@astryxdesign/core/Text';
@@ -118,33 +117,59 @@ function displayName(me: Identity): string {
   return me.name?.trim() || me.email.split('@')[0] || me.email;
 }
 
-function AccountMenu({ me }: { me: Identity }) {
+const accountThemes = [
+  { value: 'system', label: 'System', icon: 'monitor' },
+  { value: 'light', label: 'Light', icon: 'sun' },
+  { value: 'dark', label: 'Dark', icon: 'moon' },
+] as const;
+
+function AccountMenu({ me, page }: { me: Identity; page: PageName }) {
   const { mode, setMode } = useThemeMode();
+  const [themeControlsReady, setThemeControlsReady] = useState(false);
+  const popoverId = useId();
+  const appearanceId = `${popoverId}-appearance`;
   const name = displayName(me);
+  useEffect(() => setThemeControlsReady(true), []);
+
   return (
-    <DropdownMenu
-      alignment="end"
-      renderTrigger={(props) => (
-        <Button
-          {...props}
-          label={name}
-          aria-label={name}
-          size="sm"
-          variant="ghost"
-          className="account-trigger"
-          icon={<Avatar name={name} src={me.avatarUrl ?? undefined} size="sm" tooltip={false} />}
-        >
-          <Text className="workspace-account-name" type="label" maxLines={1}>{name}</Text>
-        </Button>
-      )}
-      header={<VStack gap={1}><Text weight="semibold">{name}</Text><Text color="secondary" type="supporting">{me.email}</Text></VStack>}
-      footer={<form method="post" action="/auth/logout"><Button label="Sign out" type="submit" variant="ghost" /></form>}
-    >
-      <Text id="appearance-label" type="supporting" color="secondary" className="menu-group-label">Appearance</Text>
-      <DropdownMenuItem label="System" onClick={() => setMode('system')} endContent={mode === 'system' ? <Icon name="check" /> : undefined} />
-      <DropdownMenuItem label="Light" onClick={() => setMode('light')} endContent={mode === 'light' ? <Icon name="check" /> : undefined} />
-      <DropdownMenuItem label="Dark" onClick={() => setMode('dark')} endContent={mode === 'dark' ? <Icon name="check" /> : undefined} />
-    </DropdownMenu>
+    <>
+      <button
+        type="button"
+        className="account-trigger"
+        aria-label={name}
+        aria-haspopup="dialog"
+        popoverTarget={popoverId}
+        // Safari may not focus a button on click. Give native dismissal a return target.
+        onClickCapture={event => event.currentTarget.focus({ preventScroll: true })}
+      >
+        <Avatar name={name} src={me.avatarUrl ?? undefined} size="sm" tooltip={false} />
+        <Text className="workspace-account-name" type="label" maxLines={1}>{name}</Text>
+      </button>
+      <section id={popoverId} popover="auto" role="dialog" aria-label="Account" className="workspace-account-popover">
+        <VStack gap={3}>
+          <VStack gap={1}>
+            <Text weight="semibold">{name}</Text>
+            <Text color="secondary" type="supporting">{me.email}</Text>
+          </VStack>
+          <a className="workspace-account-link" href="/settings" aria-current={page === 'settings' ? 'page' : undefined} autoFocus>Settings</a>
+          {themeControlsReady && (
+            <HStack gap={2} vAlign="center" hAlign="between" wrap="wrap">
+              <Text id={appearanceId} type="supporting" color="secondary">Appearance</Text>
+              <fieldset role="radiogroup" aria-labelledby={appearanceId} className="workspace-theme-track">
+                {accountThemes.map(({ value, label, icon }) => (
+                  <label className="workspace-theme-option" key={value}>
+                    <input type="radio" name={appearanceId} value={value} checked={mode === value} onChange={() => setMode(value)} />
+                    <Icon name={icon} />
+                    <Text className="workspace-theme-option-label">{label}</Text>
+                  </label>
+                ))}
+              </fieldset>
+            </HStack>
+          )}
+          <form method="post" action="/auth/logout"><Button label="Sign out" size="sm" type="submit" variant="ghost" /></form>
+        </VStack>
+      </section>
+    </>
   );
 }
 
@@ -159,7 +184,7 @@ function ThemeCycle() {
 function WorkspaceHeader({ shell: { me, viewerEmail, signIn = true }, page }: { shell: ShellProps; page: PageName }) {
   return (
     <HStack className="workspace-bar" gap={2} vAlign="center" wrap="wrap">
-      <a className="workspace-brand" href="/"><Logo size={28} />Artifacts</a>
+      <a className="workspace-brand" href="/" aria-current={page === 'library' ? 'page' : undefined}><Logo size={28} />Artifacts</a>
       {me && (
         <HStack className="workspace-crumb" gap={3} vAlign="center">
           <Text type="supporting" color="secondary" aria-hidden="true">/</Text>
@@ -169,22 +194,18 @@ function WorkspaceHeader({ shell: { me, viewerEmail, signIn = true }, page }: { 
       <HStack className="workspace-tools" gap={2} vAlign="center" wrap="wrap">
         {me ? (
           <>
-            <nav aria-label="Workspace" className="workspace-nav">
-              <a className="workspace-link" href="/" aria-current={page === 'library' ? 'page' : undefined}>Library</a>
-              <a className="workspace-link" href="/settings" aria-current={page === 'settings' ? 'page' : undefined}>Settings</a>
-              <Button
-                label="New artifact"
-                size="sm"
-                href="/new"
-                aria-current={page === 'newArtifact' ? 'page' : undefined}
-                icon={
-                  <svg className="artifact-icon" viewBox="0 0 16 16" aria-hidden="true">
-                    <path d="M8 3v10M3 8h10" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                  </svg>
-                }
-              />
-            </nav>
-            <AccountMenu me={me} />
+            <Button
+              label="New artifact"
+              size="sm"
+              href="/new"
+              aria-current={page === 'newArtifact' ? 'page' : undefined}
+              icon={
+                <svg className="artifact-icon" viewBox="0 0 16 16" aria-hidden="true">
+                  <path d="M8 3v10M3 8h10" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                </svg>
+              }
+            />
+            <AccountMenu me={me} page={page} />
           </>
         ) : (
           <>

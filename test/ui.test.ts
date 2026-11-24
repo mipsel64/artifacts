@@ -26,10 +26,6 @@ function pageData(body: string): PageData {
   return JSON.parse(match[1]) as PageData;
 }
 
-function workspaceNav(body: string): string | undefined {
-  return body.match(/<nav\b[^>]*\baria-label="Workspace"[^>]*>(.*?)<\/nav>/s)?.[1];
-}
-
 const HEADERS: Record<string, string> = {
   'content-security-policy':
     "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' https://lh3.googleusercontent.com data:; frame-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'",
@@ -52,7 +48,6 @@ describe('document shell', () => {
     expect(body).toContain('<link rel="icon" href="/favicon.svg" type="image/svg+xml">');
     expect(body).toContain('href="/auth/login"');
     expect(body).toContain('Sign in with Google');
-    expect(workspaceNav(body)).toBeUndefined();
     expect(body).toContain('Theme: System');
     expect(body).not.toContain('href="/new"');
     expect(body).not.toContain('href="/settings"');
@@ -61,16 +56,11 @@ describe('document shell', () => {
     expect(pageData(body)).toMatchObject({ page: 'landing', shell: { me: null }, mode: 'system' });
   });
 
-  it('shows workspace links and the signed-in profile in the header', async () => {
+  it('shows the signed-in profile and a direct link to create an artifact', async () => {
     const { init } = await signedInAlice();
     await upsertUser(env, { sub: '1', email: 'alice@example.com', name: 'Alice Liddell', avatarUrl: 'https://lh3.googleusercontent.com/a/1' });
     const body = await (await request('/', init)).text();
-    const navigation = workspaceNav(body);
-    expect(navigation).toContain('Library');
-    expect(navigation).toContain('href="/settings"');
-    expect(navigation).toContain('Settings');
-    expect(navigation).toContain('href="/new"');
-    expect(navigation).toContain('New artifact');
+    expect(body).toContain('href="/new"');
     expect(body).toContain('Personal workspace');
     expect(body).toContain('aria-label="Alice Liddell"');
     expect(body).not.toContain('href="/auth/login"');
@@ -84,19 +74,14 @@ describe('document shell', () => {
     expect(body).toMatch(/>alice</);
   });
 
-  it('marks only the current workspace destination as the current page', async () => {
+  it('marks the brand and create link current only on their own pages', async () => {
     const { user, init } = await signedInAlice();
     const meta = await createArtifact(env, user.id, { title: 'Doc', type: 'html', content: 'x' });
-    for (const path of ['/', '/new', '/settings', `/a/${meta.id}`, `/a/${meta.id}/edit`]) {
-      const navigation = workspaceNav(await (await request(path, init)).text());
-      expect(navigation, path).toBeDefined();
-      const current = navigation?.match(/<a\b(?=[^>]*\baria-current="page")[^>]*>/g) ?? [];
-      if (path.startsWith('/a/')) {
-        expect(current, path).toHaveLength(0);
-      } else {
-        expect(current, path).toHaveLength(1);
-        expect(current[0], path).toContain(`href="${path}"`);
-      }
+    for (const path of ['/', '/new', `/a/${meta.id}`, `/a/${meta.id}/edit`]) {
+      const body = await (await request(path, init)).text();
+      const current = body.match(/<a\b(?=[^>]*\baria-current="page")[^>]*>/g) ?? [];
+      const hrefs = current.map(anchor => anchor.match(/\bhref="([^"]*)"/)?.[1]);
+      expect(hrefs, path).toEqual(path === '/' || path === '/new' ? [path] : []);
     }
   });
 
@@ -108,7 +93,6 @@ describe('document shell', () => {
     const res = await request(`/s/${shareId}`, { headers: { Cookie: cookie } });
     expect(res.status).toBe(status);
     const body = await res.text();
-    expect(workspaceNav(body)).toBeUndefined();
     expect(body).toContain(`>${email}</`);
     expect(body).toContain('Theme: System');
     expect(body).toContain('action="/auth/logout"');
@@ -123,7 +107,6 @@ describe('document shell', () => {
     const res = await request(`/s/${shareId}`);
     expect(res.status).toBe(403);
     const body = await res.text();
-    expect(workspaceNav(body)).toBeUndefined();
     expect(body).not.toContain('href="/auth/login"');
     expect(body).not.toContain('href="/new"');
     expect(body).not.toContain('href="/settings"');
