@@ -1,8 +1,8 @@
 import { Hono } from 'hono';
-import { ArtifactError, canViewShare, getArtifact, getContent, getSharedArtifact, listArtifacts } from '../artifacts';
-import { listApiTokens, readSession } from '../auth';
+import { ArtifactError, canViewShare, getArtifact, getContent, getSharedArtifact, isPossiblyTruncatedTitle, listArtifacts } from '../artifacts';
+import { listApiTokens, readSession, requireSession } from '../auth';
 import { listGrants, oauthHelpers } from './oauth';
-import type { AppEnv } from '../types';
+import { LIBRARY_TITLE_BATCH_SIZE, type AppEnv, type LibraryTitleBatch } from '../types';
 import { pageHeaders } from '../ui/headers';
 import { identify } from '../ui/identify';
 import { renderPage } from '../ui/app/document';
@@ -20,11 +20,37 @@ routes.get('/', pageHeaders, async (c) => {
   if (!me) {
     return renderPage(c, 'landing', {}, { title: 'Welcome', shell: { me: null } });
   }
-  const items = await listArtifacts(c.env, me.id);
-  return renderPage(c, 'library', { items, now: new Date().toISOString() }, {
+  const now = new Date();
+  const items = await listArtifacts(c.env, me.id, now);
+  const fullTitleIds = items.filter(({ title }) => isPossiblyTruncatedTitle(title)).map(({ id }) => id);
+  return renderPage(c, 'library', { items, fullTitleIds, now: now.toISOString() }, {
     title: 'Artifacts',
     shell: { me },
   });
+});
+
+routes.get('/library/titles', pageHeaders, requireSession, async (c) => {
+  const rawIds = c.req.query('ids') ?? '';
+  // Generated artifact IDs are unpadded base64url; reject an overlong query before splitting it.
+  if (!rawIds || rawIds.length > LIBRARY_TITLE_BATCH_SIZE * 23 - 1) {
+    throw new ArtifactError(400, 'Invalid artifact ID batch');
+  }
+  const ids = rawIds.split(',');
+  if (ids.length > LIBRARY_TITLE_BATCH_SIZE || !ids.every((id) => /^[A-Za-z0-9_-]{22}$/.test(id))) {
+    throw new ArtifactError(400, 'Invalid artifact ID batch');
+  }
+  const now = new Date();
+  const records = await Promise.all([...new Set(ids)].map(async (id) => {
+    try {
+      const { title } = await getArtifact(c.env, c.var.user.id, id, now);
+      return { id, title };
+    } catch (error) {
+      if (error instanceof ArtifactError && error.status === 404) return null;
+      throw error;
+    }
+  }));
+  const titles: LibraryTitleBatch = records.filter((record) => record !== null);
+  return c.json(titles);
 });
 
 routes.get('/new', pageHeaders, async (c) => {
@@ -112,7 +138,7 @@ routes.get('/settings', pageHeaders, async (c) => {
   );
   return renderPage(c, 'settings', { tokens, apps, origin: new URL(c.req.url).origin }, {
     title: 'Settings',
-    shell: { me, settingsActive: true },
+    shell: { me },
   });
 });
 

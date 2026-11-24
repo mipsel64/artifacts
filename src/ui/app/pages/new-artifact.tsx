@@ -5,7 +5,7 @@ import { HStack, VStack } from '@astryxdesign/core/Layout';
 import { Selector } from '@astryxdesign/core/Selector';
 import { TextArea } from '@astryxdesign/core/TextArea';
 import { TextInput } from '@astryxdesign/core/TextInput';
-import { Heading } from '@astryxdesign/core/Text';
+import { Heading, Text } from '@astryxdesign/core/Text';
 import { ARTIFACT_TYPES, type ArtifactType } from '../../../types';
 import { api } from '../api';
 import { useFeedback } from '../Shell';
@@ -48,7 +48,11 @@ export function NewArtifact() {
 
   return (
     <VStack gap={6} hAlign="stretch">
-      <Heading level={1}>New artifact</Heading>
+      <VStack gap={1} className="artifact-editor-header">
+        <Text type="supporting" color="secondary">Personal workspace</Text>
+        <Heading level={1} type="display-3">New artifact</Heading>
+        <Text as="p" color="secondary">Choose a format and add its source. The artifact stays private until you share it.</Text>
+      </VStack>
       <form method="post" data-form="new" onSubmit={submit}>
         <FormLayout>
           <TextInput
@@ -82,12 +86,12 @@ export function NewArtifact() {
             value={content}
             onChange={setContent}
             isRequired
-            rows={18}
+            rows={10}
             hasSpellCheck={false}
             controlClassName="artifact-content-editor"
           />
           <HStack gap={2}>
-            <Button label="Create" type="submit" variant="primary" isLoading={submitting} />
+            <Button label="Create artifact" type="submit" variant="primary" isLoading={submitting} />
             <Button label="Cancel" href="/" />
           </HStack>
         </FormLayout>

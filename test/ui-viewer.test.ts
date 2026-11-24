@@ -72,7 +72,7 @@ function expectPreview(body: string, src: string) {
 }
 
 describe('Astryx viewer', () => {
-  it('renders the selected version, icon-only view tabs and version metadata without content', async () => {
+  it('renders the selected version, readable view tabs and version metadata without content', async () => {
     const { user, init } = await signedInAlice();
     const meta = await createArtifact(env, user.id, { title: 'Doc <b>', type: 'html', content: '<p>one</p>' });
     await updateArtifact(env, user.id, meta.id, { content: '<p>two</p>' });
@@ -83,8 +83,17 @@ describe('Astryx viewer', () => {
     const body = await res.text();
     expect(body).toContain('<title>Doc &lt;b&gt; · Artifacts</title>');
     expectPreview(body, `/r/${meta.id}?v=2`);
+    expect(body).toContain('aria-label="Artifact view"');
+    expect(body).toContain('aria-controls="panel-preview"');
+    expect(body).toContain('aria-controls="panel-code"');
+    expect(body).toContain('aria-controls="panel-details"');
     expect(body).toContain('aria-label="Preview"');
-    expect(body).toContain('aria-label="Code"');
+    expect(body).toContain('aria-label="Source"');
+    expect(body).toContain('id="panel-code"');
+    expect(body).toContain('aria-label="Details"');
+    expect(body).toContain('Artifact details');
+    expect(body).toContain('v2 of 3');
+    expect(body).toContain('Not shared');
     expect(body).toContain('aria-label="v2 of 3, switch version"');
     expect(body).toContain('Doc &lt;b&gt;');
     expect(body).not.toContain('&lt;p&gt;one&lt;/p&gt;');
@@ -130,6 +139,20 @@ describe('Astryx viewer', () => {
     expect(viewerProps(body).meta.language).toBe('python');
   });
 
+  it('describes sharing as latest-version access when reading a historical version', async () => {
+    const { user, init } = await signedInAlice();
+    const meta = await createArtifact(env, user.id, { title: 'Versioned share', type: 'html', content: '<p>Original</p>' });
+    await updateArtifact(env, user.id, meta.id, { content: '<p>Updated</p>' });
+    const { shareId } = await shareArtifact(env, user.id, meta.id);
+
+    const old = await (await request(`/a/${meta.id}?v=1`, init)).text();
+    expectPreview(old, `/r/${meta.id}?v=1`);
+    expect(old).toContain('<dt>Latest version share link</dt>');
+    expect(old).toContain('Latest version share link: Anyone with the link');
+    expect(viewerProps(old).meta.shareUrl).toBe(`${ORIGIN}/s/${shareId}`);
+    expect(await (await request(`/s/${shareId}/raw`)).text()).toBe('<p>Updated</p>');
+  });
+
   it('keeps public and restricted share state in page props', async () => {
     const { user, cookie, init } = await signedInAlice();
     const publicArtifact = await createArtifact(env, user.id, { title: 'Public', type: 'html', content: 'public-content' });
@@ -150,6 +173,27 @@ describe('Astryx viewer', () => {
     const restrictedBody = await (await request(`/a/${restrictedArtifact.id}`, init)).text();
     expect(viewerProps(restrictedBody).meta.shareAudience).toEqual(['carol@acme.dev', '@acme.dev']);
     expect(restrictedBody).not.toContain('restricted-content');
+  });
+
+  it('preserves the effective restricted link after an invalid audience update', async () => {
+    const { user, cookie, init } = await signedInAlice();
+    const meta = await createArtifact(env, user.id, { title: 'Restricted', type: 'markdown', content: '# Private' });
+    const { shareId } = await shareArtifact(env, user.id, meta.id, { audience: ['reader@example.com'] });
+    const response = await request(`/api/artifacts/${meta.id}/share`, {
+      method: 'POST',
+      headers: { Cookie: cookie, Origin: ORIGIN, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ audience: ['not-an-email'] }),
+    });
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ error: expect.stringContaining('audience entries must be emails') });
+    const body = await (await request(`/a/${meta.id}`, init)).text();
+    expect(viewerProps(body).meta).toMatchObject({
+      shareUrl: `${ORIGIN}/s/${shareId}`,
+      shareAudience: ['reader@example.com'],
+    });
+    expect(body).toContain('Specific people');
+    expect(body).toContain('reader@example.com');
+    expect((await request(`/s/${shareId}`)).status).toBe(403);
   });
 
   it('redirects signed-out users and preserves version and ownership errors', async () => {
@@ -183,6 +227,9 @@ describe('Astryx shared viewer', () => {
     expect(body).toContain('Read-only');
     expect(body).toContain(`href="/s/${shareId}/raw?download=1"`);
     expect(body).toContain('Copy');
+    expect(body).toContain('aria-label="Source"');
+    expect(body).toContain('aria-label="Details"');
+    expect(body).not.toContain('Share artifact');
     expect(body).toContain('href="/auth/login"');
     expect(body).not.toContain('Remix');
     expect(body).not.toContain(meta.id);

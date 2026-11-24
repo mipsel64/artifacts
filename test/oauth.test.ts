@@ -286,7 +286,8 @@ describe('consent page', () => {
     expect(html).toContain('<dt>Sends access to</dt>');
     expect(html).toContain('<dt>Signed in as</dt>');
     expect(html).toContain(`<dd>${user.email}</dd>`);
-    expect(html).toContain('<dt>Can</dt>');
+    expect(html).toContain('<dt>What this app can do</dt>');
+    expect(html).toContain('permanently delete artifacts');
     expect(html).not.toContain('callout-warning');
     expect(html).not.toContain('on your computer');
     expect(handle).not.toBe('');

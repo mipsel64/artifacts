@@ -1,6 +1,6 @@
 import type { ComponentType } from 'react';
 import { Theme } from '@astryxdesign/core/theme';
-import { claudeTheme } from '../../themes/claude/claude.js';
+import { defaultThemeSlug, themes } from '../../astryx-themes';
 import { PAGES, type PageData, type PageName } from './pages';
 import { FeedbackProvider, Shell } from './Shell';
 import { ThemeModeProvider, useThemeMode } from './theme-mode';
@@ -10,9 +10,9 @@ function ThemedApp({ data }: { data: PageData }) {
   const Page = PAGES[data.page] as ComponentType<Record<string, unknown>>;
   const props = data.props as Record<string, unknown>;
   return (
-    <Theme theme={claudeTheme} mode={mode}>
+    <Theme theme={themes[defaultThemeSlug]} mode={mode}>
       <FeedbackProvider>
-        <Shell shell={data.shell}><Page {...props} /></Shell>
+        <Shell shell={data.shell} page={data.page}><Page {...props} /></Shell>
       </FeedbackProvider>
     </Theme>
   );

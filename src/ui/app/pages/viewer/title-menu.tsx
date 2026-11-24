@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { Badge } from '@astryxdesign/core/Badge';
 import { Banner } from '@astryxdesign/core/Banner';
 import { Button } from '@astryxdesign/core/Button';
 import { Dialog, DialogHeader } from '@astryxdesign/core/Dialog';
 import { DropdownMenu, DropdownMenuDivider, DropdownMenuItem } from '@astryxdesign/core/DropdownMenu';
+import { Icon } from '@astryxdesign/core/Icon';
 import { HStack, VStack } from '@astryxdesign/core/Layout';
 import { Heading, Text } from '@astryxdesign/core/Text';
 import { TextInput } from '@astryxdesign/core/TextInput';
@@ -18,10 +18,11 @@ interface TitleMenuProps {
   meta: ViewerMeta;
   version: number;
   now: string;
+  fragment: string;
   loadContent: LoadContent;
 }
 
-export function TitleMenu({ meta, version, now, loadContent }: TitleMenuProps) {
+export function TitleMenu({ meta, version, now, fragment, loadContent }: TitleMenuProps) {
   const { showError, confirm } = useFeedback();
   const [title, setTitle] = useState(meta.title);
   const [draftTitle, setDraftTitle] = useState(meta.title);
@@ -101,7 +102,15 @@ export function TitleMenu({ meta, version, now, loadContent }: TitleMenuProps) {
       <Heading level={1} weight="semibold" className="viewer-title">
         <DropdownMenu
           renderTrigger={(props) => (
-            <Button {...props} label={title} tooltip={title} variant="ghost" size="sm" endContent={<Badge label={typeLabel} variant="neutral" />} />
+            <Button
+              {...props}
+              label={title}
+              tooltip={title}
+              variant="ghost"
+              size="lg"
+              className="viewer-title-trigger"
+              endContent={<Icon icon="chevronDown" size="sm" />}
+            />
           )}
           header={<VStack padding={2}><Text type="supporting" color="secondary">{retentionLabel(meta.expiresAt, new Date(now))} · {typeLabel}</Text></VStack>}
         >
@@ -111,7 +120,7 @@ export function TitleMenu({ meta, version, now, loadContent }: TitleMenuProps) {
             onClick={() => void copyContent()}
           />
           <DropdownMenuItem label="Download" href={`${apiPath}/content?version=${version}&download=1`} />
-          <DropdownMenuItem label="Open in new tab" href={renderPath} target="_blank" rel="noopener noreferrer" />
+          <DropdownMenuItem label="Open in new tab" href={renderPath + fragment} target="_blank" rel="noopener noreferrer" />
           <DropdownMenuDivider />
           <DropdownMenuItem label="Rename…" onClick={() => { setDraftTitle(title); setRenameError(null); setRenameOpen(true); }} />
           <DropdownMenuItem label="Edit" href={`/a/${meta.id}/edit`} />

@@ -5,15 +5,13 @@ import { Button } from '@astryxdesign/core/Button';
 import { HStack, StackItem, VStack } from '@astryxdesign/core/Layout';
 import { Link } from '@astryxdesign/core/Link';
 import { List, ListItem } from '@astryxdesign/core/List';
-import { SegmentedControl, SegmentedControlItem } from '@astryxdesign/core/SegmentedControl';
-import { Selector, SelectorOption } from '@astryxdesign/core/Selector';
-import { Tab, TabList } from '@astryxdesign/core/TabList';
 import { TextInput } from '@astryxdesign/core/TextInput';
 import { Heading, Text } from '@astryxdesign/core/Text';
 import { DEFAULT_READING_SIZE, READING_FONTS, READING_SIZES, type ReadingFont } from '../../../types';
 import { formatDate } from '../../format';
 import { api } from '../api';
 import { CopyButton, useFeedback } from '../Shell';
+import type { ThemeMode } from '../mode';
 import { themeMessage, useThemeMode } from '../theme-mode';
 
 interface SettingsItem {
@@ -33,12 +31,12 @@ export interface SettingsProps {
 }
 
 type SettingsSection = 'general' | 'connect' | 'apps' | 'tokens';
-type ConnectionTab = 'claude-ai' | 'claude-code' | 'token' | 'json';
+type ConnectionMethod = 'claude-ai' | 'claude-code' | 'token' | 'json';
 
 const SETTINGS_NAV: { group: string; items: { id: SettingsSection; label: string }[] }[] = [
-  { group: 'Preferences', items: [{ id: 'general', label: 'General' }] },
+  { group: 'Preferences', items: [{ id: 'general', label: 'Appearance' }] },
   {
-    group: 'Agents',
+    group: 'Agent access',
     items: [
       { id: 'connect', label: 'Connect an agent' },
       { id: 'apps', label: 'Connected apps' },
@@ -49,11 +47,11 @@ const SETTINGS_NAV: { group: string; items: { id: SettingsSection; label: string
 
 const READING_FONT_LABELS: Record<ReadingFont, string> = { serif: 'Serif', sans: 'Sans', mono: 'Mono' };
 const READING_FONT_VALUES = Object.keys(READING_FONTS) as ReadingFont[];
-const READING_FONT_OPTIONS = READING_FONT_VALUES.map((value) => ({ value, label: READING_FONT_LABELS[value] }));
-const READING_SIZE_OPTIONS = READING_SIZES.map((size) => ({
-  value: String(size),
-  label: size === DEFAULT_READING_SIZE ? `Default · ${size} px` : `${size} px`,
-}));
+const THEME_OPTIONS = [
+  { value: 'system', label: 'System' },
+  { value: 'light', label: 'Light' },
+  { value: 'dark', label: 'Dark' },
+] as const;
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : 'Request failed';
@@ -64,7 +62,7 @@ function sectionFromHash(hash: string): SettingsSection {
   return SETTINGS_NAV.some((group) => group.items.some((item) => item.id === value)) ? value as SettingsSection : 'general';
 }
 
-function notifyArtifactFrames(mode: 'system' | 'light' | 'dark') {
+function notifyArtifactFrames(mode: ThemeMode) {
   const message = themeMessage(mode);
   for (const frame of document.querySelectorAll<HTMLIFrameElement>('iframe[data-artifact-preview]')) {
     frame.contentWindow?.postMessage(message, '*');
@@ -87,35 +85,83 @@ function SettingsPanel({
   children: ReactNode;
 }) {
   return (
-    <section className="settings-panel" data-settings-panel={id} aria-labelledby={`settings-${id}-heading`} hidden={!active}>
-      <Heading level={2} id={`settings-${id}-heading`} tabIndex={-1} ref={headingRef}>{title}</Heading>
-      <Text as="p" color="secondary" type="supporting">{intro}</Text>
-      <VStack gap={4}>{children}</VStack>
+    <section className="preferences-panel" data-settings-panel={id} aria-labelledby={`settings-${id}-heading`} hidden={!active}>
+      <VStack gap={4}>
+        <VStack gap={1}>
+          <Heading level={2} id={`settings-${id}-heading`} tabIndex={-1} ref={headingRef}>{title}</Heading>
+          <Text as="p" color="secondary">{intro}</Text>
+        </VStack>
+        {children}
+      </VStack>
     </section>
   );
 }
 
-function SettingsRow({ label, control, hint, hintId }: { label: ReactNode; control: ReactNode; hint?: string; hintId?: string }) {
+function ThemeThumbnail({ mode }: { mode: ThemeMode }) {
+  const pane = (scheme: 'light' | 'dark', x: number, width: number) => (
+    <svg x={x} width={width} height="54" viewBox="0 0 85 54" preserveAspectRatio="xMinYMid slice" data-scheme={scheme}>
+      <path className="preferences-theme-paper" d="M0 0h85v54H0z" />
+      <path fill="currentColor" d="M7 8h22v3H7z" />
+      <path fill="currentColor" opacity=".32" d="M7 17h14v30H7zM26 28h34v3H26zM26 36h28v3H26z" />
+      <path fill="currentColor" opacity=".55" d="M26 18h45v4H26z" />
+    </svg>
+  );
   return (
-    <div className="settings-row">
-      <div className="settings-row-label">{label}</div>
-      {hint && <Text as="p" id={hintId} className="settings-row-hint" color="secondary" type="supporting">{hint}</Text>}
-      <div className="settings-row-control">{control}</div>
-    </div>
+    <svg className="preferences-theme-thumbnail" viewBox="0 0 85 54" preserveAspectRatio="none" aria-hidden="true">
+      {mode === 'system' ? <>{pane('light', 0, 43)}{pane('dark', 43, 42)}</> : pane(mode, 0, 85)}
+    </svg>
+  );
+}
+
+function ReadingSpecimen({ font, size }: { font: ReadingFont; size: number }) {
+  return (
+    <aside className="preferences-specimen" aria-labelledby="reading-specimen-heading">
+      <header className="preferences-specimen-header">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden="true">
+          <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6Z" /><circle cx="12" cy="12" r="2.5" />
+        </svg>
+        <Text id="reading-specimen-heading" type="label">Live reading preview</Text>
+      </header>
+      <figure className="preferences-specimen-art" aria-hidden="true">
+        <svg viewBox="0 0 204 75">
+          <circle cx="125" cy="19" r="11" fill="var(--color-artifact-html)" />
+          <g fill="none" stroke="currentColor" strokeWidth="1.45">
+            {Array.from({ length: 12 }, (_, i) => (
+              <path key={i} d={`M0 ${65 - i * 2} Q35 ${69 - i * 3} 65 ${42 - i * 1.8} T128 ${55 - i * 2.5} T204 ${28 - i * 1.8}`} />
+            ))}
+          </g>
+        </svg>
+      </figure>
+      <article className="preferences-specimen-text" style={{ fontFamily: READING_FONTS[font], fontSize: size }}>
+        <Text type="code" color="secondary" className="preferences-serial">Field journal / 03</Text>
+        <h3>At the ridge</h3>
+        <p>From the pass, the trail looks like a single line. Up close, each bend marks a different view.</p>
+      </article>
+    </aside>
+  );
+}
+
+function ReadingSetting({ id, label, hint, children }: { id: string; label: string; hint: string; children: ReactNode }) {
+  return (
+    <section className="preferences-reading-setting">
+      <label htmlFor={id}><Text type="label">{label}</Text></label>
+      {children}
+      <Text as="p" id={`${id}-hint`} type="supporting">{hint}</Text>
+    </section>
   );
 }
 
 function GeneralPanel() {
   const { mode, setMode } = useThemeMode();
   const [readingFont, setReadingFont] = useState<ReadingFont>('serif');
-  const [readingSize, setReadingSize] = useState(String(DEFAULT_READING_SIZE));
+  const [readingSize, setReadingSize] = useState<number>(DEFAULT_READING_SIZE);
 
   useEffect(() => {
     try {
       const font = localStorage.getItem('reading-font');
-      const size = localStorage.getItem('reading-size');
+      const size = Number(localStorage.getItem('reading-size'));
       if (font !== null && READING_FONT_VALUES.includes(font as ReadingFont)) setReadingFont(font as ReadingFont);
-      if (size !== null && READING_SIZES.some((option) => String(option) === size)) setReadingSize(size);
+      setReadingSize(READING_SIZES.find((option) => option === size) ?? DEFAULT_READING_SIZE);
     } catch {}
   }, []);
 
@@ -124,67 +170,47 @@ function GeneralPanel() {
     try { localStorage.setItem('reading-font', font); } catch {}
     notifyArtifactFrames(mode);
   };
-  const changeSize = (size: string) => {
+  const changeSize = (size: number) => {
     setReadingSize(size);
-    try { localStorage.setItem('reading-size', size); } catch {}
+    try { localStorage.setItem('reading-size', String(size)); } catch {}
     notifyArtifactFrames(mode);
   };
 
   return (
-    <VStack gap={0} className="settings-rows">
-      <SettingsRow
-        label={<Text as="span">Theme</Text>}
-        control={
-          <SegmentedControl label="Theme" value={mode} onChange={(value) => setMode(value as typeof mode)} size="sm">
-            <SegmentedControlItem value="system" label="System" />
-            <SegmentedControlItem value="light" label="Light" />
-            <SegmentedControlItem value="dark" label="Dark" />
-          </SegmentedControl>
-        }
-      />
-      <SettingsRow
-        label={<Text as="span">Reading font</Text>}
-        hintId="reading-font-hint"
-        hint="Markdown, slides, react, and html that uses the theme font."
-        control={
-          <Selector
-            label="Reading font"
-            isLabelHidden
-            htmlName="reading-font"
-            variant="ghost"
-            size="sm"
-            options={READING_FONT_OPTIONS}
-            value={readingFont}
-            onChange={(value) => changeFont(value as ReadingFont)}
-            renderOption={(option) => {
-              const font = option.value as ReadingFont;
-              return <SelectorOption label={<Text style={{ fontFamily: READING_FONTS[font] }}>{READING_FONT_LABELS[font]}</Text>} />;
-            }}
-            renderValue={(option) => {
-              const font = option.value as ReadingFont;
-              return <Text style={{ fontFamily: READING_FONTS[font] }}>{READING_FONT_LABELS[font]}</Text>;
-            }}
-          />
-        }
-      />
-      <SettingsRow
-        label={<Text as="span">Text size</Text>}
-        hintId="reading-size-hint"
-        hint="Markdown, react, and html that uses the theme size. Slides keep their size."
-        control={
-          <Selector
-            label="Text size"
-            isLabelHidden
-            htmlName="reading-size"
-            variant="ghost"
-            size="sm"
-            options={READING_SIZE_OPTIONS}
-            value={readingSize}
-            onChange={changeSize}
-          />
-        }
-      />
-    </VStack>
+    <section className="preferences-appearance" aria-label="Reading and theme preferences">
+      <VStack gap={3} className="preferences-choices">
+        <fieldset className="preferences-theme">
+          <legend>Theme</legend>
+          <HStack gap={2} className="preferences-theme-options">
+            {THEME_OPTIONS.map(({ value, label }) => (
+              <label className="preferences-theme-choice" key={value}>
+                <ThemeThumbnail mode={value} />
+                <Text className="preferences-theme-caption" type="label">
+                  <input type="radio" name="theme" value={value} checked={mode === value} onChange={() => setMode(value)} />
+                  {label}
+                </Text>
+              </label>
+            ))}
+          </HStack>
+        </fieldset>
+        <ReadingSetting id="reading-font" label="Reading font" hint="Markdown, slides, react, and html that uses the theme font.">
+          <select className="preferences-select" id="reading-font" name="reading-font" aria-describedby="reading-font-hint"
+            value={readingFont} onChange={(event) => changeFont(event.currentTarget.value as ReadingFont)}>
+            {READING_FONT_VALUES.map((font) => <option key={font} value={font}>{READING_FONT_LABELS[font]}</option>)}
+          </select>
+        </ReadingSetting>
+        <ReadingSetting id="reading-size" label="Text size" hint="Markdown, react, and html that uses the theme size. Slides keep their size.">
+          <select className="preferences-select" id="reading-size" name="reading-size" aria-describedby="reading-size-hint"
+            value={readingSize} onChange={(event) => changeSize(Number(event.currentTarget.value))}>
+            {READING_SIZES.map((size) => (
+              <option key={size} value={size}>{size === DEFAULT_READING_SIZE ? `Default · ${size} px` : `${size} px`}</option>
+            ))}
+          </select>
+        </ReadingSetting>
+        <Text as="p" type="supporting">Saved in this browser.</Text>
+      </VStack>
+      <ReadingSpecimen font={readingFont} size={readingSize} />
+    </section>
   );
 }
 
@@ -201,43 +227,52 @@ function Snippet({ label, children }: { label: string; children: string }) {
 }
 
 function ConnectPanel({ origin }: { origin: string }) {
-  const [tab, setTab] = useState<ConnectionTab>('claude-ai');
+  const [method, setMethod] = useState<ConnectionMethod>('claude-ai');
   const url = `${origin}/mcp`;
   const oauthCommand = `claude mcp add --transport http artifacts ${url}`;
   const tokenCommand = `${oauthCommand} --header "Authorization: Bearer <YOUR_TOKEN>"`;
   const json = `{ "mcpServers": { "artifacts": { "type": "http", "url": "${url}", "headers": { "Authorization": "Bearer <YOUR_TOKEN>" } } } }`;
   return (
     <>
-      <TabList role="tablist" aria-label="Connection method" value={tab} onChange={(value) => setTab(value as ConnectionTab)} hasDivider>
-        <Tab value="claude-ai" label="Claude.ai & Desktop" panelId="settings-connect-panel-claude-ai" />
-        <Tab value="claude-code" label="Claude Code" panelId="settings-connect-panel-claude-code" />
-        <Tab value="token" label="API token" panelId="settings-connect-panel-token" />
-        <Tab value="json" label="JSON" panelId="settings-connect-panel-json" />
-      </TabList>
-      <div role="tabpanel" id="settings-connect-panel-claude-ai" hidden={tab !== 'claude-ai'}>
+      <label className="preferences-method">
+        <Text type="label">Connection method</Text>
+        <select className="preferences-select" value={method} onChange={(event) => setMethod(event.currentTarget.value as ConnectionMethod)}>
+          <option value="claude-ai">Claude.ai &amp; Desktop</option>
+          <option value="claude-code">Claude Code</option>
+          <option value="token">API token</option>
+          <option value="json">JSON</option>
+        </select>
+      </label>
+      <section hidden={method !== 'claude-ai'}>
         <VStack gap={3}>
+          <Text as="p">Add a custom connector using this address.</Text>
           <Snippet label="Connector URL">{url}</Snippet>
-          <Text as="p" color="secondary" type="supporting">Add it as a custom connector and sign in with Google when asked.</Text>
+          <Text as="p" type="supporting">Sign in with Google and review the access request.</Text>
         </VStack>
-      </div>
-      <div role="tabpanel" id="settings-connect-panel-claude-code" hidden={tab !== 'claude-code'}>
+      </section>
+      <section hidden={method !== 'claude-code'}>
         <VStack gap={3}>
+          <Text as="p">Run this command in a terminal.</Text>
           <Snippet label="Shell">{oauthCommand}</Snippet>
           <Text as="p" color="secondary" type="supporting">Run it, then type <code>/mcp</code> in Claude Code and choose artifacts to sign in.</Text>
         </VStack>
-      </div>
-      <div role="tabpanel" id="settings-connect-panel-token" hidden={tab !== 'token'}>
+      </section>
+      <section hidden={method !== 'token'}>
         <VStack gap={3}>
+          <Text as="p">Create a named token, then run this command in a terminal.</Text>
           <Snippet label="Shell">{tokenCommand}</Snippet>
           <Text as="p" color="secondary" type="supporting">Replace &lt;YOUR_TOKEN&gt; with a token from <Link href="#tokens">API tokens</Link>.</Text>
+          <HStack><Button label="Open API tokens" href="#tokens" /></HStack>
         </VStack>
-      </div>
-      <div role="tabpanel" id="settings-connect-panel-json" hidden={tab !== 'json'}>
+      </section>
+      <section hidden={method !== 'json'}>
         <VStack gap={3}>
+          <Text as="p">Add this entry to your MCP client configuration.</Text>
           <Snippet label="JSON">{json}</Snippet>
-          <Text as="p" color="secondary" type="supporting">Paste it into your MCP client configuration and replace &lt;YOUR_TOKEN&gt;.</Text>
+          <Text as="p" type="supporting">Replace &lt;YOUR_TOKEN&gt; with your own token before connecting.</Text>
+          <HStack><Button label="Open API tokens" href="#tokens" /></HStack>
         </VStack>
-      </div>
+      </section>
     </>
   );
 }
@@ -265,7 +300,12 @@ function AppsPanel({ initialApps }: { initialApps: SettingsItem[] }) {
     }
   };
 
-  if (apps.length === 0) return <Text as="p" color="secondary" type="supporting">No connected apps.</Text>;
+  if (apps.length === 0) return (
+    <VStack gap={3} hAlign="start">
+      <Text as="p" color="secondary" type="supporting">No connected apps.</Text>
+      <Button label="Connect an agent" href="#connect" />
+    </VStack>
+  );
   return (
     <List hasDividers edge="flush">
       {apps.map((app) => (
@@ -282,12 +322,13 @@ function AppsPanel({ initialApps }: { initialApps: SettingsItem[] }) {
   );
 }
 
-function TokensPanel({ initialTokens }: { initialTokens: SettingsItem[] }) {
+function TokensPanel({ initialTokens, active }: { initialTokens: SettingsItem[]; active: boolean }) {
   const [tokens, setTokens] = useState(initialTokens);
   const [name, setName] = useState('');
-  const [newToken, setNewToken] = useState<string | null>(null);
+  const [newToken, setNewToken] = useState<CreatedToken | null>(null);
   const [creating, setCreating] = useState(false);
   const [pending, setPending] = useState<string | null>(null);
+  const shownTokenId = useRef<string | null>(null);
   const newTokenRef = useRef<HTMLElement>(null);
   const tokenNameRef = useRef<HTMLElement>(null);
   const { clearError, showError, confirm } = useFeedback();
@@ -301,12 +342,19 @@ function TokensPanel({ initialTokens }: { initialTokens: SettingsItem[] }) {
   }, []);
 
   useEffect(() => {
-    if (newToken !== null) {
-      const field = newTokenRef.current?.querySelector<HTMLInputElement>('input');
-      field?.focus();
-      field?.select();
+    if (newToken === null) return;
+    if (!active) {
+      // A response can arrive after the user leaves. Retain it until it has been shown once.
+      if (shownTokenId.current === newToken.id) {
+        setNewToken((current) => current?.id === newToken.id ? null : current);
+      }
+      return;
     }
-  }, [newToken]);
+    shownTokenId.current = newToken.id;
+    const field = newTokenRef.current?.querySelector<HTMLInputElement>('input');
+    field?.focus();
+    field?.select();
+  }, [active, newToken]);
 
   const create = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -316,7 +364,7 @@ function TokensPanel({ initialTokens }: { initialTokens: SettingsItem[] }) {
     try {
       const created = await api<CreatedToken>('POST', '/api/tokens', { name });
       if (created === null) throw new Error('Token creation returned no token');
-      setNewToken(created.token);
+      setNewToken(created);
       setTokens((items) => [...items, { id: created.id, name: created.name, createdAt: created.createdAt }]);
       setName('');
     } catch (error) {
@@ -337,6 +385,7 @@ function TokensPanel({ initialTokens }: { initialTokens: SettingsItem[] }) {
     try {
       await api('DELETE', `/api/tokens/${token.id}`);
       setTokens((items) => items.filter((item) => item.id !== token.id));
+      setNewToken((current) => current?.id === token.id ? null : current);
     } catch (error) {
       showError(errorMessage(error));
     } finally {
@@ -346,23 +395,29 @@ function TokensPanel({ initialTokens }: { initialTokens: SettingsItem[] }) {
 
   return (
     <>
-      <form className="settings-token-form" method="post" data-form="token" onSubmit={create}>
+      <form className="settings-token-form" method="post" aria-labelledby="settings-tokens-heading" data-form="token" onSubmit={create}>
         <StackItem size="fill" ref={tokenNameRef}>
-          <TextInput label="Token name" htmlName="name" isRequired autoComplete="off" value={name} onChange={setName} />
+          <TextInput label="Token name" htmlName="name" isRequired autoComplete="off" placeholder="e.g. Field notebook" value={name} onChange={setName} />
         </StackItem>
         <Button label="Create token" type="submit" variant="primary" isLoading={creating} />
       </form>
-      <div id="new-token" className="settings-new-token" hidden={newToken === null}>
-        <Banner status="success" title="New token" description="Copy it now: you will not see it again." collapsible={false}>
-          <HStack gap={2} vAlign="center" className="settings-secret-row" ref={newTokenRef}>
-            <StackItem size="fill">
-              <TextInput label="New token" isLabelHidden isReadOnly value={newToken ?? ''} width="100%" controlClassName="settings-secret-input" />
-            </StackItem>
-            <CopyButton text={newToken ?? ''} />
-          </HStack>
-        </Banner>
-      </div>
-      {tokens.length > 0 && (
+      {active && newToken !== null && (
+        <section id="new-token">
+          <Banner status="success" title="New token" description="Copy it now: you will not see it again." collapsible={false}>
+            <HStack gap={2} wrap="wrap" vAlign="center" className="settings-secret-row" ref={newTokenRef}>
+              <StackItem size="fill">
+                <TextInput label="New token" isLabelHidden isReadOnly autoComplete="off" value={newToken.token} width="100%" controlClassName="settings-secret-input" />
+              </StackItem>
+              <CopyButton text={newToken.token} />
+              <Button label="Done" type="button" onClick={() => {
+                setNewToken(null);
+                tokenNameRef.current?.querySelector('input')?.focus();
+              }} />
+            </HStack>
+          </Banner>
+        </section>
+      )}
+      {tokens.length > 0 ? (
         <List hasDividers edge="flush">
           {tokens.map((token) => (
             <ListItem
@@ -374,8 +429,7 @@ function TokensPanel({ initialTokens }: { initialTokens: SettingsItem[] }) {
             />
           ))}
         </List>
-      )}
-      <div hidden={tokens.length > 0}><Text as="p" color="secondary" type="supporting">No tokens yet.</Text></div>
+      ) : <Text as="p" type="supporting">No tokens yet.</Text>}
     </>
   );
 }
@@ -407,39 +461,56 @@ export function Settings({ tokens, apps, origin }: SettingsProps) {
 
   const headingRef = (id: SettingsSection) => (node: HTMLHeadingElement | null) => { headings.current[id] = node; };
   return (
-    <div className="settings-frame">
-      <div className="settings-head"><Heading level={1}>Settings</Heading></div>
-      <nav className="settings-nav" aria-label="Settings sections">
-        {SETTINGS_NAV.map((group) => (
-          <div key={group.group} className="settings-nav-section">
-            <div className="settings-nav-group"><Text type="supporting" color="secondary">{group.group}</Text></div>
-            <List edge="outset">
+    <section className="preferences-page" aria-labelledby="preferences-heading">
+      <header className="preferences-heading">
+        <Text type="code" color="secondary" className="preferences-kicker">Personal workspace</Text>
+        <Heading level={1} id="preferences-heading" className="preferences-display">Settings</Heading>
+      </header>
+      <section className="preferences-layout" aria-label="Workspace settings">
+        <nav className="preferences-nav" aria-label="Settings sections">
+          {SETTINGS_NAV.map((group) => (
+            <VStack gap={1} key={group.group}>
+              <Text type="code" color="secondary" className="preferences-serial">{group.group}</Text>
               {group.items.map((item) => (
-                <ListItem
+                <Link
+                  className="preferences-nav-link"
                   key={item.id}
-                  label={item.label}
                   href={`#${item.id}`}
-                  isSelected={section === item.id}
-                />
+                  aria-current={section === item.id ? 'page' : undefined}
+                  color={section === item.id ? 'accent' : 'primary'}
+                  weight={section === item.id ? 'semibold' : 'normal'}
+                >
+                  {item.label}
+                </Link>
               ))}
-            </List>
-          </div>
-        ))}
-      </nav>
-      <div className="settings-content">
-        <SettingsPanel id="general" title="Appearance" intro="Saved in this browser." active={section === 'general'} headingRef={headingRef('general')}>
-          <GeneralPanel />
-        </SettingsPanel>
-        <SettingsPanel id="connect" title="Connect an agent" intro="Agents reach Artifacts over MCP. Sign in with Google, or send an API token in the Authorization header." active={section === 'connect'} headingRef={headingRef('connect')}>
-          <ConnectPanel origin={origin} />
-        </SettingsPanel>
-        <SettingsPanel id="apps" title="Connected apps" intro="Apps you allowed to use your artifacts by signing in over MCP. Revoking stops them." active={section === 'apps'} headingRef={headingRef('apps')}>
-          <AppsPanel initialApps={apps} />
-        </SettingsPanel>
-        <SettingsPanel id="tokens" title="API tokens" intro="Tokens let agents call the MCP server and REST API as you." active={section === 'tokens'} headingRef={headingRef('tokens')}>
-          <TokensPanel initialTokens={tokens} />
-        </SettingsPanel>
-      </div>
-    </div>
+            </VStack>
+          ))}
+        </nav>
+        <section className="preferences-content">
+          <label className="preferences-mobile-nav">
+            <Text type="label">Settings section</Text>
+            <select className="preferences-select" value={section} onChange={(event) => { location.hash = event.currentTarget.value; }}>
+              {SETTINGS_NAV.map((group) => (
+                <optgroup key={group.group} label={group.group}>
+                  {group.items.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
+                </optgroup>
+              ))}
+            </select>
+          </label>
+          <SettingsPanel id="general" title="Appearance" intro="Choose how Artifacts looks and how its documents read." active={section === 'general'} headingRef={headingRef('general')}>
+            <GeneralPanel />
+          </SettingsPanel>
+          <SettingsPanel id="connect" title="Connect an agent" intro="Give your client the Artifacts MCP address. Choose the instructions for your client." active={section === 'connect'} headingRef={headingRef('connect')}>
+            <ConnectPanel origin={origin} />
+          </SettingsPanel>
+          <SettingsPanel id="apps" title="Connected apps" intro="Apps you have authorized can use your artifacts until you revoke access." active={section === 'apps'} headingRef={headingRef('apps')}>
+            <AppsPanel initialApps={apps} />
+          </SettingsPanel>
+          <SettingsPanel id="tokens" title="API tokens" intro="Use a separate token for each client so you can remove its access to the MCP server and REST API later." active={section === 'tokens'} headingRef={headingRef('tokens')}>
+            <TokensPanel initialTokens={tokens} active={section === 'tokens'} />
+          </SettingsPanel>
+        </section>
+      </section>
+    </section>
   );
 }

@@ -58,6 +58,9 @@ export interface ArtifactSummary {
   shared: boolean;
 }
 
+export const LIBRARY_TITLE_BATCH_SIZE = 24;
+export type LibraryTitleBatch = Array<Pick<ArtifactSummary, 'id' | 'title'>>;
+
 export interface ArtifactView extends ArtifactMeta {
   url: string;
   renderUrl: string;

@@ -1,0 +1,185 @@
+@layer app {
+  .library-mast {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: end;
+    justify-content: space-between;
+    gap: var(--spacing-4) var(--spacing-6);
+  }
+
+  .library-title {
+    font-family: var(--workspace-display-font);
+    font-size: clamp(var(--font-size-4xl), 4vw, var(--font-size-5xl));
+    font-weight: var(--font-weight-medium);
+    line-height: 1.08;
+    letter-spacing: -0.04em;
+  }
+
+  .library-serial {
+    font-size: var(--font-size-xs);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  .library-kicker {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-2);
+  }
+
+  .library-kicker::before {
+    content: '';
+    inline-size: var(--spacing-5);
+    border-block-start: medium solid var(--color-accent);
+  }
+
+  .library-search {
+    inline-size: min(100%, 18rem);
+  }
+
+  .library-work,
+  .library-results {
+    min-inline-size: 0;
+  }
+
+  .library-work[data-desktop] {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+    gap: var(--spacing-8);
+  }
+
+  .library-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-1);
+    padding-block-end: var(--spacing-3);
+    border-block-end: thin solid var(--color-border);
+  }
+
+  .library-results .astryx-list-item:is([aria-current='true'], :has([aria-current='true'])) {
+    box-shadow: inset var(--spacing-1) 0 var(--color-accent);
+    background: color-mix(in srgb, var(--color-accent) 9%, transparent);
+  }
+
+  .library-row-select {
+    display: block;
+    inline-size: 100%;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: inherit;
+    text-align: start;
+    cursor: pointer;
+  }
+
+  .library-row-select:focus-visible {
+    outline: medium solid var(--color-accent);
+    outline-offset: var(--spacing-1);
+  }
+
+  .library-search-error {
+    padding-block: var(--spacing-3);
+  }
+
+  .library-row-kind {
+    text-transform: uppercase;
+    color: inherit;
+  }
+
+  .library-row-flags {
+    max-inline-size: 13ch;
+    text-align: end;
+  }
+
+  .library-footer,
+  .library-quick-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--spacing-2) var(--spacing-4);
+  }
+
+  .library-footer {
+    padding-block-start: var(--spacing-3);
+  }
+
+  .library-quick {
+    --library-sticky-top: calc(var(--library-header-height, var(--workspace-bar-height)) + var(--spacing-4));
+    position: sticky;
+    inset-block-start: var(--library-sticky-top);
+    max-block-size: calc(100vh - var(--library-sticky-top) - var(--spacing-4));
+    max-block-size: calc(100dvh - var(--library-sticky-top) - var(--spacing-4));
+    min-inline-size: 0;
+    border: thin solid var(--color-border);
+    border-radius: var(--radius-container);
+    overflow: auto;
+    background: var(--color-background-surface);
+  }
+
+  .library-quick:focus-visible {
+    outline: medium solid var(--color-accent);
+    outline-offset: var(--spacing-1);
+  }
+
+  @media (height < 24rem) {
+    .library-quick {
+      position: static;
+      max-block-size: none;
+    }
+  }
+
+  .library-quick-header {
+    padding: var(--spacing-3) var(--spacing-4);
+    border-block-end: thin solid var(--color-border);
+  }
+
+  .library-preview-media {
+    block-size: clamp(11rem, 20vw, 16rem);
+    margin: 0;
+    border-block-start: thin solid var(--color-border);
+    background: var(--color-background-body);
+  }
+
+  .library-preview-frame {
+    display: block;
+    inline-size: 100%;
+    block-size: 100%;
+    border: 0;
+    pointer-events: none;
+  }
+
+  .library-caption-title {
+    font-family: var(--workspace-display-font);
+    overflow-wrap: anywhere;
+    font-size: var(--font-size-3xl);
+    font-weight: var(--font-weight-medium);
+    line-height: 1.14;
+    letter-spacing: -0.035em;
+  }
+
+  .library-facts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-2) var(--spacing-5);
+    inline-size: 100%;
+    padding-block: var(--spacing-3);
+    border-block: thin solid var(--color-border);
+    font-size: var(--text-supporting-size);
+  }
+
+  .library-facts dt {
+    color: var(--color-text-secondary);
+  }
+
+  @media (width < 48rem), (height <= 30rem) and (pointer: coarse) {
+    .library-search {
+      inline-size: 100%;
+    }
+
+    .library-filters .astryx-button {
+      min-block-size: 2.75rem;
+    }
+  }
+}
