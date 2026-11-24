@@ -1,9 +1,9 @@
 import { Avatar } from '@astryxdesign/core/Avatar';
 import { Banner } from '@astryxdesign/core/Banner';
 import { Button } from '@astryxdesign/core/Button';
-import { Card } from '@astryxdesign/core/Card';
-import { VStack } from '@astryxdesign/core/Layout';
+import { HStack, VStack } from '@astryxdesign/core/Layout';
 import { Heading, Text } from '@astryxdesign/core/Text';
+import { Logo } from '../icons';
 
 export interface ConsentProps {
   clientName: string;
@@ -15,30 +15,45 @@ export interface ConsentProps {
 
 export function Consent({ clientName, redirectHost, redirectIsLoopback, email, handle }: ConsentProps) {
   return (
-    <Card padding={8}>
-      <form className="auth-form" method="post" action="/authorize">
-        <VStack gap={4} hAlign="stretch">
-          <VStack gap={3} hAlign="center">
-            <Avatar name={clientName} size="lg" tooltip={false} />
-            <Heading level={1} justify="center">{clientName} wants to access your Artifacts</Heading>
-            <Text color="secondary" justify="center">This app registered itself, so its name is not verified.</Text>
-          </VStack>
-          {redirectIsLoopback && <Banner status="warning" title="This sends access to an app on your computer." description="Continue only if you just started signing in from it." />}
-          <dl>
-            <dt>Sends access to</dt>
-            <dd><strong>{redirectHost}</strong></dd>
+    <section className="preferences-access" aria-labelledby="consent-heading">
+      <form className="auth-form" method="post" action="/authorize" aria-labelledby="consent-heading">
+        <VStack gap={4}>
+          <header className="preferences-heading">
+            <HStack gap={2} vAlign="center" className="preferences-handoff" aria-hidden="true">
+              <Avatar name={clientName} size="lg" tooltip={false} />
+              <Logo size={40} />
+            </HStack>
+            <Text type="code" color="secondary" className="preferences-kicker">App access request</Text>
+            <Heading level={1} id="consent-heading" className="preferences-display">Connect <bdi>{clientName}</bdi>?</Heading>
+            <Text as="p" color="secondary"><bdi>{clientName}</bdi> wants to access your Artifacts workspace.</Text>
+          </header>
+          <dl className="preferences-access-facts">
             <dt>Signed in as</dt>
             <dd>{email}</dd>
-            <dt>Can</dt>
-            <dd>List, read, create, change, share and delete your artifacts until you revoke it in Settings.</dd>
+            <dt>Sends access to</dt>
+            <dd><strong>{redirectHost}</strong></dd>
           </dl>
+          <dl className="preferences-access-capabilities">
+            <dt>What this app can do</dt>
+            <dd>
+              This app can use MCP to list, read, create, and edit your artifacts, including reading older versions. It can change
+              when artifacts expire, manage public and restricted share links, and permanently delete artifacts. You can revoke
+              this access in Settings.
+            </dd>
+          </dl>
+          <Banner
+            status="warning"
+            title="Unverified app name"
+            description="This app registered itself, so its name is not verified. Continue only if you started this connection and recognize the destination."
+          />
+          {redirectIsLoopback && <Banner status="warning" title="This sends access to an app on your computer." description="Continue only if you just started signing in from it." />}
           <input type="hidden" name="handle" value={handle} />
-          <VStack gap={3}>
-            <Button label="Allow" type="submit" name="decision" value="approve" variant="primary" size="lg" />
-            <Button label="Deny" type="submit" name="decision" value="deny" size="lg" />
-          </VStack>
+          <HStack gap={2} wrap="wrap">
+            <Button label="Allow access" type="submit" name="decision" value="approve" variant="primary" />
+            <Button label="Deny" type="submit" name="decision" value="deny" />
+          </HStack>
         </VStack>
       </form>
-    </Card>
+    </section>
   );
 }
